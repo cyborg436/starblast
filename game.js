@@ -28,7 +28,7 @@ const CFG = {
   INVINCIBILITY: 2.2,         // secondes d'invincibilité après un impact
 
   // Clé Stripe (remplacez par votre clé publiable)
-  STRIPE_KEY: 'pk_test_VOTRE_CLE_STRIPE_ICI',
+  STRIPE_KEY: 'https://buy.stripe.com/test_14A00j5WG8qE1wMaLOdQQ00',
 };
 
 // ============================================================
