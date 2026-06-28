@@ -33,6 +33,28 @@ const CFG = {
 };
 
 // ============================================================
+// SECTION 0b — DONNÉES DE LA BOUTIQUE
+// ============================================================
+const SKIN_DATA = [
+  { id: 'starter', name: 'Starter', price: 0    },
+  { id: 'stealth', name: 'Stealth', price: 150  },
+  { id: 'brute',   name: 'Brute',   price: 300  },
+  { id: 'viper',   name: 'Viper',   price: 500  },
+  { id: 'phoenix', name: 'Phoenix', price: 800  },
+  { id: 'shadow',  name: 'Shadow',  price: 1200 },
+  { id: 'titan',   name: 'Titan',   price: 2000 },
+];
+
+const COLOR_DATA = [
+  { id: 'white',   name: 'Laser Blanc',   price: 0,   color: '#ffffff' },
+  { id: 'blue',    name: 'Laser Bleu',    price: 100, color: '#00BFFF' },
+  { id: 'green',   name: 'Laser Vert',    price: 100, color: '#39FF14' },
+  { id: 'red',     name: 'Laser Rouge',   price: 200, color: '#FF3131' },
+  { id: 'purple',  name: 'Laser Violet',  price: 300, color: '#BF00FF' },
+  { id: 'rainbow', name: 'Arc-en-ciel',   price: 500, color: 'rainbow' },
+];
+
+// ============================================================
 // SECTION 1 — GESTIONNAIRE AUDIO (Web Audio API)
 // ============================================================
 class AudioManager {
@@ -227,6 +249,148 @@ function spawnExplosion(pool, x, y, color, count, big = false) {
 }
 
 // ============================================================
+// SECTION 4b — RENDERERS DE SKINS (joueur)
+// Chaque fonction dessine le corps du vaisseau centré sur (0,0).
+// Utilisée à la fois en jeu et dans les aperçus de la boutique.
+// ============================================================
+const SKIN_RENDERERS = {
+
+  // ── 1. Starter : design cyan original ──
+  starter(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.5,h*.22); ctx.lineTo(w*.3,h*.5);
+    ctx.lineTo(-w*.3,h*.5); ctx.lineTo(-w*.5,h*.22); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#00e5ff'); g.addColorStop(.5,'#006688'); g.addColorStop(1,'#002233');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = '#00e5ff'; ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 10; ctx.stroke(); ctx.shadowBlur = 0;
+    [1,-1].forEach(s => {
+      ctx.beginPath();
+      ctx.moveTo(s*w*.5,h*.22); ctx.lineTo(s*w*.78,h*.5); ctx.lineTo(s*w*.3,h*.5); ctx.closePath();
+      ctx.fillStyle = '#004455'; ctx.fill();
+    });
+    ctx.beginPath(); ctx.ellipse(0,-h*.1,w*.15,h*.18,0,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(150,255,255,.38)'; ctx.fill();
+  },
+
+  // ── 2. Stealth : fin, noir, contours cyan ──
+  stealth(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.22,h*.1); ctx.lineTo(w*.42,h*.5);
+    ctx.lineTo(-w*.42,h*.5); ctx.lineTo(-w*.22,h*.1); ctx.closePath();
+    ctx.fillStyle = '#050510'; ctx.fill();
+    ctx.strokeStyle = '#00e5ff'; ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 12; ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.moveTo(0,-h*.4); ctx.lineTo(0,h*.4);
+    ctx.strokeStyle = 'rgba(0,229,255,.32)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-w*.2,h*.15); ctx.lineTo(-w*.38,h*.38);
+    ctx.moveTo( w*.2,h*.15); ctx.lineTo( w*.38,h*.38);
+    ctx.strokeStyle = 'rgba(0,229,255,.22)'; ctx.lineWidth = 1; ctx.stroke();
+  },
+
+  // ── 3. Brute : trapu, métal gris, rivets ──
+  brute(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.38); ctx.lineTo(w*.58,-h*.08); ctx.lineTo(w*.52,h*.5);
+    ctx.lineTo(-w*.52,h*.5); ctx.lineTo(-w*.58,-h*.08); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.38,0,h*.5);
+    g.addColorStop(0,'#aaaaaa'); g.addColorStop(1,'#444444');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = '#cccccc'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.rect(-w*.34,-h*.04,w*.68,h*.35);
+    ctx.strokeStyle = 'rgba(255,255,255,.13)'; ctx.lineWidth = 1; ctx.stroke();
+    [[-w*.28,-h*.1],[w*.28,-h*.1],[-w*.28,h*.2],[w*.28,h*.2],[0,h*.08]].forEach(([rx,ry]) => {
+      ctx.beginPath(); ctx.arc(rx,ry,2.2,0,Math.PI*2);
+      ctx.fillStyle = '#e0e0e0'; ctx.fill();
+    });
+    ctx.beginPath(); ctx.rect(-w*.08,-h*.3,w*.16,h*.16);
+    ctx.fillStyle = 'rgba(100,200,255,.28)'; ctx.fill();
+  },
+
+  // ── 4. Viper : en V inversé, vert néon ──
+  viper(ctx, w, h) {
+    [[-1],[1]].forEach(([s]) => {
+      ctx.beginPath();
+      ctx.moveTo(0,-h*.18); ctx.lineTo(s*w*.5,h*.5);
+      ctx.lineTo(s*w*.18,h*.15); ctx.lineTo(0,h*.38); ctx.closePath();
+      ctx.fillStyle = 'rgba(0,18,0,.9)'; ctx.fill();
+      ctx.strokeStyle = '#39FF14'; ctx.lineWidth = 1.8;
+      ctx.shadowColor = '#39FF14'; ctx.shadowBlur = 12; ctx.stroke(); ctx.shadowBlur = 0;
+    });
+    ctx.beginPath(); ctx.arc(0,-h*.08,w*.1,0,Math.PI*2);
+    ctx.fillStyle = '#39FF14'; ctx.shadowColor = '#39FF14';
+    ctx.shadowBlur = 14; ctx.fill(); ctx.shadowBlur = 0;
+  },
+
+  // ── 5. Phoenix : ailes arrondies orange/rouge ──
+  phoenix(ctx, w, h) {
+    [[-1],[1]].forEach(([s]) => {
+      ctx.beginPath();
+      ctx.moveTo(s*w*.18,h*.1);
+      ctx.quadraticCurveTo(s*w*.72,-h*.2, s*w*.48,h*.5);
+      ctx.lineTo(s*w*.14,h*.5); ctx.closePath();
+      ctx.fillStyle = 'rgba(200,60,0,.65)'; ctx.fill();
+      ctx.strokeStyle = '#ff6600'; ctx.lineWidth = 1; ctx.stroke();
+    });
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.2,h*.08); ctx.lineTo(w*.14,h*.5);
+    ctx.lineTo(-w*.14,h*.5); ctx.lineTo(-w*.2,h*.08); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#ffaa44'); g.addColorStop(1,'#cc2200');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = '#ff8800'; ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 10; ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.ellipse(0,-h*.1,w*.1,h*.14,0,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(255,200,100,.5)'; ctx.fill();
+  },
+
+  // ── 6. Shadow : asymétrique, violet sombre ──
+  shadow(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(w*.12,-h*.5);
+    ctx.lineTo(w*.52,h*.02); ctx.lineTo(w*.38,h*.5);
+    ctx.lineTo(-w*.22,h*.5); ctx.lineTo(-w*.58,h*.18); ctx.lineTo(-w*.12,-h*.18);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(-w*.5,0,w*.5,0);
+    g.addColorStop(0,'#2a0044'); g.addColorStop(1,'#6600aa');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = '#aa44ff'; ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#aa44ff'; ctx.shadowBlur = 12; ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.moveTo(w*.1,-h*.4); ctx.lineTo(-w*.08,h*.35);
+    ctx.strokeStyle = 'rgba(200,100,255,.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(-w*.34,h*.22,w*.1,h*.08,.4,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(150,50,220,.55)'; ctx.fill();
+  },
+
+  // ── 7. Titan : imposant, doré, détails complexes ──
+  titan(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.38,-h*.1); ctx.lineTo(w*.52,h*.32);
+    ctx.lineTo(w*.22,h*.5); ctx.lineTo(-w*.22,h*.5);
+    ctx.lineTo(-w*.52,h*.32); ctx.lineTo(-w*.38,-h*.1); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#ffe566'); g.addColorStop(.5,'#cc8800'); g.addColorStop(1,'#885500');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 2;
+    ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 14; ctx.stroke(); ctx.shadowBlur = 0;
+    [1,-1].forEach(s => {
+      ctx.beginPath();
+      ctx.moveTo(s*w*.38,-h*.1); ctx.lineTo(s*w*.68,h*.08);
+      ctx.lineTo(s*w*.56,h*.42); ctx.lineTo(s*w*.52,h*.32); ctx.closePath();
+      ctx.fillStyle = '#996600'; ctx.fill();
+      ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 1; ctx.stroke();
+    });
+    ctx.beginPath(); ctx.arc(0,-h*.08,w*.13,0,Math.PI*2);
+    ctx.fillStyle = '#FFD700'; ctx.shadowColor = '#FFD700';
+    ctx.shadowBlur = 18; ctx.fill(); ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.rect(-w*.3,h*.1,w*.6,h*.08);
+    ctx.fillStyle = 'rgba(255,215,0,.28)'; ctx.fill();
+  },
+};
+
+// ============================================================
 // SECTION 5 — VAISSEAU JOUEUR
 // ============================================================
 class Player {
@@ -242,6 +406,10 @@ class Player {
     this.doubleShot  = false;
     this.bombs       = 0;
     this.puTimers    = { shield: 0, doubleShot: 0 };
+
+    // Cosmétiques (définis par le jeu avant chaque partie)
+    this.skin        = 'starter';
+    this.bulletColor = '#ffffff';
 
     // Tir
     this.fireCooldown = 0;
@@ -351,13 +519,14 @@ class Player {
   fire(bullets, audio) {
     if (this.fireCooldown > 0) return;
     this.fireCooldown = CFG.PLAYER_FIRE_RATE;
+    const c = this.bulletColor;
 
     if (this.doubleShot) {
-      bullets.push(new Bullet(this.x - 12, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, '#00e5ff', true));
-      bullets.push(new Bullet(this.x + 12, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, '#00e5ff', true));
+      bullets.push(new Bullet(this.x - 12, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true));
+      bullets.push(new Bullet(this.x + 12, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true));
       audio.shootDouble();
     } else {
-      bullets.push(new Bullet(this.x, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, '#00e5ff', true));
+      bullets.push(new Bullet(this.x, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true));
       audio.shoot();
     }
   }
@@ -371,56 +540,11 @@ class Player {
     ctx.save();
     ctx.translate(this.x, this.y);
 
-    // Corps principal
-    ctx.beginPath();
-    ctx.moveTo(0, -this.h * 0.5);          // Proue
-    ctx.lineTo(this.w * 0.5, this.h * 0.22);
-    ctx.lineTo(this.w * 0.3,  this.h * 0.5);
-    ctx.lineTo(-this.w * 0.3, this.h * 0.5);
-    ctx.lineTo(-this.w * 0.5, this.h * 0.22);
-    ctx.closePath();
+    // Corps selon le skin équipé
+    const renderer = SKIN_RENDERERS[this.skin] || SKIN_RENDERERS.starter;
+    renderer(ctx, this.w, this.h);
 
-    const g = ctx.createLinearGradient(0, -this.h * 0.5, 0, this.h * 0.5);
-    g.addColorStop(0,   '#00e5ff');
-    g.addColorStop(0.5, '#006688');
-    g.addColorStop(1,   '#002233');
-    ctx.fillStyle = g;
-    ctx.fill();
-
-    ctx.strokeStyle = '#00e5ff';
-    ctx.lineWidth   = 1.5;
-    ctx.shadowColor = '#00e5ff';
-    ctx.shadowBlur  = 12;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // Ailettes
-    ctx.beginPath();
-    ctx.moveTo(this.w * 0.5, this.h * 0.22);
-    ctx.lineTo(this.w * 0.78, this.h * 0.5);
-    ctx.lineTo(this.w * 0.3,  this.h * 0.5);
-    ctx.closePath();
-    ctx.fillStyle = '#004455';
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(-this.w * 0.5, this.h * 0.22);
-    ctx.lineTo(-this.w * 0.78, this.h * 0.5);
-    ctx.lineTo(-this.w * 0.3,  this.h * 0.5);
-    ctx.closePath();
-    ctx.fillStyle = '#004455';
-    ctx.fill();
-
-    // Cockpit
-    ctx.beginPath();
-    ctx.ellipse(0, -this.h * 0.1, this.w * 0.15, this.h * 0.18, 0, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(150,255,255,0.38)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,229,255,0.55)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Bouclier actif
+    // Bouclier actif (commun à tous les skins)
     if (this.shield) {
       const t = Date.now() * 0.005;
       ctx.beginPath();
@@ -462,16 +586,14 @@ class Bullet {
   draw(ctx) {
     ctx.save();
     if (this.fromPlayer) {
-      // Laser cyan dégradé
-      const g = ctx.createLinearGradient(this.x, this.y - this.h/2, this.x, this.y + this.h/2);
-      g.addColorStop(0,   'rgba(0,229,255,0)');
-      g.addColorStop(0.3, 'rgba(0,229,255,1)');
-      g.addColorStop(0.7, 'rgba(255,255,255,1)');
-      g.addColorStop(1,   'rgba(0,229,255,0)');
-      ctx.shadowColor = '#00e5ff';
+      // Laser coloré : corps + noyau blanc
+      ctx.shadowColor = this.color;
       ctx.shadowBlur  = 10;
-      ctx.fillStyle   = g;
+      ctx.fillStyle   = this.color;
       ctx.fillRect(this.x - this.w/2, this.y - this.h/2, this.w, this.h);
+      ctx.shadowBlur  = 0;
+      ctx.fillStyle   = 'rgba(255,255,255,0.65)';
+      ctx.fillRect(this.x - 1, this.y - this.h/2, 2, this.h);
     } else {
       // Projectile ennemi : orbe rouge pulsant
       const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.w);
@@ -983,14 +1105,14 @@ class UIManager {
 
   // ── Écrans ───────────────────────────────────────────────
   showScreen(name) {
-    ['start','gameover','pause'].forEach(id => {
+    ['start','gameover','pause','shop'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.toggle('active', id === name);
     });
   }
 
   hideScreens() {
-    ['start','gameover','pause'].forEach(id => {
+    ['start','gameover','pause','shop'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.remove('active');
     });
@@ -1081,6 +1203,179 @@ class UIManager {
 }
 
 // ============================================================
+// SECTION 11b — GESTIONNAIRE DE LA BOUTIQUE
+// ============================================================
+class ShopManager {
+  constructor() {
+    // Chargement de l'état depuis localStorage
+    const raw = JSON.parse(localStorage.getItem('starblast_shop') || '{"owned":[]}');
+    this.owned = new Set(['starter', 'white', ...(raw.owned || [])]);
+
+    const eq = JSON.parse(localStorage.getItem('starblast_equipped') || '{}');
+    this.equippedSkin  = this.owned.has(eq.skin)  ? eq.skin  : 'starter';
+    this.equippedColor = this.owned.has(eq.color) ? eq.color : 'white';
+
+    this._tab   = 'skins';  // onglet actif
+    this._coins = 0;        // snapshot pour re-render sans argument
+  }
+
+  // ── Couleur de balle courante (gère le rainbow) ──────────
+  getBulletColor() {
+    if (this.equippedColor === 'rainbow') {
+      const step = Math.floor(Date.now() / 500) % 6;
+      return `hsl(${step * 60}, 100%, 62%)`;
+    }
+    return COLOR_DATA.find(c => c.id === this.equippedColor)?.color ?? '#ffffff';
+  }
+
+  // ── Achat (appelé par Game après déduction des pièces) ───
+  buy(id) {
+    this.owned.add(id);
+    this._persistOwned();
+  }
+
+  // ── Équiper ──────────────────────────────────────────────
+  equip(id) {
+    if (SKIN_DATA.some(s => s.id === id))   this.equippedSkin  = id;
+    if (COLOR_DATA.some(c => c.id === id))  this.equippedColor = id;
+    this._persistEquipped();
+    this.refresh(this._coins);  // re-render avec snapshot
+  }
+
+  // ── Persistance ──────────────────────────────────────────
+  _persistOwned() {
+    const extras = [...this.owned].filter(id => id !== 'starter' && id !== 'white');
+    localStorage.setItem('starblast_shop', JSON.stringify({ owned: extras }));
+    this._persistEquipped();
+  }
+
+  _persistEquipped() {
+    localStorage.setItem('starblast_equipped', JSON.stringify({
+      skin: this.equippedSkin, color: this.equippedColor,
+    }));
+  }
+
+  // ── Rafraîchit le solde affiché ──────────────────────────
+  _updateBalance(coins) {
+    const el = document.getElementById('shop-coins-val');
+    if (el) el.textContent = coins.toLocaleString('fr-FR');
+  }
+
+  // ── Reconstruit la grille complète ───────────────────────
+  refresh(coins) {
+    this._coins = coins;
+    this._updateBalance(coins);
+    this._renderGrid(coins);
+    document.querySelectorAll('.shop-tab').forEach(btn =>
+      btn.classList.toggle('active', btn.dataset.tab === this._tab)
+    );
+  }
+
+  _renderGrid(coins) {
+    const grid = document.getElementById('shop-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const items = this._tab === 'skins' ? SKIN_DATA : COLOR_DATA;
+    items.forEach(item => this._renderCard(grid, item, coins));
+  }
+
+  _renderCard(grid, item, coins) {
+    const owned    = this.owned.has(item.id);
+    const equipped = this.equippedSkin === item.id || this.equippedColor === item.id;
+    const isSkin   = SKIN_DATA.some(s => s.id === item.id);
+    const canBuy   = coins >= item.price;
+
+    // Classe d'état de la carte
+    const stateClass = equipped ? 'equipped' : owned ? 'owned' : 'locked';
+    const card = document.createElement('div');
+    card.className = `shop-card ${stateClass}`;
+
+    // Canvas aperçu
+    const cv = document.createElement('canvas');
+    cv.className = 'card-preview';
+    cv.width  = 64;
+    cv.height = isSkin ? 76 : 36;
+    this._drawPreview(cv, item, isSkin);
+    card.appendChild(cv);
+
+    // Nom
+    const nameEl = document.createElement('div');
+    nameEl.className   = 'card-name';
+    nameEl.textContent = item.name;
+    card.appendChild(nameEl);
+
+    // Prix
+    const priceEl = document.createElement('div');
+    priceEl.className = 'card-price';
+    if (item.price === 0) {
+      priceEl.innerHTML = '<span class="card-free">GRATUIT</span>';
+    } else {
+      priceEl.innerHTML = `<span class="coin-star">★</span> ${item.price.toLocaleString('fr-FR')}`;
+    }
+    card.appendChild(priceEl);
+
+    // Bouton action
+    const btn = document.createElement('button');
+    if (equipped) {
+      btn.className   = 'card-btn card-btn-equipped';
+      btn.textContent = '✓ ÉQUIPÉ';
+      btn.disabled    = true;
+    } else if (owned) {
+      btn.className   = 'card-btn card-btn-equip';
+      btn.textContent = 'ÉQUIPER';
+      btn.addEventListener('click', () => this.equip(item.id));
+    } else if (canBuy) {
+      btn.className   = 'card-btn card-btn-buy';
+      btn.textContent = 'ACHETER';
+      btn.addEventListener('click', () =>
+        document.dispatchEvent(new CustomEvent('starblast-shop-buy', { detail: { id: item.id, price: item.price } }))
+      );
+    } else {
+      btn.className   = 'card-btn card-btn-nocoins';
+      btn.textContent = 'Pièces insuf.';
+      btn.disabled    = true;
+    }
+    card.appendChild(btn);
+    grid.appendChild(card);
+  }
+
+  // Dessine l'aperçu dans un mini-canvas
+  _drawPreview(canvas, item, isSkin) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (isSkin) {
+      const renderer = SKIN_RENDERERS[item.id];
+      if (!renderer) return;
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      renderer(ctx, 46, 58);
+      ctx.restore();
+    } else {
+      // Aperçu laser : barre colorée avec noyau blanc
+      const cx    = canvas.width / 2;
+      const color = item.id === 'rainbow' ? 'hsl(200,100%,62%)' : item.color;
+      ctx.save();
+      ctx.shadowColor = color;
+      ctx.shadowBlur  = 8;
+      ctx.fillStyle   = color;
+      ctx.fillRect(cx - 3, 4, 6, canvas.height - 8);
+      ctx.shadowBlur  = 0;
+      ctx.fillStyle   = 'rgba(255,255,255,0.7)';
+      ctx.fillRect(cx - 1, 4, 2, canvas.height - 8);
+      // Label "x6" pour rainbow
+      if (item.id === 'rainbow') {
+        ctx.font = 'bold 8px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#FFD700';
+        ctx.fillText('×6', cx, canvas.height - 3);
+      }
+      ctx.restore();
+    }
+  }
+}
+
+// ============================================================
 // SECTION 12 — MOTEUR DE JEU PRINCIPAL
 // ============================================================
 class Game {
@@ -1096,6 +1391,7 @@ class Game {
     this.input = new InputManager();
     this.stars = new StarField(this.W, this.H);
     this.wave  = new WaveManager();
+    this.shop  = new ShopManager();
 
     this.player       = null;
     this.enemies      = [];
@@ -1156,10 +1452,37 @@ class Game {
   _bindUI() {
     const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
 
-    on('btn-start',  'click', () => this._startGame());
-    on('btn-replay', 'click', () => this._startGame());
-    on('btn-resume', 'click', () => this._togglePause());
-    on('btn-quit',   'click', () => { this.state = 'start'; this.ui.showScreen('start'); });
+    on('btn-start',     'click', () => this._startGame());
+    on('btn-replay',    'click', () => this._startGame());
+    on('btn-resume',    'click', () => this._togglePause());
+    on('btn-quit',      'click', () => { this.state = 'start'; this.ui.showScreen('start'); });
+
+    // ── Boutique ─────────────────────────────────────────
+    on('btn-open-shop', 'click', () => {
+      this.shop.refresh(this.coins);
+      this.ui.showScreen('shop');
+    });
+
+    on('btn-shop-back', 'click', () => this.ui.showScreen('start'));
+
+    // Onglets de la boutique
+    document.querySelectorAll('.shop-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.shop._tab = btn.dataset.tab;
+        this.shop.refresh(this.coins);
+      });
+    });
+
+    // Achat déclenché par ShopManager via CustomEvent
+    document.addEventListener('starblast-shop-buy', ({ detail: { id, price } }) => {
+      if (this.coins < price) return;
+      this.coins -= price;
+      localStorage.setItem('starblast_coins', this.coins.toString());
+      this.shop.buy(id);
+      this.shop.refresh(this.coins);
+      this.ui.updateCoins(this.coins);
+      this.ui.updateStartCoins(this.coins);
+    });
 
     // Touche Pause (P / Échap)
     window.addEventListener('keydown', e => {
@@ -1220,7 +1543,9 @@ class Game {
     this.particles     = [];
     this.powerups      = [];
 
-    this.player = new Player(this.W / 2, this.H - 90);
+    this.player             = new Player(this.W / 2, this.H - 90);
+    this.player.skin        = this.shop.equippedSkin;
+    this.player.bulletColor = this.shop.getBulletColor();
     this.wave   = new WaveManager();
     this.wave.start(1, this.W);
 
@@ -1269,6 +1594,8 @@ class Game {
     this.stars.update(dt);
 
     // ── Joueur ───────────────────────────────────────────
+    // Mise à jour couleur balle chaque frame (gère le rainbow live)
+    this.player.bulletColor = this.shop.getBulletColor();
     this.player.update(dt, inp, this.W, this.H);
 
     // Tir (clavier ou tactile)

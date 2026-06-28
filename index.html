@@ -95,7 +95,10 @@
           <span class="coin-star">★</span>&nbsp;<span id="start-coins-val">0</span>&nbsp;pièces
         </div>
 
-        <button id="btn-start" class="btn btn-primary btn-glow">▶ JOUER</button>
+        <div class="start-buttons">
+          <button id="btn-start" class="btn btn-primary btn-glow">▶ JOUER</button>
+          <button id="btn-open-shop" class="btn btn-shop">🏪 BOUTIQUE</button>
+        </div>
 
         <div class="controls-card">
           <div class="controls-title">CONTRÔLES</div>
@@ -147,6 +150,27 @@
 
         <button id="btn-replay" class="btn btn-primary btn-glow">↺ REJOUER</button>
         <button id="btn-remove-ads-go" class="btn btn-ghost">✕ Supprimer les pubs — 2,99 €</button>
+      </div>
+    </div>
+
+    <!-- Écran Boutique -->
+    <div id="screen-shop" class="screen">
+      <div class="shop-wrap">
+        <!-- En-tête fixe -->
+        <header class="shop-header">
+          <button id="btn-shop-back" class="btn btn-secondary shop-back">← RETOUR</button>
+          <h2 class="shop-title">BOUTIQUE</h2>
+          <div class="shop-balance">
+            <span class="coin-star">★</span>&nbsp;<span id="shop-coins-val">0</span>
+          </div>
+        </header>
+        <!-- Onglets -->
+        <div class="shop-tabs">
+          <button class="shop-tab active" data-tab="skins">VAISSEAUX</button>
+          <button class="shop-tab" data-tab="colors">LASERS</button>
+        </div>
+        <!-- Grille (remplie dynamiquement par ShopManager) -->
+        <div id="shop-grid" class="shop-grid"></div>
       </div>
     </div>
 
