@@ -1150,9 +1150,6 @@ class Game {
     window.location.href = 'https://buy.stripe.com/test_14A00j5WG8qE1wMaLOdQQ00';
   }
 
-    alert('💳 Configurez votre intégration Stripe dans game.js (voir commentaires _launchStripe).');
-  }
-
   // ── Démarrer / redémarrer une partie ────────────────────
   _startGame() {
     this.audio.resume();
