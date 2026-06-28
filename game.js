@@ -57,7 +57,7 @@ const COLOR_DATA = [
 // ============================================================
 // SECTION 0c — CONSTANTES DE PROGRESSION XP
 // ============================================================
-const XP_MULTIPLIER = 1; // Mode Histoire passera cette valeur à 2
+let XP_MULTIPLIER = 1; // Mode Histoire passera cette valeur à 2
 
 const LEVEL_UNLOCKS = [
   { level: 10,  type: 'skin',  id: 'stealth' },
@@ -65,6 +65,89 @@ const LEVEL_UNLOCKS = [
   { level: 50,  type: 'skin',  id: 'phoenix' },
   { level: 75,  type: 'skin',  id: 'shadow'  },
   { level: 100, type: 'skin',  id: 'titan'   },
+];
+
+// ── 10 niveaux du mode Histoire (architecture extensible) ──
+const STORY_LEVELS = [
+  { id: 1,  name: 'Premiers Contacts', waves: [
+    { count: 5,  types: { basic: 1 },                       speed: 0.65, formation: 'random' },
+    { count: 5,  types: { basic: 1 },                       speed: 0.65, formation: 'random' },
+    { count: 5,  types: { basic: 1 },                       speed: 0.70, formation: 'random' },
+  ]},
+  { id: 2,  name: 'Escadron', waves: [
+    { count: 5,  types: { basic: 1 },                       speed: 1.2, formation: 'v' },
+    { count: 6,  types: { basic: 1 },                       speed: 1.2, formation: 'v' },
+    { count: 6,  types: { basic: 1, medium: 0.4 },          speed: 1.2, formation: 'v' },
+    { count: 7,  types: { basic: 1, medium: 0.4 },          speed: 1.3, formation: 'v' },
+  ]},
+  { id: 3,  name: 'Embuscade', waves: [
+    { count: 5,  types: { basic: 1 },                       speed: 1.1, formation: 'sides' },
+    { count: 6,  types: { basic: 1 },                       speed: 1.1, formation: 'sides' },
+    { count: 6,  types: { basic: 1, medium: 0.5 },          speed: 1.2, formation: 'sides' },
+    { count: 7,  types: { basic: 1, medium: 0.5 },          speed: 1.2, formation: 'random' },
+    { count: 7,  types: { basic: 1, medium: 0.5 },          speed: 1.3, formation: 'sides' },
+  ]},
+  { id: 4,  name: 'Défense Rapprochée', waves: [
+    { count: 5,  types: { medium: 1 },                      speed: 1.0, formation: 'random' },
+    { count: 6,  types: { medium: 1 },                      speed: 1.0, formation: 'random' },
+    { count: 6,  types: { medium: 1, basic: 0.5 },          speed: 1.1, formation: 'random' },
+    { count: 7,  types: { medium: 1, heavy: 0.3 },          speed: 1.0, formation: 'random' },
+    { count: 8,  types: { medium: 1, heavy: 0.3 },          speed: 1.1, formation: 'random' },
+    { count: 8,  types: { medium: 1, heavy: 0.5 },          speed: 1.1, formation: 'random' },
+  ]},
+  { id: 5,  name: 'Tempête', waves: [
+    { count: 8,  types: { basic: 1, medium: 0.5, heavy: 0.2 }, speed: 1.2, formation: 'random' },
+    { count: 8,  types: { basic: 1, medium: 0.5, heavy: 0.2 }, speed: 1.2, formation: 'random' },
+    { count: 9,  types: { basic: 1, medium: 0.8, heavy: 0.3 }, speed: 1.3, formation: 'random' },
+    { count: 9,  types: { basic: 1, medium: 0.8, heavy: 0.3 }, speed: 1.3, formation: 'v' },
+    { count: 10, types: { basic: 1, medium: 1,   heavy: 0.5 }, speed: 1.3, formation: 'random' },
+    { count: 10, types: { basic: 1, medium: 1,   heavy: 0.5 }, speed: 1.4, formation: 'random' },
+    { count: 10, types: { basic: 1, medium: 1,   heavy: 0.8 }, speed: 1.4, formation: 'random' },
+  ]},
+  { id: 6,  name: 'Infiltration', waves: [
+    { count: 6,  types: { basic: 1 },                       speed: 1.1, formation: 'random', stealth: true },
+    { count: 6,  types: { basic: 1 },                       speed: 1.2, formation: 'random', stealth: true },
+    { count: 7,  types: { basic: 1, medium: 0.5 },          speed: 1.2, formation: 'random', stealth: true },
+    { count: 7,  types: { basic: 1, medium: 0.5 },          speed: 1.3, formation: 'random', stealth: true },
+    { count: 8,  types: { basic: 1, medium: 0.8 },          speed: 1.3, formation: 'random', stealth: true },
+    { count: 8,  types: { medium: 1, heavy: 0.5 },          speed: 1.2, formation: 'random', stealth: true },
+  ]},
+  { id: 7,  name: 'Assaut Massif', waves: [
+    { count: 10, types: { basic: 1, medium: 0.5 },          speed: 1.2, formation: 'random' },
+    { count: 10, types: { basic: 1, medium: 0.5 },          speed: 1.2, formation: 'random' },
+    { count: 12, types: { basic: 1, medium: 0.8 },          speed: 1.3, formation: 'random' },
+    { count: 12, types: { basic: 1, medium: 0.8 },          speed: 1.3, formation: 'random' },
+    { count: 12, types: { basic: 1, medium: 1, heavy: 0.3}, speed: 1.3, formation: 'random' },
+    { count: 12, types: { basic: 1, medium: 1, heavy: 0.3}, speed: 1.4, formation: 'random' },
+    { count: 14, types: { basic: 1, medium: 1, heavy: 0.5}, speed: 1.4, formation: 'random' },
+    { count: 14, types: { basic: 1, medium: 1, heavy: 0.5}, speed: 1.5, formation: 'random' },
+  ]},
+  { id: 8,  name: 'Gardiens', waves: [
+    { count: 6,  types: { medium: 1, heavy: 0.5 },          speed: 1.2, formation: 'random' },
+    { count: 7,  types: { medium: 1, heavy: 0.5 },          speed: 1.3, formation: 'random' },
+    { count: 8,  types: { medium: 1, heavy: 0.8 },          speed: 1.3, formation: 'random' },
+    { count: 8,  types: { medium: 1, heavy: 0.8 },          speed: 1.4, formation: 'random' },
+    { count: 10, types: { medium: 1, heavy: 1 },            speed: 1.4, formation: 'random',
+      boss: { hp: 200, scale: 2.2 } },
+  ]},
+  { id: 9,  name: 'Avant-Garde', waves: [
+    { count: 10, types: { basic: 1, medium: 0.8 },          speed: 1.8, formation: 'random' },
+    { count: 10, types: { basic: 1, medium: 0.8 },          speed: 1.8, formation: 'v' },
+    { count: 12, types: { medium: 1, heavy: 0.5 },          speed: 1.7, formation: 'random' },
+    { count: 12, types: { medium: 1, heavy: 0.5 },          speed: 1.7, formation: 'random',
+      boss: { hp: 200, scale: 2.2 } },
+    { count: 12, types: { medium: 1, heavy: 0.8 },          speed: 1.8, formation: 'random' },
+    { count: 12, types: { medium: 1, heavy: 0.8 },          speed: 1.8, formation: 'random' },
+    { count: 14, types: { medium: 1, heavy: 1 },            speed: 1.8, formation: 'random' },
+    { count: 14, types: { medium: 1, heavy: 1 },            speed: 1.9, formation: 'random',
+      boss: { hp: 200, scale: 2.2 } },
+  ]},
+  { id: 10, name: 'Le Titan', waves: [
+    { count: 8,  types: { heavy: 1 },                       speed: 1.5, formation: 'random' },
+    { count: 10, types: { medium: 1, heavy: 1 },            speed: 1.5, formation: 'random' },
+    { count: 12, types: { medium: 1, heavy: 1 },            speed: 1.5, formation: 'random',
+      boss: { hp: 600, scale: 3.0, isFinal: true } },
+  ]},
 ];
 
 function getLevelColor(level) {
@@ -746,6 +829,11 @@ class Enemy {
     this.flashTimer = 0;
     this.t          = rand(0, 10);   // phase aléatoire pour animations
     this.dead       = false;
+
+    // Extensions mode Histoire
+    this.stealth  = false;  // clignotement furtif (niveau 6)
+    this.isBoss   = false;  // mini-boss ou boss final
+    this.isFinal  = false;  // boss final uniquement
   }
 
   get hitbox() {
@@ -786,10 +874,30 @@ class Enemy {
     ctx.save();
     ctx.translate(this.x, this.y);
 
+    // Effet furtif (stealth) : opacité sinusoïdale
+    if (this.stealth) {
+      ctx.globalAlpha = 0.18 + 0.38 * Math.abs(Math.sin(Date.now() * 0.0034 + this.t));
+    }
+
     // Flash blanc à l'impact
     if (this.flashTimer > 0) ctx.filter = 'brightness(3.5) saturate(0)';
     this._render(ctx, this.w, this.h, this.t);
     ctx.filter = 'none';
+
+    // Halo boss
+    if (this.isBoss) {
+      const gc = this.isFinal ? '#FFD700' : '#ff6600';
+      ctx.shadowColor = gc;
+      ctx.shadowBlur  = 44;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.w * 0.56, 0, Math.PI * 2);
+      ctx.strokeStyle = this.isFinal ? 'rgba(255,215,0,0.32)' : 'rgba(255,100,0,0.32)';
+      ctx.lineWidth   = 5;
+      ctx.stroke();
+      ctx.shadowBlur  = 0;
+    }
+
+    ctx.globalAlpha = 1;
 
     // Barre de vie (ennemis à plusieurs points de vie)
     if (this.maxHp > 1) {
@@ -1126,17 +1234,69 @@ class UIManager {
 
   // ── Écrans ───────────────────────────────────────────────
   showScreen(name) {
-    ['start','gameover','pause','shop'].forEach(id => {
+    ['start','gameover','pause','shop','story-select','story-victory','story-failed'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.toggle('active', id === name);
     });
   }
 
   hideScreens() {
-    ['start','gameover','pause','shop'].forEach(id => {
+    ['start','gameover','pause','shop','story-select','story-victory','story-failed'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.remove('active');
     });
+  }
+
+  // ── Sélection des niveaux histoire ───────────────────────
+  refreshStorySelect(storyManager) {
+    const grid = document.getElementById('story-level-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    STORY_LEVELS.forEach(lvl => {
+      const unlocked = lvl.id <= storyManager.unlocked;
+      const stars    = storyManager.getStars(lvl.id);
+      const card     = document.createElement('div');
+      card.className = `story-card ${unlocked ? 'unlocked' : 'locked'}`;
+      if (!unlocked) {
+        card.innerHTML = `<div class="story-card-lock">🔒</div><div class="story-card-num">${lvl.id}</div>`;
+      } else {
+        const filledStar = '★', emptyStar = '☆';
+        const starsHtml  = filledStar.repeat(stars) + emptyStar.repeat(3 - stars);
+        card.innerHTML = `
+          <div class="story-card-num">${lvl.id}</div>
+          <div class="story-card-name">${lvl.name}</div>
+          <div class="story-card-stars" data-stars="${stars}">${starsHtml}</div>`;
+        card.addEventListener('click', () =>
+          document.dispatchEvent(new CustomEvent('starblast-story-play', { detail: { id: lvl.id } }))
+        );
+      }
+      grid.appendChild(card);
+    });
+  }
+
+  // ── Écran Victoire Histoire ──────────────────────────────
+  showStoryVictory(levelId, stars, score, xpAdded, coinsEarned, hasNext) {
+    const $ = id => document.getElementById(id);
+    const titleEl = $('vs-title');
+    if (titleEl) titleEl.textContent = `NIVEAU ${levelId} TERMINÉ !`;
+    const starsEl = $('vs-stars');
+    if (starsEl) { starsEl.textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars); starsEl.dataset.stars = stars; }
+    const scoreEl = $('vs-score');
+    if (scoreEl) scoreEl.textContent = score.toLocaleString('fr-FR');
+    const xpEl = $('vs-xp');
+    if (xpEl) xpEl.textContent = `+${xpAdded.toLocaleString('fr-FR')} XP`;
+    const coinsEl = $('vs-coins');
+    if (coinsEl) coinsEl.textContent = `+${coinsEarned}`;
+    const btnNext = $('btn-next-level');
+    if (btnNext) btnNext.style.display = hasNext ? '' : 'none';
+    this.showScreen('story-victory');
+  }
+
+  // ── Écran Échec Histoire ──────────────────────────────────
+  showStoryFailed(levelId) {
+    const el = document.getElementById('sf-level');
+    if (el) el.textContent = `Niveau ${levelId} — ${STORY_LEVELS.find(l => l.id === levelId)?.name || ''}`;
+    this.showScreen('story-failed');
   }
 
   // ── Notifications ────────────────────────────────────────
@@ -1528,6 +1688,138 @@ class ShopManager {
 }
 
 // ============================================================
+// SECTION 11d — GESTIONNAIRE DE PROGRESSION HISTOIRE
+// ============================================================
+class StoryManager {
+  constructor() {
+    const saved   = JSON.parse(localStorage.getItem('starblast_story') || '{"unlocked":1,"stars":[]}');
+    this.unlocked = Math.max(1, saved.unlocked || 1);
+    this.stars    = saved.stars || [];
+  }
+
+  getStars(levelId) { return this.stars[levelId - 1] || 0; }
+
+  completeLevel(levelId, starsEarned) {
+    const prev = this.getStars(levelId);
+    if (starsEarned > prev) this.stars[levelId - 1] = starsEarned;
+    if (levelId < 10 && levelId >= this.unlocked) this.unlocked = levelId + 1;
+    this._save();
+  }
+
+  _save() {
+    localStorage.setItem('starblast_story', JSON.stringify({ unlocked: this.unlocked, stars: this.stars }));
+  }
+}
+
+// ============================================================
+// SECTION 11e — CONTRÔLEUR DE VAGUES (Mode Histoire)
+// ============================================================
+class StoryWaveController {
+  constructor(levelDef, canvasW) {
+    this.waves        = levelDef.waves;
+    this.W            = canvasW;
+    this.waveIdx      = 0;
+    this.timer        = 0;
+    this.queue        = [];
+    this.betweenTimer = 0;
+    this.bossSpawned  = false;
+    this.done         = false;
+  }
+
+  get waveNum()    { return this.waveIdx + 1; }
+  get totalWaves() { return this.waves.length; }
+
+  start() { this._buildQueue(0); }
+
+  _buildQueue(idx) {
+    this.waveIdx     = idx;
+    this.timer       = 0;
+    this.bossSpawned = false;
+    const def        = this.waves[idx];
+    const W          = this.W;
+    const entries    = Object.entries(def.types);
+    const totalW     = entries.reduce((s, [, w]) => s + w, 0);
+    const queue      = [];
+
+    for (let i = 0; i < def.count; i++) {
+      // Tirage du type ennemi
+      let r = Math.random() * totalW, type = entries[0][0];
+      for (const [t, w] of entries) { r -= w; if (r <= 0) { type = t; break; } }
+
+      // Position et délai selon formation
+      let x, delay;
+      if (def.formation === 'v') {
+        const side = (i % 2 === 0 ? 1 : -1);
+        const rank = Math.floor(i / 2);
+        x     = clamp(W / 2 + side * rank * 44, 30, W - 30);
+        delay = rank * 0.38;
+      } else if (def.formation === 'sides') {
+        x     = (i % 2 === 0) ? 30 : W - 30;
+        delay = Math.floor(i / 2) * 0.42;
+      } else {
+        x     = 36 + Math.random() * (W - 72);
+        delay = i * 0.36;
+      }
+      queue.push({ type, x, delay, speedMult: def.speed, stealth: !!def.stealth });
+    }
+    this.queue = queue.sort((a, b) => a.delay - b.delay);
+  }
+
+  update(dt, enemies) {
+    if (this.done) return;
+
+    if (this.betweenTimer > 0) {
+      this.betweenTimer -= dt;
+      return;
+    }
+
+    // Spawn depuis la file
+    this.timer += dt;
+    while (this.queue.length > 0 && this.queue[0].delay <= this.timer) {
+      const s  = this.queue.shift();
+      const sc = Math.max(0, (s.speedMult * 68 - 50) / 18);
+      const e  = new Enemy(s.type, s.x, -40, sc);
+      if (s.stealth) e.stealth = true;
+      enemies.push(e);
+    }
+
+    // Fin de vague : file vide ET plus d'ennemis à l'écran
+    if (this.queue.length === 0 && enemies.length === 0) {
+      const def = this.waves[this.waveIdx];
+      if (def.boss && !this.bossSpawned) {
+        this.bossSpawned = true;
+        enemies.push(this._makeBoss(def.boss));
+      } else {
+        const next = this.waveIdx + 1;
+        if (next >= this.waves.length) {
+          this.done = true;
+        } else {
+          this._buildQueue(next);
+          this.betweenTimer = 2.5;
+        }
+      }
+    }
+  }
+
+  _makeBoss(bossDef) {
+    const e    = new Enemy('heavy', this.W / 2, -70, 3);
+    e.hp       = bossDef.hp;
+    e.maxHp    = bossDef.hp;
+    e.isBoss   = true;
+    e.isFinal  = !!bossDef.isFinal;
+    e.w        = Math.round(ENEMY_DEFS.heavy.w * bossDef.scale);
+    e.h        = Math.round(ENEMY_DEFS.heavy.h * bossDef.scale);
+    e.score    = bossDef.hp * 8;
+    e.fireRate = bossDef.isFinal ? 0.55 : 0.9;
+    e.fireTimer = 1.5;
+    e.vy       = bossDef.isFinal ? 28 : 38;
+    e.vx       = 0;
+    e.dropChance = 1.0;
+    return e;
+  }
+}
+
+// ============================================================
 // SECTION 12 — MOTEUR DE JEU PRINCIPAL
 // ============================================================
 class Game {
@@ -1545,6 +1837,7 @@ class Game {
     this.wave        = new WaveManager();
     this.shop        = new ShopManager();
     this.progression = new ProgressionManager();
+    this.story       = new StoryManager();
 
     this.player       = null;
     this.enemies      = [];
@@ -1553,8 +1846,14 @@ class Game {
     this.particles    = [];
     this.powerups     = [];
 
+    // Contrôleur de vague histoire (actif seulement en mode histoire)
+    this.storyCtrl   = null;
+    this.storyLevelId = 0;
+
     // États : 'start' | 'playing' | 'paused' | 'gameover'
+    //         'story-select' | 'story-playing' | 'story-victory' | 'story-failed'
     this.state     = 'start';
+    this._playMode = 'survival'; // 'survival' | 'story'
     this.highscore = parseInt(localStorage.getItem('starblast_hs')    || '0', 10);
     this.coins     = parseInt(localStorage.getItem('starblast_coins') || '0', 10);
     this.lastTime  = 0;
@@ -1608,10 +1907,29 @@ class Game {
   _bindUI() {
     const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
 
-    on('btn-start',     'click', () => this._startGame());
-    on('btn-replay',    'click', () => this._startGame());
+    on('btn-start',     'click', () => { this._playMode = 'survival'; this._startGame(); });
+    on('btn-replay',    'click', () => { this._playMode = 'survival'; this._startGame(); });
     on('btn-resume',    'click', () => this._togglePause());
-    on('btn-quit',      'click', () => { this.state = 'start'; this.ui.showScreen('start'); });
+    on('btn-quit', 'click', () => {
+      if (this._playMode === 'story') { this._openStorySelect(); }
+      else { this.state = 'start'; this.ui.showScreen('start'); }
+    });
+
+    // ── Mode Histoire ─────────────────────────────────────
+    on('btn-open-story',   'click', () => this._openStorySelect());
+    on('btn-story-back',   'click', () => { this.state = 'start'; this.ui.showScreen('start'); });
+    on('btn-retry-story',  'click', () => this._startStoryLevel(this.storyLevelId));
+    on('btn-story-select', 'click', () => this._openStorySelect());
+    on('btn-story-select2','click', () => this._openStorySelect());
+    on('btn-next-level',   'click', () => {
+      const next = this.storyLevelId + 1;
+      if (next <= 10 && next <= this.story.unlocked) this._startStoryLevel(next);
+      else this._openStorySelect();
+    });
+
+    document.addEventListener('starblast-story-play', ({ detail: { id } }) => {
+      this._startStoryLevel(id);
+    });
 
     // ── Boutique ─────────────────────────────────────────
     on('btn-open-shop', 'click', () => {
@@ -1643,7 +1961,9 @@ class Game {
     // Touche Pause (P / Échap)
     window.addEventListener('keydown', e => {
       if (e.code === 'KeyP' || e.code === 'Escape') {
-        if (this.state === 'playing' || this.state === 'paused') this._togglePause();
+        if (this.state === 'playing' || this.state === 'paused' || this.state === 'story-playing') {
+          this._togglePause();
+        }
       }
     });
 
@@ -1662,7 +1982,7 @@ class Game {
     // Bombe mobile
     on('btn-bomb', 'touchstart', e => {
       e.preventDefault();
-      if (this.state === 'playing' && this.player) {
+      if ((this.state === 'playing' || this.state === 'story-playing') && this.player) {
         if (this.player.useBomb(this.enemies, this.particles, this.audio)) {
           this.ui.flash('#ff6b35', 0.5);
         }
@@ -1674,11 +1994,12 @@ class Game {
   _hideModal() { document.getElementById('modal-overlay')?.classList.add('hidden'); }
 
   _togglePause() {
-    if (this.state === 'playing') {
+    if (this.state === 'playing' || this.state === 'story-playing') {
+      this._pausedFrom = this.state;
       this.state = 'paused';
       this.ui.showScreen('pause');
     } else if (this.state === 'paused') {
-      this.state    = 'playing';
+      this.state    = this._pausedFrom || 'playing';
       this.lastTime = performance.now();
       this.ui.hideScreens();
     }
@@ -1705,14 +2026,93 @@ class Game {
     this.wave   = new WaveManager();
     this.wave.start(1, this.W);
 
-    this.state    = 'playing';
-    this.lastTime = performance.now();
+    this._playMode = 'survival';
+    this.state     = 'playing';
+    this.lastTime  = performance.now();
 
     this.ui.hideScreens();
     this.ui.showLevelNotif(1);
     this.ui.updateHUD(0, 1, CFG.LIVES, this.highscore);
     this.ui.updateXPLevel(this.progression.level);
     this.ui.updateXPBar(this.progression.level, this.progression.progressRatio);
+  }
+
+  // ── Mode Histoire : ouvrir la sélection ──────────────────
+  _openStorySelect() {
+    this.state = 'story-select';
+    this.ui.refreshStorySelect(this.story);
+    this.ui.showScreen('story-select');
+  }
+
+  // ── Mode Histoire : démarrer un niveau ───────────────────
+  _startStoryLevel(levelId) {
+    this.audio.resume();
+
+    this.enemies        = [];
+    this.playerBullets  = [];
+    this.enemyBullets   = [];
+    this.particles      = [];
+    this.powerups       = [];
+
+    this.player             = new Player(this.W / 2, this.H - 90);
+    this.player.skin        = this.shop.equippedSkin;
+    this.player.bulletColor = this.shop.getBulletColor();
+
+    this.storyLevelId = levelId;
+    const levelDef    = STORY_LEVELS.find(l => l.id === levelId);
+    this.storyCtrl    = new StoryWaveController(levelDef, this.W);
+    this.storyCtrl.start();
+
+    this._playMode = 'story';
+    this.state     = 'story-playing';
+    this.lastTime  = performance.now();
+
+    this.ui.hideScreens();
+    this.ui.showLevelNotif(levelId);
+    this.ui.updateHUD(0, 1, CFG.LIVES, this.highscore);
+    this.ui.updateXPLevel(this.progression.level);
+    this.ui.updateXPBar(this.progression.level, this.progression.progressRatio);
+  }
+
+  // ── Mode Histoire : victoire ──────────────────────────────
+  _storyVictory() {
+    this.state = 'story-victory';
+    const score     = this.player.score;
+    const livesLost = CFG.LIVES - this.player.lives;
+    const stars     = livesLost === 0 ? 3 : livesLost === 1 ? 2 : 1;
+
+    this.story.completeLevel(this.storyLevelId, stars);
+
+    if (score > this.highscore) {
+      this.highscore = score;
+      localStorage.setItem('starblast_hs', score.toString());
+    }
+
+    const coinsEarned = Math.floor(score / 8);
+    this.coins += coinsEarned;
+    localStorage.setItem('starblast_coins', this.coins.toString());
+    this.ui.updateCoins(this.coins);
+    this.ui.updateStartCoins(this.coins);
+    this.ui.updateStartHS(this.highscore);
+
+    // XP × 2 grâce à XP_MULTIPLIER
+    XP_MULTIPLIER = 2;
+    const rawXP = Math.floor(score / 5);
+    const { xpAdded, levelsGained } = this.progression.addXP(rawXP, this.shop);
+    XP_MULTIPLIER = 1;
+
+    this.ui.updateXPLevel(this.progression.level);
+    this.ui.updateXPBar(this.progression.level, this.progression.progressRatio);
+    this.ui.updateLegendBadge(this.progression.level);
+
+    const hasNext = this.storyLevelId < 10 && this.storyLevelId < this.story.unlocked + 1;
+    this.ui.showStoryVictory(this.storyLevelId, stars, score, xpAdded, coinsEarned, hasNext);
+  }
+
+  // ── Mode Histoire : échec ────────────────────────────────
+  _storyFailed() {
+    this.state = 'story-failed';
+    this.ui.showStoryFailed(this.storyLevelId);
   }
 
   // ── Game Over ────────────────────────────────────────────
@@ -1750,9 +2150,99 @@ class Game {
   }
 
   // ============================================================
-  // BOUCLE DE JEU : UPDATE
+  // BOUCLE DE JEU : UPDATE MODE HISTOIRE
+  // ============================================================
+  _updateStory(dt) {
+    this.input.update();
+    const inp = this.input;
+
+    this.stars.update(dt);
+    this.player.bulletColor = this.shop.getBulletColor();
+    this.player.update(dt, inp, this.W, this.H);
+
+    if (inp.fire) this.player.fire(this.playerBullets, this.audio);
+    if (inp.bomb) {
+      if (this.player.useBomb(this.enemies, this.particles, this.audio)) {
+        this.ui.flash('#ff6b35', 0.5);
+        this.input.bomb = false;
+      }
+    }
+
+    this.playerBullets.forEach(b => b.update(dt, this.W, this.H));
+    this.enemyBullets.forEach( b => b.update(dt, this.W, this.H));
+    this.enemies.forEach(      e => e.update(dt, this.W, this.H, this.enemyBullets));
+    this.powerups.forEach(     p => p.update(dt, this.H));
+    this.particles.forEach(    p => p.update(dt));
+
+    // Collisions : balles joueur → ennemis
+    for (let i = this.playerBullets.length - 1; i >= 0; i--) {
+      const b = this.playerBullets[i];
+      if (b.dead) continue;
+      for (let j = this.enemies.length - 1; j >= 0; j--) {
+        const e = this.enemies[j];
+        if (!aabb(b.hitbox, e.hitbox)) continue;
+        b.dead = true;
+        spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
+        if (e.hit()) {
+          this.player.score += e.score; // pas de multiplicateur de vague en histoire
+          spawnExplosion(this.particles, e.x, e.y, e.color, e.type === 'heavy' ? 22 : 14, e.type === 'heavy');
+          this.audio.explosion(e.type === 'heavy');
+          e.dead = true;
+          if (Math.random() < e.dropChance) {
+            this.powerups.push(new PowerUp(e.x, e.y, ['shield','double','bomb'][randInt(0, 2)]));
+          }
+        }
+        break;
+      }
+    }
+
+    // Balles ennemies → joueur
+    for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+      const b = this.enemyBullets[i];
+      if (b.dead || !aabb(b.hitbox, this.player.hitbox)) continue;
+      b.dead = true;
+      if (this.player.hit(this.particles, this.audio)) this.ui.flash('#ff3355', 0.5);
+    }
+
+    // Ennemis → joueur (collision directe)
+    for (const e of this.enemies) {
+      if (e.dead || !aabb(e.hitbox, this.player.hitbox)) continue;
+      if (this.player.hit(this.particles, this.audio)) { this.ui.flash('#ff3355', 0.6); e.dead = true; }
+    }
+
+    // Joueur → power-ups
+    for (let i = this.powerups.length - 1; i >= 0; i--) {
+      const p = this.powerups[i];
+      if (!aabb(p.hitbox, this.player.hitbox)) continue;
+      this.player.activatePowerup(p.type, this.audio);
+      spawnExplosion(this.particles, p.x, p.y, p.color, 12);
+      this.powerups.splice(i, 1);
+    }
+
+    // Nettoyage
+    this.playerBullets = this.playerBullets.filter(b => !b.dead);
+    this.enemyBullets  = this.enemyBullets.filter( b => !b.dead);
+    this.enemies       = this.enemies.filter(      e => !e.dead);
+    this.powerups      = this.powerups.filter(     p => !p.dead);
+    this.particles     = this.particles.filter(    p => !p.dead);
+
+    // Contrôleur de vagues histoire
+    this.storyCtrl.update(dt, this.enemies);
+
+    // HUD
+    this.ui.updateHUD(this.player.score, this.storyCtrl.waveNum, this.player.lives, this.highscore);
+    this.ui.updatePowerupBar(this.player);
+
+    // Conditions de fin
+    if (this.storyCtrl.done)        this._storyVictory();
+    else if (this.player.lives <= 0) this._storyFailed();
+  }
+
+  // ============================================================
+  // BOUCLE DE JEU : UPDATE MODE SURVIE
   // ============================================================
   _update(dt) {
+    if (this.state === 'story-playing') { this._updateStory(dt); return; }
     if (this.state !== 'playing') return;
 
     this.input.update();
@@ -1879,7 +2369,7 @@ class Game {
     this.stars.update(0.016);   // avancement minimal même en pause / menu
     this.stars.draw(ctx);
 
-    if (this.state === 'playing' || this.state === 'paused') {
+    if (this.state === 'playing' || this.state === 'paused' || this.state === 'story-playing') {
       // Power-ups
       this.powerups.forEach(p => p.draw(ctx));
 
@@ -1898,8 +2388,8 @@ class Game {
       // Particules (par-dessus tout le reste)
       this.particles.forEach(p => p.draw(ctx));
 
-      // Message "Prochaine vague" entre les niveaux
-      if (this.wave.betweenWave) {
+      // Message "Prochaine vague" — mode Survie
+      if ((this.state === 'playing' || this.state === 'paused') && this.wave.betweenWave) {
         const prog = 1 - (this.wave.betweenTimer / 2.8);
         const alpha = Math.sin(prog * Math.PI);
         ctx.save();
@@ -1913,6 +2403,25 @@ class Game {
         ctx.fillText(`— VAGUE ${this.wave.level} EN APPROCHE —`, this.W/2, this.H/2 + 40);
         ctx.restore();
       }
+
+      // Message entre vagues — mode Histoire
+      if (this.state === 'story-playing' && this.storyCtrl?.betweenTimer > 0) {
+        const prog  = 1 - (this.storyCtrl.betweenTimer / 2.5);
+        const alpha = Math.sin(prog * Math.PI);
+        ctx.save();
+        ctx.globalAlpha  = alpha * 0.85;
+        ctx.fillStyle    = '#00e5ff';
+        ctx.font         = 'bold 20px Orbitron, monospace';
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor  = '#00e5ff';
+        ctx.shadowBlur   = 20;
+        ctx.fillText(
+          `— VAGUE ${this.storyCtrl.waveNum}/${this.storyCtrl.totalWaves} —`,
+          this.W / 2, this.H / 2 + 40
+        );
+        ctx.restore();
+      }
     }
   }
 
@@ -1920,12 +2429,11 @@ class Game {
   // BOUCLE PRINCIPALE (requestAnimationFrame)
   // ============================================================
   _loop(timestamp) {
-    // Calcul du delta-time, plafonné à 50 ms pour éviter les sauts
     const dt = this.lastTime ? Math.min((timestamp - this.lastTime) / 1000, 0.05) : 0;
     this.lastTime = timestamp;
 
-    // Les étoiles s'animent toujours (y compris dans les menus)
-    if (this.state !== 'playing') this.stars.update(dt);
+    // Les étoiles s'animent en dehors des états "en jeu actif"
+    if (this.state !== 'playing' && this.state !== 'story-playing') this.stars.update(dt);
 
     this._update(dt);
     this._draw();

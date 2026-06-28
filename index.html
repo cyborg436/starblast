@@ -106,8 +106,9 @@
         </div>
 
         <div class="start-buttons">
-          <button id="btn-start" class="btn btn-primary btn-glow">▶ JOUER</button>
-          <button id="btn-open-shop" class="btn btn-shop">🏪 BOUTIQUE</button>
+          <button id="btn-start"      class="btn btn-primary btn-glow">▶ SURVIE</button>
+          <button id="btn-open-story" class="btn btn-story">📖 HISTOIRE</button>
+          <button id="btn-open-shop"  class="btn btn-shop">🏪 BOUTIQUE</button>
         </div>
 
         <div class="controls-card">
@@ -169,6 +170,52 @@
 
         <button id="btn-replay" class="btn btn-primary btn-glow">↺ REJOUER</button>
         <button id="btn-remove-ads-go" class="btn btn-ghost">✕ Supprimer les pubs — 2,99 €</button>
+      </div>
+    </div>
+
+    <!-- Écran Sélection niveaux histoire -->
+    <div id="screen-story-select" class="screen">
+      <div class="story-select-wrap">
+        <header class="shop-header">
+          <button id="btn-story-back" class="btn btn-secondary shop-back">← RETOUR</button>
+          <h2 class="shop-title">MODE HISTOIRE</h2>
+          <div></div>
+        </header>
+        <div id="story-level-grid" class="story-level-grid"></div>
+      </div>
+    </div>
+
+    <!-- Écran Victoire histoire -->
+    <div id="screen-story-victory" class="screen">
+      <div class="screen-inner">
+        <h2 id="vs-title" class="victory-title">NIVEAU TERMINÉ !</h2>
+        <div id="vs-stars" class="vs-stars" data-stars="0">☆☆☆</div>
+        <div class="results-table">
+          <div class="result-row">
+            <span>SCORE</span>
+            <span id="vs-score" class="result-value highlight">0</span>
+          </div>
+          <div class="result-row">
+            <span>XP GAGNÉE (×2)</span>
+            <span id="vs-xp" class="result-value xp-value">+0 XP</span>
+          </div>
+          <div class="result-row">
+            <span>PIÈCES GAGNÉES</span>
+            <span id="vs-coins" class="result-value coins-value">+0</span>
+          </div>
+        </div>
+        <button id="btn-next-level"   class="btn btn-primary btn-glow">NIVEAU SUIVANT ▶</button>
+        <button id="btn-story-select" class="btn btn-secondary">☰ SÉLECTION</button>
+      </div>
+    </div>
+
+    <!-- Écran Niveau échoué -->
+    <div id="screen-story-failed" class="screen">
+      <div class="screen-inner">
+        <h2 class="failed-title">NIVEAU ÉCHOUÉ</h2>
+        <p id="sf-level" class="failed-sub"></p>
+        <button id="btn-retry-story"  class="btn btn-primary btn-glow">↺ RÉESSAYER</button>
+        <button id="btn-story-select2" class="btn btn-secondary">☰ SÉLECTION</button>
       </div>
     </div>
 
