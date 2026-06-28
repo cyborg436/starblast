@@ -635,3 +635,55 @@ body.is-mobile #mobile-ui { display: flex; }
   .controls-card { display: none; }
   .screen-inner  { gap: 10px; padding: 14px 20px; }
 }
+
+/* ── Système de pièces ───────────────────────────────────────── */
+
+/* Étoile dorée réutilisée partout */
+.coin-star {
+  color: #FFD700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.7);
+  font-style: normal;
+}
+
+/* HUD : groupe pièces */
+.hud-coins {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #FFD700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Valeur pièces dans la results-table */
+.coins-value {
+  color: #FFD700 !important;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.coins-value.counting {
+  animation: coins-pop 0.15s ease;
+}
+
+@keyframes coins-pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+/* Ligne total pièces sous la table (Game Over) */
+.go-coins-total {
+  font-size: 0.78rem;
+  color: rgba(255, 215, 0, 0.7);
+  letter-spacing: 0.08em;
+  margin-top: -6px;
+}
+
+/* Pièces sur l'écran d'accueil */
+.start-coins {
+  font-size: 0.78rem;
+  color: rgba(255, 215, 0, 0.8);
+  letter-spacing: 0.1em;
+  margin-top: -6px;
+}

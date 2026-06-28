@@ -14,7 +14,8 @@ const CFG = {
   CANVAS_H: 720,
 
   // Joueur
-  PLAYER_SPEED: 290,          // px/s
+  PLAYER_SPEED: 290,          // px/s (vertical)
+  PLAYER_SPEED_X: 725,        // px/s latéral (290 × 2.5)
   PLAYER_FIRE_RATE: 0.22,     // secondes entre tirs
   BULLET_SPEED: 620,          // px/s balles joueur
   ENEMY_BULLET_SPEED: 190,    // px/s balles ennemies
@@ -307,7 +308,7 @@ class Player {
 
   update(dt, inp, W, H) {
     // Déplacement
-    this.x = clamp(this.x + inp.dx * this.w * 0.5 * dt * (CFG.PLAYER_SPEED / 140), this.w / 2, W - this.w / 2);
+    this.x = clamp(this.x + inp.dx * this.w * 0.5 * dt * (CFG.PLAYER_SPEED_X / 140), this.w / 2, W - this.w / 2);
     this.y = clamp(this.y + inp.dy * this.h * 0.5 * dt * (CFG.PLAYER_SPEED / 140), this.h / 2 + 40, H - this.h / 2 - 10);
 
     // Cooldowns
@@ -933,16 +934,18 @@ class InputManager {
 // ============================================================
 class UIManager {
   constructor() {
-    this.$score    = document.getElementById('hud-score');
-    this.$level    = document.getElementById('hud-level');
-    this.$lives    = document.getElementById('hud-lives');
-    this.$hs       = document.getElementById('hud-highscore');
-    this.$piShield = document.getElementById('pi-shield');
-    this.$piDouble = document.getElementById('pi-double');
-    this.$piBombs  = document.getElementById('pi-bombs');
-    this.$bombCnt  = document.getElementById('pi-bomb-count');
-    this.$notif    = document.getElementById('level-notif');
-    this.$flash    = document.getElementById('flash-overlay');
+    this.$score      = document.getElementById('hud-score');
+    this.$level      = document.getElementById('hud-level');
+    this.$lives      = document.getElementById('hud-lives');
+    this.$hs         = document.getElementById('hud-highscore');
+    this.$coinsVal   = document.getElementById('hud-coins-val');
+    this.$piShield   = document.getElementById('pi-shield');
+    this.$piDouble   = document.getElementById('pi-double');
+    this.$piBombs    = document.getElementById('pi-bombs');
+    this.$bombCnt    = document.getElementById('pi-bomb-count');
+    this.$notif      = document.getElementById('level-notif');
+    this.$flash      = document.getElementById('flash-overlay');
+    this._coinAnimId = null;   // RAF id de l'animation de comptage
   }
 
   // ── HUD ──────────────────────────────────────────────────
@@ -1021,6 +1024,60 @@ class UIManager {
     const el = document.getElementById('start-hs');
     if (el) el.textContent = hs.toLocaleString('fr-FR');
   }
+
+  // ── Pièces ───────────────────────────────────────────────
+
+  /** Met à jour l'affichage permanent des pièces dans le HUD. */
+  updateCoins(total) {
+    if (this.$coinsVal) this.$coinsVal.textContent = total.toLocaleString('fr-FR');
+  }
+
+  /** Met à jour l'affichage des pièces sur l'écran d'accueil. */
+  updateStartCoins(total) {
+    const el = document.getElementById('start-coins-val');
+    if (el) el.textContent = total.toLocaleString('fr-FR');
+  }
+
+  /**
+   * Affiche le résultat pièces sur l'écran Game Over avec animation de comptage.
+   * @param {number} earned  – pièces gagnées cette partie
+   * @param {number} total   – total cumulé après ajout
+   */
+  showGameOverCoins(earned, total) {
+    const elEarned = document.getElementById('go-coins-earned');
+    const elTotal  = document.getElementById('go-coins-total-val');
+    if (elTotal) elTotal.textContent = total.toLocaleString('fr-FR');
+    if (!elEarned) return;
+
+    // Annule un éventuel comptage précédent
+    if (this._coinAnimId) cancelAnimationFrame(this._coinAnimId);
+
+    const DURATION = 1500;  // ms
+    const startTs  = performance.now();
+
+    const tick = (now) => {
+      const progress = Math.min((now - startTs) / DURATION, 1);
+      // Ease-out cubique
+      const eased   = 1 - Math.pow(1 - progress, 3);
+      const current = Math.floor(eased * earned);
+
+      elEarned.textContent = `+${current.toLocaleString('fr-FR')}`;
+
+      // Petite animation CSS à chaque incrément
+      elEarned.classList.remove('counting');
+      void elEarned.offsetWidth;
+      elEarned.classList.add('counting');
+
+      if (progress < 1) {
+        this._coinAnimId = requestAnimationFrame(tick);
+      } else {
+        elEarned.textContent = `+${earned.toLocaleString('fr-FR')}`;
+        this._coinAnimId = null;
+      }
+    };
+
+    this._coinAnimId = requestAnimationFrame(tick);
+  }
 }
 
 // ============================================================
@@ -1048,8 +1105,9 @@ class Game {
     this.powerups     = [];
 
     // États : 'start' | 'playing' | 'paused' | 'gameover'
-    this.state    = 'start';
-    this.highscore = parseInt(localStorage.getItem('starblast_hs') || '0', 10);
+    this.state     = 'start';
+    this.highscore = parseInt(localStorage.getItem('starblast_hs')    || '0', 10);
+    this.coins     = parseInt(localStorage.getItem('starblast_coins') || '0', 10);
     this.lastTime  = 0;
 
     this._setupCanvas();
@@ -1057,6 +1115,8 @@ class Game {
     this._detectMobile();
 
     this.ui.updateStartHS(this.highscore);
+    this.ui.updateStartCoins(this.coins);
+    this.ui.updateCoins(this.coins);
     this.ui.showScreen('start');
 
     // Démarre la boucle de rendu (étoiles animées sur les écrans de menu)
@@ -1176,12 +1236,24 @@ class Game {
   _gameOver() {
     this.state = 'gameover';
     const score = this.player.score;
+
+    // Meilleur score
     if (score > this.highscore) {
       this.highscore = score;
       localStorage.setItem('starblast_hs', score.toString());
     }
+
+    // Pièces : score / 10, arrondi inférieur
+    const earned  = Math.floor(score / 10);
+    this.coins   += earned;
+    localStorage.setItem('starblast_coins', this.coins.toString());
+
+    // Mise à jour de tous les affichages pièces
+    this.ui.updateCoins(this.coins);
+    this.ui.updateStartCoins(this.coins);
     this.ui.updateStartHS(this.highscore);
     this.ui.showGameOver(score, this.highscore, this.wave.level);
+    this.ui.showGameOverCoins(earned, this.coins);
   }
 
   // ============================================================
