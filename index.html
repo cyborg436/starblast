@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="description" content="StarBlast — Jeu de tir spatial arcade en HTML5">
+  <title>StarBlast 🚀</title>
+
+  <!-- Google Fonts : Orbitron -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+
+  <!-- Stripe JS — décommentez après avoir configuré votre compte Stripe -->
+  <!-- <script src="https://js.stripe.com/v3/"></script> -->
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="game-wrapper">
+
+  <!-- ================================================================
+       Conteneur principal du jeu
+       ================================================================ -->
+  <div id="game-container">
+
+    <!-- Canvas HTML5 -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- ── HUD (Head-Up Display) ─────────────────────────────────── -->
+    <div id="hud">
+      <div class="hud-group">
+        <span class="hud-label">SCORE</span>
+        <span id="hud-score">0</span>
+      </div>
+      <div class="hud-group">
+        <span class="hud-label">LEVEL</span>
+        <span id="hud-level">1</span>
+      </div>
+      <div class="hud-group hud-lives">
+        <span class="hud-label">VIES</span>
+        <div id="hud-lives"></div>
+      </div>
+      <div class="hud-group">
+        <span class="hud-label">RECORD</span>
+        <span id="hud-highscore">0</span>
+      </div>
+    </div>
+
+    <!-- ── Indicateurs power-up actifs ──────────────────────────── -->
+    <div id="powerup-bar">
+      <div id="pi-shield" class="pi hidden">
+        <span class="pi-icon">🛡️</span>
+        <div class="pi-timer-bar"><div class="pi-timer-fill"></div></div>
+      </div>
+      <div id="pi-double" class="pi hidden">
+        <span class="pi-icon">⚡</span>
+        <div class="pi-timer-bar"><div class="pi-timer-fill"></div></div>
+      </div>
+      <div id="pi-bombs" class="pi hidden">
+        <span class="pi-icon">💣</span>
+        <span id="pi-bomb-count" class="pi-count">0</span>
+      </div>
+    </div>
+
+    <!-- ── Flash d'impact ───────────────────────────────────────── -->
+    <div id="flash-overlay"></div>
+
+    <!-- ── Notification niveau ──────────────────────────────────── -->
+    <div id="level-notif"></div>
+
+    <!-- ================================================================
+         ÉCRANS (overlays)
+         ================================================================ -->
+
+    <!-- Écran d'accueil -->
+    <div id="screen-start" class="screen active">
+      <div class="screen-inner">
+        <div class="title-container">
+          <h1 class="game-title">STAR<span class="title-accent">BLAST</span></h1>
+          <div class="title-tagline">— DÉFENDEZ LA GALAXIE —</div>
+        </div>
+
+        <div class="start-highscore">
+          RECORD&nbsp;:&nbsp;<span id="start-hs">0</span>
+        </div>
+
+        <button id="btn-start" class="btn btn-primary btn-glow">▶ JOUER</button>
+
+        <div class="controls-card">
+          <div class="controls-title">CONTRÔLES</div>
+          <div class="controls-grid">
+            <div>🖥️ Déplacement</div><div>← → ↑ ↓ ou WASD</div>
+            <div>🔫 Tirer</div><div><kbd>Espace</kbd></div>
+            <div>💣 Bombe</div><div><kbd>B</kbd></div>
+            <div>⏸ Pause</div><div><kbd>P</kbd> / <kbd>Échap</kbd></div>
+            <div>📱 Mobile</div><div>Joystick + boutons</div>
+          </div>
+        </div>
+
+        <button id="btn-remove-ads-start" class="btn btn-ghost">✕ Supprimer les pubs — 2,99 €</button>
+      </div>
+    </div>
+
+    <!-- Écran Game Over -->
+    <div id="screen-gameover" class="screen">
+      <div class="screen-inner">
+        <h2 class="gameover-title">GAME OVER</h2>
+
+        <div class="results-table">
+          <div class="result-row">
+            <span>SCORE FINAL</span>
+            <span id="go-score" class="result-value">0</span>
+          </div>
+          <div class="result-row">
+            <span>MEILLEUR SCORE</span>
+            <span id="go-highscore" class="result-value highlight">0</span>
+          </div>
+          <div class="result-row">
+            <span>NIVEAU ATTEINT</span>
+            <span id="go-level" class="result-value">0</span>
+          </div>
+        </div>
+
+        <!-- Placeholder publicité interstitielle -->
+        <div id="ad-interstitiel" class="ad-slot">
+          <div class="ad-label">PUBLICITÉ</div>
+          <div class="ad-inner">[ Google AdSense Interstitiel — 320×100 ]</div>
+        </div>
+
+        <button id="btn-replay" class="btn btn-primary btn-glow">↺ REJOUER</button>
+        <button id="btn-remove-ads-go" class="btn btn-ghost">✕ Supprimer les pubs — 2,99 €</button>
+      </div>
+    </div>
+
+    <!-- Écran Pause -->
+    <div id="screen-pause" class="screen">
+      <div class="screen-inner">
+        <h2 class="pause-title">⏸ PAUSE</h2>
+        <button id="btn-resume" class="btn btn-primary">▶ REPRENDRE</button>
+        <button id="btn-quit" class="btn btn-secondary">⏹ QUITTER</button>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         MODALE : Supprimer les pubs (Stripe)
+         ================================================================ -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button id="btn-close-modal" class="modal-close" aria-label="Fermer">✕</button>
+        <div class="modal-icon">⭐</div>
+        <h3 id="modal-title" class="modal-title">EXPÉRIENCE PREMIUM</h3>
+        <p class="modal-desc">Jouez sans aucune publicité pour une immersion totale dans la galaxie.</p>
+        <ul class="modal-benefits">
+          <li>✅ Zéro publicité — pour toujours</li>
+          <li>✅ Paiement unique, sans abonnement</li>
+          <li>✅ Soutenir le développeur indépendant</li>
+        </ul>
+        <div class="modal-price">2,99 €</div>
+        <button id="btn-stripe" class="btn btn-stripe">💳 Payer via Stripe</button>
+        <p class="modal-secure">🔒 Paiement sécurisé · Remboursement 7 jours</p>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         Contrôles mobiles (joystick + boutons tactiles)
+         ================================================================ -->
+    <div id="mobile-ui">
+      <div id="joystick-container">
+        <div id="joystick-base">
+          <div id="joystick-knob"></div>
+        </div>
+      </div>
+      <div id="mobile-actions">
+        <button id="btn-fire" class="action-btn" aria-label="Tirer">🔥</button>
+        <button id="btn-bomb" class="action-btn" aria-label="Bombe">💣</button>
+      </div>
+    </div>
+
+    <!-- Bouton persistant "Supprimer les pubs" -->
+    <button id="btn-remove-ads-persistent" class="remove-ads-persistent">✕ Pubs</button>
+
+  </div><!-- /game-container -->
+
+  <!-- ================================================================
+       Bannière publicitaire Google AdSense (hors canvas, bas de page)
+       ================================================================ -->
+  <div id="ad-banner" class="ad-slot ad-banner-slot">
+    <div class="ad-label">PUBLICITÉ</div>
+    <div class="ad-inner">[ Google AdSense Banner — 728×90 — Remplacez par votre code AdSense ]</div>
+  </div>
+
+</div><!-- /game-wrapper -->
+
+<script src="game.js"></script>
+</body>
+</html>
