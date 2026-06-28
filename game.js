@@ -1147,29 +1147,8 @@ class Game {
 
   // ── Intégration Stripe ───────────────────────────────────
   _launchStripe() {
-    /*
-     * Pour activer le paiement Stripe :
-     * 1. Créez un compte sur stripe.com
-     * 2. Créez un Payment Link ou un Price dans votre Dashboard
-     * 3. Décommentez le script Stripe dans index.html
-     * 4. Remplacez STRIPE_KEY et 'price_xxx' ci-dessous
-     * 5. Pour un déploiement sans backend, utilisez un Payment Link direct :
-     *    window.location.href = 'https://buy.stripe.com/votre-lien';
-     */
-
-    // Option A — Payment Link (aucun backend requis, le plus simple) :
-    // window.location.href = 'https://buy.stripe.com/https://buy.stripe.com/test_14A00j5WG8qE1wMaLOdQQ00';
-
-    // Option B — Stripe Checkout (nécessite un backend pour créer la session) :
-    /*
-    if (typeof Stripe === 'undefined') { alert('Script Stripe non chargé.'); return; }
-    Stripe(CFG.STRIPE_KEY).redirectToCheckout({
-      lineItems: [{ price: 'price_VOTRE_PRICE_ID', quantity: 1 }],
-      mode: 'payment',
-      successUrl: window.location.origin + '?payment=success',
-      cancelUrl:  window.location.origin + '?payment=cancel',
-    });
-    */
+    window.location.href = 'https://buy.stripe.com/test_14A00j5WG8qE1wMaLOdQQ00';
+  }
 
     alert('💳 Configurez votre intégration Stripe dans game.js (voir commentaires _launchStripe).');
   }
