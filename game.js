@@ -128,25 +128,25 @@ const STORY_LEVELS = [
     { count: 8,  types: { medium: 1, heavy: 0.8 },          speed: 1.3, formation: 'random' },
     { count: 8,  types: { medium: 1, heavy: 0.8 },          speed: 1.4, formation: 'random' },
     { count: 10, types: { medium: 1, heavy: 1 },            speed: 1.4, formation: 'random',
-      boss: { hp: 200, scale: 2.2 } },
+      boss: { type: 'sentinelle', hp: 200 } },
   ]},
   { id: 9,  name: 'Avant-Garde', waves: [
     { count: 10, types: { basic: 1, medium: 0.8 },          speed: 1.8, formation: 'random' },
     { count: 10, types: { basic: 1, medium: 0.8 },          speed: 1.8, formation: 'v' },
     { count: 12, types: { medium: 1, heavy: 0.5 },          speed: 1.7, formation: 'random' },
     { count: 12, types: { medium: 1, heavy: 0.5 },          speed: 1.7, formation: 'random',
-      boss: { hp: 200, scale: 2.2 } },
+      boss: { type: 'sentinelle', hp: 250 } },
     { count: 12, types: { medium: 1, heavy: 0.8 },          speed: 1.8, formation: 'random' },
     { count: 12, types: { medium: 1, heavy: 0.8 },          speed: 1.8, formation: 'random' },
     { count: 14, types: { medium: 1, heavy: 1 },            speed: 1.8, formation: 'random' },
     { count: 14, types: { medium: 1, heavy: 1 },            speed: 1.9, formation: 'random',
-      boss: { hp: 200, scale: 2.2 } },
+      boss: { type: 'chasseur', hp: 350 } },
   ]},
   { id: 10, name: 'Le Titan', waves: [
     { count: 8,  types: { heavy: 1 },                       speed: 1.5, formation: 'random' },
     { count: 10, types: { medium: 1, heavy: 1 },            speed: 1.5, formation: 'random' },
     { count: 12, types: { medium: 1, heavy: 1 },            speed: 1.5, formation: 'random',
-      boss: { hp: 600, scale: 3.0, isFinal: true } },
+      boss: { type: 'titan', hp: 1000, isFinal: true } },
   ]},
 ];
 
@@ -231,6 +231,41 @@ class AudioManager {
   powerup()    { [524, 660, 784, 1047].forEach((f, i) => this._osc(f, 'sine', 0.14, 0.18, i * 0.08)); }
   levelUp()    { [524, 660, 784, 1047, 1320].forEach((f, i) => this._osc(f, 'sine', 0.18, 0.22, i * 0.1)); }
   bomb()       { this._noise(0.9, 180, 0.75); this._noise(0.5, 400, 0.38, 0.2); }
+
+  bossAlert() {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    [55, 42, 68].forEach((f, i) => {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(f, now + i * 0.1);
+      o.frequency.exponentialRampToValueAtTime(f * 0.6, now + 1.8);
+      o.connect(g); g.connect(this.master);
+      g.gain.setValueAtTime(0.22, now + i * 0.1);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+      o.start(now + i * 0.1);
+      o.stop(now + 2.1);
+    });
+    this._noise(0.35, 120, 0.55);
+    this._osc(220, 'square', 0.3, 0.25, 0.05);
+  }
+
+  titanDeath() {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    this._noise(2.0, 80, 0.9);
+    this._noise(1.2, 160, 0.6, 0.3);
+    [80, 60, 45].forEach((f, i) => {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = 'sawtooth'; o.frequency.value = f;
+      o.connect(g); g.connect(this.master);
+      g.gain.setValueAtTime(0.35, now + i * 0.2);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 3.0);
+      o.start(now + i * 0.2); o.stop(now + 3.1);
+    });
+  }
 }
 
 // ============================================================
@@ -1234,14 +1269,14 @@ class UIManager {
 
   // ── Écrans ───────────────────────────────────────────────
   showScreen(name) {
-    ['start','gameover','pause','shop','story-select','story-victory','story-failed'].forEach(id => {
+    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.toggle('active', id === name);
     });
   }
 
   hideScreens() {
-    ['start','gameover','pause','shop','story-select','story-victory','story-failed'].forEach(id => {
+    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.remove('active');
     });
@@ -1297,6 +1332,30 @@ class UIManager {
     const el = document.getElementById('sf-level');
     if (el) el.textContent = `Niveau ${levelId} — ${STORY_LEVELS.find(l => l.id === levelId)?.name || ''}`;
     this.showScreen('story-failed');
+  }
+
+  // ── Victoire Finale (après TITAN) ────────────────────────
+  showFinalVictory(storyManager, coinsEarned, xpEarned) {
+    const recap = document.getElementById('fv-stars-recap');
+    if (recap) {
+      recap.innerHTML = '';
+      for (let i = 1; i <= 10; i++) {
+        const s = storyManager.getStars(i);
+        const stars = ['☆☆☆', '★☆☆', '★★☆', '★★★'][s] || '☆☆☆';
+        const div = document.createElement('div');
+        div.className = `fv-level-row${s > 0 ? ' fv-level-done' : ''}`;
+        div.innerHTML = `<span>Niveau ${i}</span><span class="fv-stars-cell" data-s="${s}">${stars}</span>`;
+        recap.appendChild(div);
+      }
+    }
+    const stats = document.getElementById('fv-stats');
+    if (stats) {
+      stats.innerHTML = `
+        <div class="result-row"><span>PIÈCES GAGNÉES</span><span class="result-value coins-value">+${coinsEarned}</span></div>
+        <div class="result-row"><span>XP GAGNÉE (×2)</span><span class="result-value xp-value">+${xpEarned} XP</span></div>
+      `;
+    }
+    this.showScreen('final-victory');
   }
 
   // ── Notifications ────────────────────────────────────────
@@ -1688,6 +1747,510 @@ class ShopManager {
 }
 
 // ============================================================
+// SECTION 11c-bis — CLASSES BOSS (Sentinelle, Chasseur, Titan)
+// ============================================================
+
+class BossBase {
+  constructor(x, y, hp, W) {
+    this.x = x; this.y = y;
+    this.hp = hp; this.maxHp = hp;
+    this.W = W;
+    this.w = 120; this.h = 80;
+    this.dead = false;
+    this.dying = false;
+    this.deathTimer = 0;
+    this.deathDuration = 2.5;
+    this.isBoss = true;
+    this.isFinal = false;
+    this.color = '#ff6600';
+    this.type = 'boss';
+    this.score = 0;
+    this.dropChance = 1.0;
+    this.flashTimer = 0;
+    this.t = 0;
+    this._rewardGiven = false;
+  }
+
+  get hitbox() {
+    return { x: this.x - this.w * 0.42, y: this.y - this.h * 0.42, w: this.w * 0.84, h: this.h * 0.84 };
+  }
+
+  hit() {
+    if (this.dying) return false;
+    this.hp = Math.max(0, this.hp - 1);
+    this.flashTimer = 0.08;
+    if (this.hp <= 0) {
+      this.dying = true;
+      this.deathTimer = this.deathDuration;
+    }
+    return false;
+  }
+
+  update(dt, W, H, enemyBullets, player, particles) {
+    this.t += dt;
+    if (this.dying) {
+      this.deathTimer -= dt;
+      if (particles && Math.random() < 0.55) {
+        const ox = (Math.random() - 0.5) * this.w * 0.9;
+        const oy = (Math.random() - 0.5) * this.h * 0.9;
+        spawnExplosion(particles, this.x + ox, this.y + oy, this.color, 12, true);
+      }
+      if (this.deathTimer <= 0) this.dead = true;
+      return;
+    }
+    if (this.flashTimer > 0) this.flashTimer -= dt;
+    this._move(dt, W, H);
+    this._attack(dt, enemyBullets, player, W, H);
+  }
+
+  _move(dt, W, H) {}
+  _attack(dt, enemyBullets, player, W, H) {}
+
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    if (this.dying) {
+      const p = Math.max(0, this.deathTimer / this.deathDuration);
+      ctx.globalAlpha = p * p;
+      if (Math.random() < 0.6) { ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 60; }
+    } else if (this.flashTimer > 0) {
+      ctx.filter = 'brightness(4) saturate(0)';
+    }
+    this._drawBody(ctx);
+    ctx.filter = 'none';
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    if (!this.dying) this._drawHPBar(ctx);
+  }
+
+  _drawBody(ctx) {}
+
+  _drawHPBar(ctx) {
+    const barW = this.w * 1.5;
+    const barH = 9;
+    const barX = this.x - barW / 2;
+    const barY = this.y + this.h / 2 + 16;
+    const ratio = Math.max(0, this.hp / this.maxHp);
+    ctx.save();
+    // Fond
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(barX - 2, barY - 2, barW + 4, barH + 4);
+    // Remplissage couleur
+    let col;
+    if (ratio > 0.5) col = '#ff3333';
+    else if (ratio > 0.2) col = '#ff7700';
+    else col = Math.floor(Date.now() / 180) % 2 === 0 ? '#ff0000' : '#ffaa00';
+    ctx.fillStyle = col;
+    ctx.fillRect(barX, barY, barW * ratio, barH);
+    // Texte
+    ctx.font = 'bold 8px Orbitron, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = col;
+    ctx.shadowBlur = 6;
+    ctx.fillText(`${this.bossName || 'BOSS'} — ${this.hp} / ${this.maxHp} PV`, this.x, barY - 4);
+    ctx.restore();
+  }
+}
+
+// ── Mini-Boss Sentinelle ──────────────────────────────────────
+class BossSentinelle extends BossBase {
+  constructor(x, y, hp, W) {
+    super(x, y, hp, W);
+    this.bossName = 'SENTINELLE';
+    this.w = 148; this.h = 84;
+    this.score = hp * 10;
+    this.color = '#778899';
+    this.vx = 58;
+    this.targetY = 145;
+    this.fireTimer = 1.5;
+    this.fanTimer = 8.0;
+  }
+
+  _move(dt, W) {
+    this.x += this.vx * dt;
+    if (this.x < this.w / 2 + 18) { this.x = this.w / 2 + 18; this.vx = Math.abs(this.vx); }
+    if (this.x > W - this.w / 2 - 18) { this.x = W - this.w / 2 - 18; this.vx = -Math.abs(this.vx); }
+    this.y += (this.targetY - this.y) * 0.55 * dt;
+  }
+
+  _attack(dt, enemyBullets) {
+    this.fireTimer -= dt;
+    if (this.fireTimer <= 0) {
+      this.fireTimer = 1.5;
+      enemyBullets.push(new Bullet(this.x, this.y + this.h / 2 + 4, 0, CFG.ENEMY_BULLET_SPEED, '#aaddff', false));
+    }
+    this.fanTimer -= dt;
+    if (this.fanTimer <= 0) {
+      this.fanTimer = 8.0;
+      for (let i = 0; i < 5; i++) {
+        const a = (i - 2) * 24 * Math.PI / 180;
+        enemyBullets.push(new Bullet(
+          this.x, this.y + this.h / 2,
+          Math.sin(a) * CFG.ENEMY_BULLET_SPEED,
+          Math.cos(a) * CFG.ENEMY_BULLET_SPEED,
+          '#ff9900', false
+        ));
+      }
+    }
+  }
+
+  _drawBody(ctx) {
+    const w = this.w, h = this.h, t = this.t;
+    // Coque principale
+    const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+    g.addColorStop(0, '#445566'); g.addColorStop(1, '#1a2a38');
+    ctx.fillStyle = g;
+    ctx.shadowColor = '#6699cc'; ctx.shadowBlur = 22;
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.34, -h / 2);
+    ctx.lineTo( w * 0.34, -h / 2);
+    ctx.lineTo( w * 0.38,  h * 0.38);
+    ctx.lineTo(-w * 0.38,  h * 0.38);
+    ctx.closePath(); ctx.fill();
+    // Ailes latérales
+    ctx.fillStyle = '#334455';
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.38,  h * 0.38);
+    ctx.lineTo(-w * 0.50,  h * 0.48);
+    ctx.lineTo(-w * 0.48, -h * 0.12);
+    ctx.lineTo(-w * 0.34, -h / 2);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo( w * 0.38,  h * 0.38);
+    ctx.lineTo( w * 0.50,  h * 0.48);
+    ctx.lineTo( w * 0.48, -h * 0.12);
+    ctx.lineTo( w * 0.34, -h / 2);
+    ctx.closePath(); ctx.fill();
+    // Canon gauche
+    ctx.fillStyle = '#556677';
+    ctx.fillRect(-w * 0.50, -h * 0.08, w * 0.14, h * 0.38);
+    ctx.fillStyle = '#aabbcc';
+    ctx.fillRect(-w * 0.50 - 3, h * 0.22, 12, 18);
+    // Canon droit
+    ctx.fillRect( w * 0.36, -h * 0.08, w * 0.14, h * 0.38);
+    ctx.fillRect( w * 0.36 + w * 0.14 - 9, h * 0.22, 12, 18);
+    // Moteurs
+    ctx.shadowColor = '#00aaff'; ctx.shadowBlur = 20;
+    ctx.fillStyle = `rgba(0,160,255,${0.55 + 0.35 * Math.sin(t * 9)})`;
+    ctx.fillRect(-w * 0.28, h * 0.32, w * 0.56, h * 0.1);
+    // Capteur central
+    ctx.shadowColor = '#ff4444'; ctx.shadowBlur = 14;
+    ctx.fillStyle = `rgba(255,50,50,${0.75 + 0.25 * Math.sin(t * 5.5)})`;
+    ctx.beginPath(); ctx.arc(0, -h * 0.1, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+// ── Mini-Boss Chasseur ───────────────────────────────────────
+class BossChasseur extends BossBase {
+  constructor(x, y, hp, W) {
+    super(x, y, hp, W);
+    this.bossName = 'CHASSEUR';
+    this.w = 162; this.h = 114;
+    this.score = hp * 10;
+    this.color = '#cc1122';
+    this.baseX = x;
+    this.baseY = 155;
+    this.vx = 44;
+    this.fireTimer = 1.0;
+    this.chargeTimer = 6.0;
+    this.charging = false;
+    this.chargeVx = 0; this.chargeVy = 0;
+    this.chargePhase = 0;
+    this.chargeElapsed = 0;
+  }
+
+  _move(dt, W) {
+    if (this.charging) {
+      this.chargeElapsed += dt;
+      const spd = this.chargeElapsed < 0.45 ? 8 : (this.chargeElapsed < 0.9 ? -5 : 0);
+      if (spd !== 0) {
+        this.x += this.chargeVx * Math.abs(spd) * dt;
+        this.y += this.chargeVy * Math.abs(spd) * dt;
+      }
+      if (this.chargeElapsed > 1.1) { this.charging = false; }
+      this.x = clamp(this.x, this.w / 2, W - this.w / 2);
+      this.y = clamp(this.y, this.h / 2 + 10, W * 0.5);
+      return;
+    }
+    const sp = this.hp < this.maxHp * 0.5 ? 1.5 : 1.0;
+    this.baseX += this.vx * sp * dt;
+    if (this.baseX < this.w / 2 + 18) { this.baseX = this.w / 2 + 18; this.vx = Math.abs(this.vx); }
+    if (this.baseX > W - this.w / 2 - 18) { this.baseX = W - this.w / 2 - 18; this.vx = -Math.abs(this.vx); }
+    this.x = this.baseX;
+    this.y = this.baseY + Math.sin(this.t * 1.3) * 42;
+  }
+
+  _attack(dt, enemyBullets, player) {
+    const sp = this.hp < this.maxHp * 0.5 ? 0.75 : 1.0;
+    this.fireTimer -= dt;
+    if (this.fireTimer <= 0) {
+      this.fireTimer = 1.0 * sp;
+      const spd = CFG.ENEMY_BULLET_SPEED * 1.15;
+      enemyBullets.push(new Bullet(this.x - 22, this.y + this.h / 2, -18, spd, '#ff2244', false));
+      enemyBullets.push(new Bullet(this.x + 22, this.y + this.h / 2,  18, spd, '#ff2244', false));
+    }
+    this.chargeTimer -= dt;
+    if (this.chargeTimer <= 0 && !this.charging && player) {
+      this.chargeTimer = 6.0;
+      this.charging = true;
+      this.chargeElapsed = 0;
+      const dx = player.x - this.x, dy = player.y - this.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      this.chargeVx = (dx / d) * 115;
+      this.chargeVy = (dy / d) * 115;
+    }
+  }
+
+  _drawBody(ctx) {
+    const w = this.w, h = this.h, t = this.t;
+    const rage = this.hp < this.maxHp * 0.5;
+    ctx.shadowColor = '#ff2200'; ctx.shadowBlur = rage ? 32 : 18;
+    // Corps en croix — barre verticale
+    const cg = ctx.createLinearGradient(0, -h * 0.5, 0, h * 0.5);
+    cg.addColorStop(0, '#88000a'); cg.addColorStop(0.5, '#cc1a1a'); cg.addColorStop(1, '#330005');
+    ctx.fillStyle = cg;
+    ctx.fillRect(-w * 0.17, -h / 2, w * 0.34, h);
+    // Barre horizontale
+    ctx.fillRect(-w / 2, -h * 0.22, w, h * 0.44);
+    // Pointe gauche
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, -h * 0.06); ctx.lineTo(-w * 0.55, 0); ctx.lineTo(-w / 2, h * 0.06);
+    ctx.closePath(); ctx.fill();
+    // Pointe droite
+    ctx.beginPath();
+    ctx.moveTo( w / 2, -h * 0.06); ctx.lineTo( w * 0.55, 0); ctx.lineTo( w / 2, h * 0.06);
+    ctx.closePath(); ctx.fill();
+    // Core pulsant
+    const pr = rage ? 15 + 6 * Math.abs(Math.sin(t * 9)) : 11 + 4 * Math.sin(t * 5);
+    ctx.shadowColor = '#ff5500'; ctx.shadowBlur = 30;
+    ctx.fillStyle = `rgba(255,${rage ? 0 : 55},0,${0.82 + 0.18 * Math.sin(t * 7)})`;
+    ctx.beginPath(); ctx.arc(0, 0, pr, 0, Math.PI * 2); ctx.fill();
+    // Sortie moteur
+    ctx.fillStyle = `rgba(255,110,0,${0.55 + 0.4 * Math.sin(t * 13)})`;
+    ctx.fillRect(-w * 0.11, h * 0.38, w * 0.22, h * 0.13);
+    ctx.shadowBlur = 0;
+  }
+}
+
+// ── Boss Final Titan ──────────────────────────────────────────
+class BossTitan extends BossBase {
+  constructor(x, y, hp, W) {
+    super(x, y, hp, W);
+    this.bossName = 'TITAN';
+    this.w = Math.round(W * 0.42);
+    this.h = Math.round(this.w * 0.58);
+    this.score = hp * 8;
+    this.color = '#FFD700';
+    this.isFinal = true;
+    this.vx = 28;
+    this.dirTimer = 3.2;
+    this.fireTimer = 1.6;
+    this.specialTimer = 15.0;
+    this.laserWarning = false;
+    this.laserActive  = false;
+    this.laserTimer   = 0;
+    this.laserX       = W / 2;
+    this.laserW       = 50;
+    this.deathDuration = 3.5;
+    this._deathSoundPlayed = false;
+  }
+
+  get phase() {
+    const r = this.hp / this.maxHp;
+    return r > 0.6 ? 1 : r > 0.3 ? 2 : 3;
+  }
+
+  _move(dt, W) {
+    this.x += this.vx * dt;
+    if (this.x < this.w / 2 + 8)  { this.x = this.w / 2 + 8;  this.vx =  Math.abs(this.vx); }
+    if (this.x > W - this.w / 2 - 8) { this.x = W - this.w / 2 - 8; this.vx = -Math.abs(this.vx); }
+    this.dirTimer -= dt;
+    if (this.dirTimer <= 0) {
+      this.dirTimer = 3.2 - (this.phase === 3 ? 1.0 : 0);
+      const spd = 24 + this.phase * 10;
+      this.vx = (Math.random() < 0.5 ? 1 : -1) * spd;
+    }
+    const ty = 100 + (this.phase - 1) * 25;
+    this.y += (ty - this.y) * 0.6 * dt;
+  }
+
+  _attack(dt, enemyBullets, player, W) {
+    // Laser spécial
+    this.specialTimer -= dt;
+    if (this.specialTimer <= 0 && !this.laserWarning && !this.laserActive) {
+      this.specialTimer = 15.0;
+      this.laserWarning = true;
+      this.laserTimer   = 2.0;
+      this.laserX = player ? clamp(player.x, 35, W - 35) : W / 2;
+      this.laserW = 44 + this.phase * 12;
+    }
+    if (this.laserWarning) {
+      this.laserTimer -= dt;
+      if (this.laserTimer <= 0) {
+        this.laserWarning = false;
+        this.laserActive  = true;
+        this.laserTimer   = 0.45;
+      }
+    } else if (this.laserActive) {
+      this.laserTimer -= dt;
+      if (this.laserTimer <= 0) this.laserActive = false;
+    }
+    // Tirs réguliers
+    const rate = this.phase === 1 ? 1.6 : this.phase === 2 ? 1.0 : 0.55;
+    this.fireTimer -= dt;
+    if (this.fireTimer <= 0) {
+      this.fireTimer = rate;
+      const spd = CFG.ENEMY_BULLET_SPEED * (this.phase >= 2 ? 1.35 : 1.0);
+      if (this.phase === 3) {
+        const a0 = this.t * 2.1;
+        for (let i = 0; i < 4; i++) {
+          const a = a0 + i * Math.PI / 2;
+          enemyBullets.push(new Bullet(
+            this.x, this.y + this.h / 2,
+            Math.sin(a) * spd * 0.55,
+            Math.abs(Math.cos(a)) * spd + spd * 0.35,
+            '#ff4400', false
+          ));
+        }
+      } else {
+        const cnt = this.phase === 2 ? 4 : 3;
+        const sp2 = this.w * 0.33;
+        const offsets = cnt === 3
+          ? [-sp2, 0, sp2]
+          : [-sp2, -sp2 * 0.35, sp2 * 0.35, sp2];
+        offsets.forEach(ox => {
+          enemyBullets.push(new Bullet(
+            this.x + ox, this.y + this.h / 2,
+            ox * 0.6, spd, '#ffbb00', false
+          ));
+        });
+      }
+    }
+  }
+
+  update(dt, W, H, enemyBullets, player, particles) {
+    this.t += dt;
+    if (this.dying) {
+      this.deathTimer -= dt;
+      if (!this._deathSoundPlayed) {
+        this._deathSoundPlayed = true;
+      }
+      if (particles && Math.random() < 0.7) {
+        const ox = (Math.random() - 0.5) * this.w;
+        const oy = (Math.random() - 0.5) * this.h;
+        spawnExplosion(particles, this.x + ox, this.y + oy, this.color, 18, true);
+      }
+      if (this.deathTimer <= 0) this.dead = true;
+      return;
+    }
+    if (this.flashTimer > 0) this.flashTimer -= dt;
+    this._move(dt, W, H);
+    this._attack(dt, enemyBullets, player, W);
+  }
+
+  drawLaserEffect(ctx, H) {
+    if (this.laserWarning) {
+      const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.016);
+      ctx.save();
+      ctx.fillStyle = `rgba(255,0,0,${0.10 + 0.08 * pulse})`;
+      ctx.fillRect(this.laserX - this.laserW / 2, 0, this.laserW, H);
+      ctx.strokeStyle = `rgba(255,60,60,${0.45 + 0.3 * pulse})`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 4]);
+      ctx.strokeRect(this.laserX - this.laserW / 2, 0, this.laserW, H);
+      ctx.setLineDash([]);
+      ctx.restore();
+    } else if (this.laserActive) {
+      ctx.save();
+      ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 40;
+      ctx.fillStyle = 'rgba(255,90,0,0.88)';
+      ctx.fillRect(this.laserX - this.laserW / 2, 0, this.laserW, H);
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.fillRect(this.laserX - 5, 0, 10, H);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+  }
+
+  _drawBody(ctx) {
+    const w = this.w, h = this.h, t = this.t, ph = this.phase;
+    const glow = ph === 3 ? 38 + 14 * Math.sin(t * 8) : 22;
+    ctx.shadowColor = '#FFD700'; ctx.shadowBlur = glow;
+
+    // Coque principale trapézoïdale
+    const hg = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+    hg.addColorStop(0, '#886600'); hg.addColorStop(0.3, '#FFD700');
+    hg.addColorStop(0.65, '#BB8800'); hg.addColorStop(1, '#775500');
+    ctx.fillStyle = hg;
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.44,  h * 0.46);
+    ctx.lineTo( w * 0.44,  h * 0.46);
+    ctx.lineTo( w * 0.50, -h * 0.12);
+    ctx.lineTo( w * 0.30, -h * 0.50);
+    ctx.lineTo(-w * 0.30, -h * 0.50);
+    ctx.lineTo(-w * 0.50, -h * 0.12);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 2; ctx.stroke();
+
+    // Ailes
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#442200';
+    [[-1], [1]].forEach(([s]) => {
+      ctx.beginPath();
+      ctx.moveTo(s * w * 0.44,  h * 0.46);
+      ctx.lineTo(s * w * 0.62,  h * 0.56);
+      ctx.lineTo(s * w * 0.58,  h * 0.08);
+      ctx.lineTo(s * w * 0.50, -h * 0.12);
+      ctx.closePath(); ctx.fill();
+    });
+
+    // 4 canons
+    const cnt = ph === 1 ? 3 : 4;
+    const sp = w * 0.34;
+    const offs = cnt === 3 ? [-sp, 0, sp] : [-sp, -sp * 0.36, sp * 0.36, sp];
+    offs.forEach(ox => {
+      ctx.fillStyle = ph >= 2 ? '#aa2200' : '#334455';
+      ctx.shadowColor = ph >= 2 ? '#ff4400' : '#335566'; ctx.shadowBlur = 10;
+      ctx.fillRect(ox - 7, h * 0.28, 14, h * 0.22);
+      ctx.fillStyle = ph >= 2 ? '#ff5500' : '#556677';
+      ctx.fillRect(ox - 6, h * 0.46, 12, 7);
+    });
+    ctx.shadowBlur = 0;
+
+    // Symbole crâne (centre)
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = ph === 3 ? 22 + 10 * Math.sin(t * 6) : 10;
+    ctx.fillStyle = `rgba(180,0,0,${0.68 + 0.32 * Math.sin(t * 3.2)})`;
+    ctx.beginPath(); ctx.arc(0, -h * 0.06, w * 0.09, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(-w * 0.032, -h * 0.08, w * 0.026, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc( w * 0.032, -h * 0.08, w * 0.026, 0, Math.PI * 2); ctx.fill();
+    for (let i = -1; i <= 1; i++) ctx.fillRect(i * w * 0.031 - w * 0.011, -h * 0.02, w * 0.022, h * 0.032);
+
+    // Moteurs arrière
+    for (let i = -2; i <= 2; i++) {
+      const ex = i * w * 0.17;
+      const pls = 0.5 + 0.5 * Math.sin(t * 11 + i * 1.6);
+      ctx.shadowColor = '#00aaff'; ctx.shadowBlur = 16;
+      ctx.fillStyle = `rgba(0,140,255,${0.5 + 0.45 * pls})`;
+      ctx.beginPath(); ctx.ellipse(ex, h * 0.44, w * 0.055, h * 0.065, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
+}
+
+function createBoss(type, x, y, hp, W) {
+  switch (type) {
+    case 'chasseur':   return new BossChasseur(x, y, hp, W);
+    case 'titan':      return new BossTitan(x, y, hp, W);
+    default:           return new BossSentinelle(x, y, hp, W); // sentinelle + fallback
+  }
+}
+
+// ============================================================
 // SECTION 11d — GESTIONNAIRE DE PROGRESSION HISTOIRE
 // ============================================================
 class StoryManager {
@@ -1716,14 +2279,17 @@ class StoryManager {
 // ============================================================
 class StoryWaveController {
   constructor(levelDef, canvasW) {
-    this.waves        = levelDef.waves;
-    this.W            = canvasW;
-    this.waveIdx      = 0;
-    this.timer        = 0;
-    this.queue        = [];
-    this.betweenTimer = 0;
-    this.bossSpawned  = false;
-    this.done         = false;
+    this.waves           = levelDef.waves;
+    this.W               = canvasW;
+    this.waveIdx         = 0;
+    this.timer           = 0;
+    this.queue           = [];
+    this.betweenTimer    = 0;
+    this.bossSpawned     = false;
+    this.done            = false;
+    this.bossAlertTimer  = 0;   // countdown avant spawn boss
+    this.needsBossAlert  = false; // signal audio vers Game
+    this._pendingBoss    = null;
   }
 
   get waveNum()    { return this.waveIdx + 1; }
@@ -1783,12 +2349,25 @@ class StoryWaveController {
       enemies.push(e);
     }
 
+    // Alerte boss en cours → attendre fin du countdown
+    if (this.bossAlertTimer > 0) {
+      this.bossAlertTimer -= dt;
+      if (this.bossAlertTimer <= 0 && this._pendingBoss) {
+        this.bossSpawned = true;
+        enemies.push(createBoss(this._pendingBoss.type, this.W / 2, -80, this._pendingBoss.hp, this.W));
+        this._pendingBoss = null;
+      }
+      return;
+    }
+
     // Fin de vague : file vide ET plus d'ennemis à l'écran
     if (this.queue.length === 0 && enemies.length === 0) {
       const def = this.waves[this.waveIdx];
       if (def.boss && !this.bossSpawned) {
-        this.bossSpawned = true;
-        enemies.push(this._makeBoss(def.boss));
+        // Déclenchement de l'alerte boss (2,5 s)
+        this._pendingBoss   = def.boss;
+        this.bossAlertTimer = 2.5;
+        this.needsBossAlert = true;
       } else {
         const next = this.waveIdx + 1;
         if (next >= this.waves.length) {
@@ -1801,22 +2380,7 @@ class StoryWaveController {
     }
   }
 
-  _makeBoss(bossDef) {
-    const e    = new Enemy('heavy', this.W / 2, -70, 3);
-    e.hp       = bossDef.hp;
-    e.maxHp    = bossDef.hp;
-    e.isBoss   = true;
-    e.isFinal  = !!bossDef.isFinal;
-    e.w        = Math.round(ENEMY_DEFS.heavy.w * bossDef.scale);
-    e.h        = Math.round(ENEMY_DEFS.heavy.h * bossDef.scale);
-    e.score    = bossDef.hp * 8;
-    e.fireRate = bossDef.isFinal ? 0.55 : 0.9;
-    e.fireTimer = 1.5;
-    e.vy       = bossDef.isFinal ? 28 : 38;
-    e.vx       = 0;
-    e.dropChance = 1.0;
-    return e;
-  }
+  get bossAlertActive() { return this.bossAlertTimer > 0; }
 }
 
 // ============================================================
@@ -1926,6 +2490,7 @@ class Game {
       if (next <= 10 && next <= this.story.unlocked) this._startStoryLevel(next);
       else this._openStorySelect();
     });
+    on('btn-final-back',   'click', () => { this.state = 'start'; this.ui.showScreen('start'); });
 
     document.addEventListener('starblast-story-play', ({ detail: { id } }) => {
       this._startStoryLevel(id);
@@ -2088,22 +2653,39 @@ class Game {
       localStorage.setItem('starblast_hs', score.toString());
     }
 
-    const coinsEarned = Math.floor(score / 8);
+    // Bonus boss (niveaux 8-10)
+    const bossBonus = { 8: { coins: 500, xp: 300 }, 9: { coins: 800, xp: 500 }, 10: { coins: 2000, xp: 1000 } };
+    const bonus = bossBonus[this.storyLevelId] || { coins: 0, xp: 0 };
+
+    // Déblocage skin Titan sur victoire niveau 10
+    if (this.storyLevelId === 10) {
+      this.shop.owned.add('titan');
+      this.shop._persistOwned();
+    }
+
+    const coinsEarned = Math.floor(score / 8) + bonus.coins;
     this.coins += coinsEarned;
     localStorage.setItem('starblast_coins', this.coins.toString());
     this.ui.updateCoins(this.coins);
     this.ui.updateStartCoins(this.coins);
     this.ui.updateStartHS(this.highscore);
 
-    // XP × 2 grâce à XP_MULTIPLIER
+    // XP × 2 + bonus boss
     XP_MULTIPLIER = 2;
-    const rawXP = Math.floor(score / 5);
+    const rawXP = Math.floor(score / 5) + bonus.xp;
     const { xpAdded, levelsGained } = this.progression.addXP(rawXP, this.shop);
     XP_MULTIPLIER = 1;
 
     this.ui.updateXPLevel(this.progression.level);
     this.ui.updateXPBar(this.progression.level, this.progression.progressRatio);
     this.ui.updateLegendBadge(this.progression.level);
+
+    // Écran victoire finale pour TITAN
+    if (this.storyLevelId === 10) {
+      this.state = 'final-victory';
+      this.ui.showFinalVictory(this.story, coinsEarned, xpAdded);
+      return;
+    }
 
     const hasNext = this.storyLevelId < 10 && this.storyLevelId < this.story.unlocked + 1;
     this.ui.showStoryVictory(this.storyLevelId, stars, score, xpAdded, coinsEarned, hasNext);
@@ -2170,9 +2752,38 @@ class Game {
 
     this.playerBullets.forEach(b => b.update(dt, this.W, this.H));
     this.enemyBullets.forEach( b => b.update(dt, this.W, this.H));
-    this.enemies.forEach(      e => e.update(dt, this.W, this.H, this.enemyBullets));
+    this.enemies.forEach(      e => e.update(dt, this.W, this.H, this.enemyBullets, this.player, this.particles));
     this.powerups.forEach(     p => p.update(dt, this.H));
     this.particles.forEach(    p => p.update(dt));
+
+    // Déclenchement alerte boss (son)
+    if (this.storyCtrl.needsBossAlert) {
+      this.storyCtrl.needsBossAlert = false;
+      this.audio.bossAlert();
+    }
+
+    // Récompense boss (transition alive → dying)
+    for (const e of this.enemies) {
+      if (e.isBoss && e.dying && !e._rewardGiven) {
+        e._rewardGiven = true;
+        this.player.score += e.score;
+        spawnExplosion(this.particles, e.x, e.y, e.color, 28, true);
+        if (e instanceof BossTitan) this.audio.titanDeath();
+        else this.audio.explosion(true);
+      }
+    }
+
+    // Laser TITAN → dégâts joueur
+    const titan = this.enemies.find(e => e instanceof BossTitan && !e.dying);
+    if (titan && titan.laserActive) {
+      const lx = titan.laserX, lw = titan.laserW;
+      if (this.player.x > lx - lw / 2 && this.player.x < lx + lw / 2 && !this._laserHit) {
+        this._laserHit = true;
+        if (this.player.hit(this.particles, this.audio)) this.ui.flash('#ff0000', 0.7);
+      }
+    } else {
+      this._laserHit = false;
+    }
 
     // Collisions : balles joueur → ennemis
     for (let i = this.playerBullets.length - 1; i >= 0; i--) {
@@ -2180,11 +2791,11 @@ class Game {
       if (b.dead) continue;
       for (let j = this.enemies.length - 1; j >= 0; j--) {
         const e = this.enemies[j];
-        if (!aabb(b.hitbox, e.hitbox)) continue;
+        if (e.dying || !aabb(b.hitbox, e.hitbox)) continue;
         b.dead = true;
         spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
         if (e.hit()) {
-          this.player.score += e.score; // pas de multiplicateur de vague en histoire
+          this.player.score += e.score;
           spawnExplosion(this.particles, e.x, e.y, e.color, e.type === 'heavy' ? 22 : 14, e.type === 'heavy');
           this.audio.explosion(e.type === 'heavy');
           e.dead = true;
@@ -2204,9 +2815,9 @@ class Game {
       if (this.player.hit(this.particles, this.audio)) this.ui.flash('#ff3355', 0.5);
     }
 
-    // Ennemis → joueur (collision directe)
+    // Ennemis → joueur (collision directe — seulement ennemis normaux)
     for (const e of this.enemies) {
-      if (e.dead || !aabb(e.hitbox, this.player.hitbox)) continue;
+      if (e.dead || e.isBoss || e.dying || !aabb(e.hitbox, this.player.hitbox)) continue;
       if (this.player.hit(this.particles, this.audio)) { this.ui.flash('#ff3355', 0.6); e.dead = true; }
     }
 
@@ -2370,6 +2981,20 @@ class Game {
     this.stars.draw(ctx);
 
     if (this.state === 'playing' || this.state === 'paused' || this.state === 'story-playing') {
+      // Overlay rouge TITAN phase 3 (avant les entités)
+      if (this.state === 'story-playing') {
+        const titan = this.enemies.find(e => e instanceof BossTitan && !e.dying);
+        if (titan) {
+          if (titan.phase === 3) {
+            const redAlpha = 0.12 + 0.07 * Math.sin(Date.now() * 0.009);
+            ctx.fillStyle = `rgba(100,0,0,${redAlpha})`;
+            ctx.fillRect(0, 0, this.W, this.H);
+          }
+          // Laser TITAN (dessiné derrière les entités)
+          titan.drawLaserEffect(ctx, this.H);
+        }
+      }
+
       // Power-ups
       this.powerups.forEach(p => p.draw(ctx));
 
@@ -2379,7 +3004,7 @@ class Game {
       // Balles ennemies
       this.enemyBullets.forEach(b => b.draw(ctx));
 
-      // Ennemis
+      // Ennemis (y compris boss)
       this.enemies.forEach(e => e.draw(ctx));
 
       // Joueur
@@ -2421,6 +3046,23 @@ class Game {
           this.W / 2, this.H / 2 + 40
         );
         ctx.restore();
+      }
+
+      // Alerte boss — texte clignotant
+      if (this.state === 'story-playing' && this.storyCtrl?.bossAlertActive) {
+        const blink = Math.floor(Date.now() / 280) % 2 === 0;
+        if (blink) {
+          ctx.save();
+          ctx.fillStyle    = '#ff2200';
+          ctx.font         = 'bold 26px Orbitron, monospace';
+          ctx.textAlign    = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.shadowColor  = '#ff4400';
+          ctx.shadowBlur   = 28;
+          ctx.fillText('⚠ BOSS INCOMING ⚠', this.W / 2, this.H / 2);
+          ctx.shadowBlur = 0;
+          ctx.restore();
+        }
       }
     }
   }

@@ -1092,3 +1092,71 @@ body.is-mobile #mobile-ui { display: flex; }
   letter-spacing: 0.08em;
   margin-bottom: 14px;
 }
+
+/* ── Écran Victoire Finale (TITAN) ───────────────────────── */
+.fv-inner {
+  padding: 18px 14px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.fv-title {
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #FFD700;
+  text-shadow: 0 0 28px rgba(255,215,0,0.7), 0 0 8px rgba(255,215,0,0.4);
+  text-align: center;
+  line-height: 1.25;
+  animation: fv-appear 0.8s ease-out;
+}
+
+.fv-subtitle {
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  color: #fff;
+  opacity: 0.75;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.fv-stars-recap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.fv-level-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 0.65rem;
+  color: var(--c-muted);
+  background: rgba(255,255,255,0.03);
+}
+
+.fv-level-row.fv-level-done {
+  color: #fff;
+  background: rgba(255,215,0,0.07);
+}
+
+.fv-stars-cell[data-s="3"] { color: #FFD700; text-shadow: 0 0 8px rgba(255,215,0,0.6); }
+.fv-stars-cell[data-s="2"] { color: #FFD700; opacity: 0.75; }
+.fv-stars-cell[data-s="1"] { color: #aaa; }
+.fv-stars-cell[data-s="0"] { color: #444; }
+
+.fv-stats { width: 100%; margin-top: 4px; }
+
+@keyframes fv-appear {
+  from { opacity: 0; transform: scale(0.85) translateY(-12px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
