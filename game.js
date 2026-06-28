@@ -1158,7 +1158,7 @@ class Game {
      */
 
     // Option A — Payment Link (aucun backend requis, le plus simple) :
-    // window.location.href = 'https://buy.stripe.com/VOTRE_PAYMENT_LINK';
+    // window.location.href = 'https://buy.stripe.com/https://buy.stripe.com/test_14A00j5WG8qE1wMaLOdQQ00';
 
     // Option B — Stripe Checkout (nécessite un backend pour créer la session) :
     /*
