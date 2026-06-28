@@ -880,3 +880,85 @@ body.is-mobile #mobile-ui { display: flex; }
   letter-spacing: 0.1em;
   margin-top: -6px;
 }
+
+/* ── Système de progression XP ──────────────────────────────── */
+
+/* Groupe LVL dans le HUD */
+.hud-xlvl-group #hud-xlvl {
+  font-size: 0.95rem;
+  font-weight: 900;
+  transition: color 0.4s;
+}
+
+/* Barre XP (bas du canvas) */
+#xp-bar-wrap {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.06);
+  z-index: 15;
+  pointer-events: none;
+}
+#xp-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: #00BFFF;
+  box-shadow: 0 0 5px #00BFFF;
+  transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1),
+              background 0.4s ease,
+              box-shadow 0.4s ease;
+}
+
+/* Badge ★ LÉGENDE ★ (niveau 100) */
+.legend-badge {
+  position: absolute;
+  top: 46px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.55rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: #FFD700;
+  text-shadow: 0 0 10px rgba(255,215,0,0.7);
+  pointer-events: none;
+  z-index: 20;
+  animation: legend-glow 1.8s ease-in-out infinite alternate;
+}
+.legend-badge.hidden { display: none; }
+
+@keyframes legend-glow {
+  from { text-shadow: 0 0 6px rgba(255,215,0,0.4); opacity: 0.85; }
+  to   { text-shadow: 0 0 18px rgba(255,215,0,1), 0 0 36px rgba(255,215,0,0.4); opacity: 1; }
+}
+
+/* Glow niveau 100 animé pour le HUD */
+@keyframes xlvl-gold-glow {
+  from { text-shadow: 0 0 6px rgba(255,215,0,0.4); }
+  to   { text-shadow: 0 0 16px rgba(255,215,0,1), 0 0 30px rgba(255,215,0,0.5); }
+}
+
+/* XP gagnée (Game Over) */
+.xp-value {
+  color: #aef;
+  font-weight: 700;
+}
+
+/* Notification passage de niveau (Game Over) */
+.go-levelup {
+  margin-top: 6px;
+  padding: 8px 18px;
+  background: rgba(255,215,0,0.08);
+  border: 1px solid rgba(255,215,0,0.35);
+  border-radius: 8px;
+  color: #FFD700;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-align: center;
+  animation: levelup-flash 0.55s ease 4;
+}
+.go-levelup.hidden { display: none; }
+
+@keyframes levelup-flash {
+  0%, 100% { background: rgba(255,215,0,0.08); }
+  50%       { background: rgba(255,215,0,0.28); box-shadow: 0 0 18px rgba(255,215,0,0.35); }
+}

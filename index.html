@@ -32,6 +32,10 @@
 
     <!-- ── HUD (Head-Up Display) ─────────────────────────────────── -->
     <div id="hud">
+      <div class="hud-group hud-xlvl-group">
+        <span class="hud-label">LVL</span>
+        <span id="hud-xlvl">1</span>
+      </div>
       <div class="hud-group">
         <span class="hud-label">SCORE</span>
         <span id="hud-score">0</span>
@@ -73,8 +77,14 @@
     <!-- ── Flash d'impact ───────────────────────────────────────── -->
     <div id="flash-overlay"></div>
 
-    <!-- ── Notification niveau ──────────────────────────────────── -->
+    <!-- ── Notification niveau (vague) ──────────────────────────── -->
     <div id="level-notif"></div>
+
+    <!-- ── Barre XP (bas du canvas) ─────────────────────────────── -->
+    <div id="xp-bar-wrap"><div id="xp-bar-fill"></div></div>
+
+    <!-- ── Badge Légende niveau 100 ──────────────────────────────── -->
+    <div id="legend-badge" class="legend-badge hidden">★ LÉGENDE ★</div>
 
     <!-- ================================================================
          ÉCRANS (overlays)
@@ -137,10 +147,19 @@
             <span>PIÈCES GAGNÉES</span>
             <span id="go-coins-earned" class="result-value coins-value">+0</span>
           </div>
+          <div class="result-row">
+            <span>XP GAGNÉE</span>
+            <span id="go-xp-earned" class="result-value xp-value">+0 XP</span>
+          </div>
+          <div class="result-row">
+            <span>NIVEAU</span>
+            <span id="go-xlvl" class="result-value">1</span>
+          </div>
         </div>
         <div id="go-coins-total" class="go-coins-total">
           <span class="coin-star">★</span> Total&nbsp;: <span id="go-coins-total-val">0</span> pièces
         </div>
+        <div id="go-levelup" class="go-levelup hidden"></div>
 
         <!-- Placeholder publicité interstitielle -->
         <div id="ad-interstitiel" class="ad-slot">

@@ -55,6 +55,27 @@ const COLOR_DATA = [
 ];
 
 // ============================================================
+// SECTION 0c — CONSTANTES DE PROGRESSION XP
+// ============================================================
+const XP_MULTIPLIER = 1; // Mode Histoire passera cette valeur à 2
+
+const LEVEL_UNLOCKS = [
+  { level: 10,  type: 'skin',  id: 'stealth' },
+  { level: 25,  type: 'color', id: 'purple'  },
+  { level: 50,  type: 'skin',  id: 'phoenix' },
+  { level: 75,  type: 'skin',  id: 'shadow'  },
+  { level: 100, type: 'skin',  id: 'titan'   },
+];
+
+function getLevelColor(level) {
+  if (level >= 100) return '#FFD700';
+  if (level >= 75)  return '#FF8C00';
+  if (level >= 50)  return '#BF00FF';
+  if (level >= 25)  return '#00BFFF';
+  return '#ffffff';
+}
+
+// ============================================================
 // SECTION 1 — GESTIONNAIRE AUDIO (Web Audio API)
 // ============================================================
 class AudioManager {
@@ -1200,6 +1221,137 @@ class UIManager {
 
     this._coinAnimId = requestAnimationFrame(tick);
   }
+
+  // ── Niveau de progression dans le HUD ──────────────────────
+  updateXPLevel(level) {
+    const el = document.getElementById('hud-xlvl');
+    if (!el) return;
+    el.textContent = level;
+    el.style.color = getLevelColor(level);
+    el.style.animation = level >= 100 ? 'xlvl-gold-glow 1.5s ease-in-out infinite alternate' : '';
+  }
+
+  // ── Barre XP (bas du canvas) ────────────────────────────────
+  updateXPBar(level, ratio) {
+    const fill = document.getElementById('xp-bar-fill');
+    if (!fill) return;
+    const color = getLevelColor(level);
+    fill.style.width      = `${Math.min(ratio * 100, 100)}%`;
+    fill.style.background = color;
+    fill.style.boxShadow  = `0 0 5px ${color}`;
+  }
+
+  // ── XP gagnée + niveau + level-up (Game Over) ──────────────
+  showGameOverXP(xpAdded, level, levelsGained) {
+    const lvlEl = document.getElementById('go-xlvl');
+    if (lvlEl) { lvlEl.textContent = level; lvlEl.style.color = getLevelColor(level); }
+
+    const lvUpEl = document.getElementById('go-levelup');
+    if (lvUpEl) lvUpEl.classList.add('hidden');
+
+    const earnedEl = document.getElementById('go-xp-earned');
+    if (!earnedEl) return;
+    earnedEl.textContent = '+0 XP';
+
+    if (this._xpAnimId) cancelAnimationFrame(this._xpAnimId);
+    const DURATION = 1200;
+    const startTs  = performance.now();
+    const tick = (now) => {
+      const progress = Math.min((now - startTs) / DURATION, 1);
+      const eased    = 1 - Math.pow(1 - progress, 3);
+      earnedEl.textContent = `+${Math.floor(eased * xpAdded).toLocaleString('fr-FR')} XP`;
+      if (progress < 1) {
+        this._xpAnimId = requestAnimationFrame(tick);
+      } else {
+        earnedEl.textContent = `+${xpAdded.toLocaleString('fr-FR')} XP`;
+        this._xpAnimId = null;
+        if (levelsGained.length > 0 && lvUpEl) {
+          const highest = levelsGained[levelsGained.length - 1];
+          lvUpEl.textContent = `NIVEAU ${highest} ATTEINT !`;
+          lvUpEl.style.color = getLevelColor(highest);
+          lvUpEl.classList.remove('hidden');
+        }
+      }
+    };
+    this._xpAnimId = requestAnimationFrame(tick);
+  }
+
+  // ── Badge LÉGENDE niveau 100 ────────────────────────────────
+  updateLegendBadge(level) {
+    const el = document.getElementById('legend-badge');
+    if (!el) return;
+    if (level >= 100) el.classList.remove('hidden');
+    else              el.classList.add('hidden');
+  }
+}
+
+// ============================================================
+// SECTION 11c — GESTIONNAIRE DE PROGRESSION XP
+// ============================================================
+class ProgressionManager {
+  constructor() {
+    const saved = JSON.parse(localStorage.getItem('starblast_progression') || '{"totalXP":0}');
+    this.totalXP = Math.max(0, saved.totalXP || 0);
+    const { level, xpInLevel } = ProgressionManager.computeLevel(this.totalXP);
+    this.level    = level;
+    this.xpInLevel = xpInLevel;
+  }
+
+  static xpForLevel(n) {
+    if (n >= 100) return Infinity;
+    return Math.round(100 * Math.pow(n, 1.5));
+  }
+
+  static computeLevel(totalXP) {
+    let level = 1;
+    let remaining = totalXP;
+    while (level < 100) {
+      const needed = ProgressionManager.xpForLevel(level);
+      if (remaining < needed) break;
+      remaining -= needed;
+      level++;
+    }
+    return { level, xpInLevel: remaining };
+  }
+
+  get progressRatio() {
+    if (this.level >= 100) return 1;
+    return Math.min(this.xpInLevel / ProgressionManager.xpForLevel(this.level), 1);
+  }
+
+  /**
+   * Ajoute de l'XP (multiplié par XP_MULTIPLIER global).
+   * Retourne { xpAdded, levelsGained[], unlocks[] }.
+   */
+  addXP(rawXP, shop) {
+    const amount = Math.max(0, Math.floor(rawXP * XP_MULTIPLIER));
+    if (amount === 0 || this.level >= 100) return { xpAdded: 0, levelsGained: [], unlocks: [] };
+
+    const prevLevel = this.level;
+    this.totalXP += amount;
+    const { level, xpInLevel } = ProgressionManager.computeLevel(this.totalXP);
+    this.level    = level;
+    this.xpInLevel = xpInLevel;
+
+    const levelsGained = [];
+    const unlocks      = [];
+    for (let lv = prevLevel + 1; lv <= level; lv++) {
+      levelsGained.push(lv);
+      LEVEL_UNLOCKS.filter(u => u.level === lv).forEach(u => {
+        shop.owned.add(u.id);
+        unlocks.push(u);
+      });
+    }
+
+    if (unlocks.length > 0) shop._persistOwned();
+    this._save();
+
+    return { xpAdded: amount, levelsGained, unlocks };
+  }
+
+  _save() {
+    localStorage.setItem('starblast_progression', JSON.stringify({ totalXP: this.totalXP }));
+  }
 }
 
 // ============================================================
@@ -1386,12 +1538,13 @@ class Game {
     this.W = CFG.CANVAS_W;
     this.H = CFG.CANVAS_H;
 
-    this.audio = new AudioManager();
-    this.ui    = new UIManager();
-    this.input = new InputManager();
-    this.stars = new StarField(this.W, this.H);
-    this.wave  = new WaveManager();
-    this.shop  = new ShopManager();
+    this.audio       = new AudioManager();
+    this.ui          = new UIManager();
+    this.input       = new InputManager();
+    this.stars       = new StarField(this.W, this.H);
+    this.wave        = new WaveManager();
+    this.shop        = new ShopManager();
+    this.progression = new ProgressionManager();
 
     this.player       = null;
     this.enemies      = [];
@@ -1413,6 +1566,9 @@ class Game {
     this.ui.updateStartHS(this.highscore);
     this.ui.updateStartCoins(this.coins);
     this.ui.updateCoins(this.coins);
+    this.ui.updateXPLevel(this.progression.level);
+    this.ui.updateXPBar(this.progression.level, this.progression.progressRatio);
+    this.ui.updateLegendBadge(this.progression.level);
     this.ui.showScreen('start');
 
     // Démarre la boucle de rendu (étoiles animées sur les écrans de menu)
@@ -1555,6 +1711,8 @@ class Game {
     this.ui.hideScreens();
     this.ui.showLevelNotif(1);
     this.ui.updateHUD(0, 1, CFG.LIVES, this.highscore);
+    this.ui.updateXPLevel(this.progression.level);
+    this.ui.updateXPBar(this.progression.level, this.progression.progressRatio);
   }
 
   // ── Game Over ────────────────────────────────────────────
@@ -1579,6 +1737,16 @@ class Game {
     this.ui.updateStartHS(this.highscore);
     this.ui.showGameOver(score, this.highscore, this.wave.level);
     this.ui.showGameOverCoins(earned, this.coins);
+
+    // XP : score / 5 (mode Survie, multiplié par XP_MULTIPLIER)
+    const rawXP = Math.floor(score / 5);
+    const { xpAdded, levelsGained } = this.progression.addXP(rawXP, this.shop);
+
+    // Mise à jour barre XP + HUD niveau
+    this.ui.updateXPLevel(this.progression.level);
+    this.ui.updateXPBar(this.progression.level, this.progression.progressRatio);
+    this.ui.updateLegendBadge(this.progression.level);
+    this.ui.showGameOverXP(xpAdded, this.progression.level, levelsGained);
   }
 
   // ============================================================
