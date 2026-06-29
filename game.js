@@ -15,7 +15,7 @@ const CFG = {
 
   // Joueur
   PLAYER_SPEED: 290,          // px/s (vertical)
-  PLAYER_SPEED_X: 725,        // px/s latéral (290 × 2.5)
+  PLAYER_SPEED_X: 850,        // px/s latéral — légèrement augmenté pour un jeu plus frénétique
   PLAYER_FIRE_RATE: 0.22,     // secondes entre tirs
   BULLET_SPEED: 620,          // px/s balles joueur
   ENEMY_BULLET_SPEED: 190,    // px/s balles ennemies
@@ -603,13 +603,27 @@ class Player {
     else if (type === 'bomb')   { this.bombs++;  }
   }
 
-  /** Utilise une bombe : détruit tous les ennemis à l'écran. */
+  /** Utilise une bombe : inflige 25 dégâts fixes à chaque ennemi à l'écran. */
   useBomb(enemies, particles, audio) {
     if (this.bombs <= 0) return false;
     this.bombs--;
     audio.bomb();
-    enemies.forEach(e => spawnExplosion(particles, e.x, e.y, e.color, 14, true));
-    enemies.length = 0;
+    const BOMB_DAMAGE = 25;
+    enemies.forEach(e => {
+      if (e.dead || e.dying) return;
+      e.hp = Math.max(0, (e.hp ?? 1) - BOMB_DAMAGE);
+      spawnExplosion(particles, e.x, e.y, e.color, 14, true);
+      if (e.hp <= 0) {
+        if (e.isBoss) {
+          e.dying = true;
+          e.deathTimer = e.deathDuration;
+        } else {
+          e.dead = true;
+        }
+      } else if (typeof e.flashTimer !== 'undefined') {
+        e.flashTimer = 0.08;
+      }
+    });
     return true;
   }
 
@@ -1769,6 +1783,8 @@ class BossBase {
     this.flashTimer = 0;
     this.t = 0;
     this._rewardGiven = false;
+    // Seuils de drop de powerups (en ratio HP/maxHP) — combat boss long
+    this._dropThresholds = [0.75, 0.50, 0.25];
   }
 
   get hitbox() {
@@ -1864,33 +1880,74 @@ class BossSentinelle extends BossBase {
     this.vx = 58;
     this.targetY = 145;
     this.fireTimer = 1.5;
-    this.fanTimer = 8.0;
+    this.specialTimer = 8.0;
+    this.patternIdx = 0;
+    this.burstQueue = [];
   }
 
   _move(dt, W) {
     this.x += this.vx * dt;
     if (this.x < this.w / 2 + 18) { this.x = this.w / 2 + 18; this.vx = Math.abs(this.vx); }
     if (this.x > W - this.w / 2 - 18) { this.x = W - this.w / 2 - 18; this.vx = -Math.abs(this.vx); }
-    this.y += (this.targetY - this.y) * 0.55 * dt;
+    // Léger wobble vertical pour casser la répétition (sans changer la difficulté)
+    const ty = this.targetY + Math.sin(this.t * 0.7) * 16;
+    this.y += (ty - this.y) * 1.4 * dt;
   }
 
   _attack(dt, enemyBullets) {
+    // Décharge des tirs en rafale différée
+    for (let i = this.burstQueue.length - 1; i >= 0; i--) {
+      this.burstQueue[i].t -= dt;
+      if (this.burstQueue[i].t <= 0) {
+        const b = this.burstQueue[i];
+        enemyBullets.push(new Bullet(b.x, b.y, b.vx, b.vy, b.color, false));
+        this.burstQueue.splice(i, 1);
+      }
+    }
+
+    // Feu simple régulier
     this.fireTimer -= dt;
     if (this.fireTimer <= 0) {
       this.fireTimer = 1.5;
       enemyBullets.push(new Bullet(this.x, this.y + this.h / 2 + 4, 0, CFG.ENEMY_BULLET_SPEED, '#aaddff', false));
     }
-    this.fanTimer -= dt;
-    if (this.fanTimer <= 0) {
-      this.fanTimer = 8.0;
-      for (let i = 0; i < 5; i++) {
-        const a = (i - 2) * 24 * Math.PI / 180;
-        enemyBullets.push(new Bullet(
-          this.x, this.y + this.h / 2,
-          Math.sin(a) * CFG.ENEMY_BULLET_SPEED,
-          Math.cos(a) * CFG.ENEMY_BULLET_SPEED,
-          '#ff9900', false
-        ));
+
+    // Attaque spéciale — alterne entre 3 patterns (éventail / rafale / couronne)
+    this.specialTimer -= dt;
+    if (this.specialTimer <= 0) {
+      this.specialTimer = 8.0;
+      const spd = CFG.ENEMY_BULLET_SPEED;
+      const p = this.patternIdx++ % 3;
+      if (p === 0) {
+        // Eventail 5 balles devant
+        for (let i = 0; i < 5; i++) {
+          const a = (i - 2) * 24 * Math.PI / 180;
+          enemyBullets.push(new Bullet(
+            this.x, this.y + this.h / 2,
+            Math.sin(a) * spd, Math.cos(a) * spd, '#ff9900', false
+          ));
+        }
+      } else if (p === 1) {
+        // Rafale 3 tirs droits depuis les 2 canons latéraux
+        [-this.w * 0.42, this.w * 0.42].forEach(ox => {
+          for (let r = 0; r < 3; r++) {
+            this.burstQueue.push({
+              t: r * 0.12,
+              x: this.x + ox, y: this.y + this.h / 2,
+              vx: 0, vy: spd, color: '#ffcc44'
+            });
+          }
+        });
+      } else {
+        // Couronne tournante 8 balles en arc avant
+        for (let i = 0; i < 8; i++) {
+          const a = (i - 3.5) * 16 * Math.PI / 180 + Math.sin(this.t * 0.4) * 0.3;
+          enemyBullets.push(new Bullet(
+            this.x, this.y + this.h / 2,
+            Math.sin(a) * spd * 0.85, Math.cos(a) * spd * 0.85,
+            '#ffaaaa', false
+          ));
+        }
       }
     }
   }
@@ -2544,15 +2601,10 @@ class Game {
     const overlay = document.getElementById('modal-overlay');
     if (overlay) overlay.addEventListener('click', e => { if (e.target === overlay) this._hideModal(); });
 
-    // Bombe mobile
-    on('btn-bomb', 'touchstart', e => {
-      e.preventDefault();
-      if ((this.state === 'playing' || this.state === 'story-playing') && this.player) {
-        if (this.player.useBomb(this.enemies, this.particles, this.audio)) {
-          this.ui.flash('#ff6b35', 0.5);
-        }
-      }
-    });
+    // Bombe mobile : le déclenchement est géré par InputManager._bindMobile()
+    // (flag `input.bomb` consommé dans _update / _updateStory au frame suivant).
+    // Ne PAS ajouter ici un second listener touchstart : cela consommerait
+    // deux bombes par tap (une via useBomb() direct, une via input.bomb=true).
   }
 
   _showModal() { document.getElementById('modal-overlay')?.classList.remove('hidden'); }
@@ -2770,6 +2822,18 @@ class Game {
         spawnExplosion(this.particles, e.x, e.y, e.color, 28, true);
         if (e instanceof BossTitan) this.audio.titanDeath();
         else this.audio.explosion(true);
+      }
+    }
+
+    // Drops powerups durant les combats boss aux seuils 75/50/25 % PV
+    for (const e of this.enemies) {
+      if (!e.isBoss || e.dying || !e._dropThresholds) continue;
+      while (e._dropThresholds.length > 0 && e.hp / e.maxHp <= e._dropThresholds[0]) {
+        e._dropThresholds.shift();
+        const types = ['shield', 'double', 'bomb'];
+        const t = types[randInt(0, 2)];
+        const dx = (Math.random() - 0.5) * 80;
+        this.powerups.push(new PowerUp(clamp(e.x + dx, 30, this.W - 30), e.y + 24, t));
       }
     }
 
