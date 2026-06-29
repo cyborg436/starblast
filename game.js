@@ -36,22 +36,49 @@ const CFG = {
 // SECTION 0b — DONNÉES DE LA BOUTIQUE
 // ============================================================
 const SKIN_DATA = [
-  { id: 'starter', name: 'Starter', price: 0    },
-  { id: 'stealth', name: 'Stealth', price: 150  },
-  { id: 'brute',   name: 'Brute',   price: 300  },
-  { id: 'viper',   name: 'Viper',   price: 500  },
-  { id: 'phoenix', name: 'Phoenix', price: 800  },
-  { id: 'shadow',  name: 'Shadow',  price: 1200 },
-  { id: 'titan',   name: 'Titan',   price: 2000 },
+  // ── Commun ──
+  { id: 'starter',    name: 'Starter',    price: 0,    rarity: 'common'    },
+  { id: 'stealth',    name: 'Stealth',    price: 150,  rarity: 'common'    },
+  { id: 'brute',      name: 'Brute',      price: 300,  rarity: 'common'    },
+  { id: 'scout',      name: 'Scout',      price: 200,  rarity: 'common'    },
+  { id: 'rustbucket', name: 'Rustbucket', price: 250,  rarity: 'common'    },
+  { id: 'dart',       name: 'Dart',       price: 300,  rarity: 'common'    },
+  { id: 'wedge',      name: 'Wedge',      price: 350,  rarity: 'common'    },
+  // ── Rare ──
+  { id: 'viper',      name: 'Viper',      price: 500,  rarity: 'rare'      },
+  { id: 'falcon',     name: 'Falcon',     price: 600,  rarity: 'rare'      },
+  { id: 'hornet',     name: 'Hornet',     price: 700,  rarity: 'rare'      },
+  { id: 'nova',       name: 'Nova',       price: 800,  rarity: 'rare'      },
+  { id: 'specter',    name: 'Specter',    price: 900,  rarity: 'rare'      },
+  // ── Épique ──
+  { id: 'phoenix',    name: 'Phoenix',    price: 800,  rarity: 'epic'      },
+  { id: 'shadow',     name: 'Shadow',     price: 1200, rarity: 'epic'      },
+  { id: 'inferno',    name: 'Inferno',    price: 1500, rarity: 'epic'      },
+  { id: 'kraken',     name: 'Kraken',     price: 1800, rarity: 'epic'      },
+  { id: 'quantum',    name: 'Quantum',    price: 2000, rarity: 'epic'      },
+  { id: 'nebula',     name: 'Nébula',     price: 2200, rarity: 'epic'      },
+  // ── Légendaire ──
+  { id: 'titan',      name: 'Titan',      price: 2000, rarity: 'legendary' },
+  { id: 'celestial',  name: 'Céleste',    price: 5000, rarity: 'legendary' },
+  { id: 'void',       name: 'Void',       price: 5000, rarity: 'legendary' },
+  { id: 'aurora',     name: 'Aurora',     price: 5000, rarity: 'legendary' },
 ];
 
 const COLOR_DATA = [
-  { id: 'white',   name: 'Laser Blanc',   price: 0,   color: '#ffffff' },
-  { id: 'blue',    name: 'Laser Bleu',    price: 100, color: '#00BFFF' },
-  { id: 'green',   name: 'Laser Vert',    price: 100, color: '#39FF14' },
-  { id: 'red',     name: 'Laser Rouge',   price: 200, color: '#FF3131' },
-  { id: 'purple',  name: 'Laser Violet',  price: 300, color: '#BF00FF' },
-  { id: 'rainbow', name: 'Arc-en-ciel',   price: 500, color: 'rainbow' },
+  // ── Commun ──
+  { id: 'white',   name: 'Laser Blanc',   price: 0,    color: '#ffffff', rarity: 'common'    },
+  { id: 'blue',    name: 'Laser Bleu',    price: 100,  color: '#00BFFF', rarity: 'common'    },
+  { id: 'green',   name: 'Laser Vert',    price: 100,  color: '#39FF14', rarity: 'common'    },
+  { id: 'red',     name: 'Laser Rouge',   price: 200,  color: '#FF3131', rarity: 'common'    },
+  // ── Rare ──
+  { id: 'purple',  name: 'Laser Violet',  price: 300,  color: '#BF00FF', rarity: 'rare'      },
+  { id: 'rainbow', name: 'Arc-en-ciel',   price: 500,  color: 'rainbow', rarity: 'rare'      },
+  { id: 'golden',  name: 'Laser Doré',    price: 400,  color: '#FFD700', rarity: 'rare'      },
+  { id: 'plasma',  name: 'Laser Plasma',  price: 600,  color: '#00FF88', rarity: 'rare'      },
+  // ── Épique ──
+  { id: 'phantom', name: 'Laser Fantôme', price: 1000, color: '#C0C8FF', rarity: 'epic'      },
+  // ── Légendaire ──
+  { id: 'solar',   name: 'Laser Solaire', price: 1500, color: '#FFFDE7', rarity: 'legendary' },
 ];
 
 // ============================================================
@@ -681,6 +708,328 @@ const SKIN_RENDERERS = {
     ctx.beginPath(); ctx.rect(-w*.3,h*.1,w*.6,h*.08);
     ctx.fillStyle = 'rgba(255,215,0,.28)'; ctx.fill();
   },
+
+  // ── 8. Scout : slim avant-poste bleu pâle ──
+  scout(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.52); ctx.lineTo(w*.22,h*.1); ctx.lineTo(w*.14,h*.5);
+    ctx.lineTo(-w*.14,h*.5); ctx.lineTo(-w*.22,h*.1); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#80d4ff'); g.addColorStop(1,'#1a4d66');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#80d4ff'; ctx.lineWidth=1; ctx.shadowColor='#80d4ff'; ctx.shadowBlur=8; ctx.stroke(); ctx.shadowBlur=0;
+    [1,-1].forEach(s => {
+      ctx.beginPath();
+      ctx.moveTo(s*w*.22,h*.1); ctx.lineTo(s*w*.56,h*.38); ctx.lineTo(s*w*.14,h*.5); ctx.closePath();
+      ctx.fillStyle='rgba(100,200,255,.2)'; ctx.fill();
+      ctx.strokeStyle='rgba(128,212,255,.45)'; ctx.lineWidth=.8; ctx.stroke();
+    });
+    ctx.beginPath(); ctx.arc(0,-h*.16,w*.09,0,Math.PI*2);
+    ctx.fillStyle='rgba(180,240,255,.4)'; ctx.fill();
+  },
+
+  // ── 9. Rustbucket : épave carrée rouille ──
+  rustbucket(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(-w*.36,-h*.4); ctx.lineTo(w*.34,-h*.42);
+    ctx.lineTo(w*.44,-h*.06); ctx.lineTo(w*.42,h*.5);
+    ctx.lineTo(-w*.4,h*.5); ctx.lineTo(-w*.44,-h*.08); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.4,0,h*.5);
+    g.addColorStop(0,'#8B6046'); g.addColorStop(.5,'#5E3A1C'); g.addColorStop(1,'#3D1C0A');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#9A7050'; ctx.lineWidth=1.5; ctx.stroke();
+    [[w*.22,h*.12,'#9A4A18'],[-w*.24,h*.25,'#7A3A10']].forEach(([rx,ry,c]) => {
+      ctx.beginPath(); ctx.ellipse(rx,ry,w*.09,h*.06,.3,0,Math.PI*2);
+      ctx.fillStyle=c; ctx.fill();
+    });
+    [[w*.28,-h*.28],[-w*.26,-h*.28],[w*.3,h*.18],[-w*.3,h*.2]].forEach(([rx,ry]) => {
+      ctx.beginPath(); ctx.arc(rx,ry,2,0,Math.PI*2); ctx.fillStyle='#CCAA80'; ctx.fill();
+    });
+    ctx.beginPath(); ctx.rect(-w*.14,-h*.28,w*.28,h*.2);
+    ctx.fillStyle='rgba(60,110,80,.35)'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-w*.04,-h*.28); ctx.lineTo(w*.09,-h*.1);
+    ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=1; ctx.stroke();
+  },
+
+  // ── 10. Dart : flèche effilée, argent ──
+  dart(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.58); ctx.lineTo(w*.18,h*.28); ctx.lineTo(w*.1,h*.5);
+    ctx.lineTo(-w*.1,h*.5); ctx.lineTo(-w*.18,h*.28); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.55,0,h*.5);
+    g.addColorStop(0,'#e8e8f0'); g.addColorStop(.6,'#8888aa'); g.addColorStop(1,'#333348');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#ccccee'; ctx.lineWidth=1.2; ctx.shadowColor='#aaaacc'; ctx.shadowBlur=6; ctx.stroke(); ctx.shadowBlur=0;
+    [1,-1].forEach(s => {
+      ctx.beginPath();
+      ctx.moveTo(s*w*.18,h*.28); ctx.lineTo(s*w*.46,h*.5); ctx.lineTo(s*w*.1,h*.5); ctx.closePath();
+      ctx.fillStyle='rgba(160,160,200,.3)'; ctx.fill();
+    });
+  },
+
+  // ── 11. Wedge : coin large biseauté gris-vert ──
+  wedge(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.38); ctx.lineTo(w*.52,h*.24); ctx.lineTo(w*.44,h*.5);
+    ctx.lineTo(-w*.44,h*.5); ctx.lineTo(-w*.52,h*.24); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.38,0,h*.5);
+    g.addColorStop(0,'#6aaa80'); g.addColorStop(1,'#223322');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#88cc99'; ctx.lineWidth=1.4; ctx.shadowColor='#66bb77'; ctx.shadowBlur=7; ctx.stroke(); ctx.shadowBlur=0;
+    ctx.beginPath(); ctx.moveTo(-w*.4,h*.08); ctx.lineTo(w*.4,h*.08);
+    ctx.strokeStyle='rgba(150,255,170,.22)'; ctx.lineWidth=1; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0,h*.02,w*.12,h*.1,0,0,Math.PI*2);
+    ctx.fillStyle='rgba(100,220,130,.32)'; ctx.fill();
+  },
+
+  // ── 12. Falcon : chasseur agile doré-brun ──
+  falcon(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.14,h*.04); ctx.lineTo(w*.48,h*.22);
+    ctx.lineTo(w*.32,h*.5); ctx.lineTo(-w*.32,h*.5); ctx.lineTo(-w*.48,h*.22);
+    ctx.lineTo(-w*.14,h*.04); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#e8b040'); g.addColorStop(.5,'#9c6010'); g.addColorStop(1,'#5a3000');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#e8b040'; ctx.lineWidth=1.5; ctx.shadowColor='#ffcc44'; ctx.shadowBlur=10; ctx.stroke(); ctx.shadowBlur=0;
+    [1,-1].forEach(s => {
+      ctx.beginPath();
+      ctx.moveTo(s*w*.14,h*.04); ctx.lineTo(s*w*.62,h*.44); ctx.lineTo(s*w*.48,h*.22); ctx.closePath();
+      ctx.fillStyle='rgba(200,140,40,.3)'; ctx.fill(); ctx.strokeStyle='rgba(230,180,60,.5)'; ctx.lineWidth=1; ctx.stroke();
+    });
+    ctx.beginPath(); ctx.arc(0,-h*.12,w*.1,0,Math.PI*2); ctx.fillStyle='rgba(255,200,80,.45)'; ctx.fill();
+  },
+
+  // ── 13. Hornet : compact jaune-noir, ailes en V ──
+  hornet(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.44); ctx.lineTo(w*.28,h*.08); ctx.lineTo(w*.22,h*.5);
+    ctx.lineTo(-w*.22,h*.5); ctx.lineTo(-w*.28,h*.08); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.44,0,h*.5);
+    g.addColorStop(0,'#FFE000'); g.addColorStop(.45,'#CC8800'); g.addColorStop(1,'#111100');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#FFE000'; ctx.lineWidth=1.5; ctx.shadowColor='#FFDD00'; ctx.shadowBlur=9; ctx.stroke(); ctx.shadowBlur=0;
+    [1,-1].forEach(s => {
+      ctx.beginPath();
+      ctx.moveTo(s*w*.1,-h*.04); ctx.lineTo(s*w*.58,-h*.28); ctx.lineTo(s*w*.52,h*.12); ctx.closePath();
+      ctx.fillStyle='rgba(255,220,0,.18)'; ctx.fill(); ctx.strokeStyle='rgba(255,220,0,.5)'; ctx.lineWidth=1; ctx.stroke();
+    });
+    [[-w*.14,-h*.1,h*.24],[w*.14,-h*.1,h*.24]].forEach(([rx,ry,rh]) => {
+      ctx.beginPath(); ctx.rect(rx-3,ry,6,rh); ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fill();
+    });
+  },
+
+  // ── 14. Nova : sphérique, auras cyan ──
+  nova(ctx, w, h) {
+    const g = ctx.createRadialGradient(0,-h*.1,w*.05,0,0,w*.56);
+    g.addColorStop(0,'#e8f8ff'); g.addColorStop(.4,'#22aacc'); g.addColorStop(1,'#003344');
+    ctx.beginPath(); ctx.ellipse(0,h*.04,w*.5,h*.44,0,0,Math.PI*2);
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#44ddff'; ctx.lineWidth=1.5; ctx.shadowColor='#00e5ff'; ctx.shadowBlur=14; ctx.stroke(); ctx.shadowBlur=0;
+    ctx.beginPath(); ctx.moveTo(0,-h*.5); ctx.lineTo(0,-h*.08);
+    ctx.strokeStyle='rgba(0,229,255,.65)'; ctx.lineWidth=2; ctx.stroke();
+    [1,-1].forEach(s => {
+      ctx.beginPath(); ctx.moveTo(s*w*.5,h*.04); ctx.lineTo(s*w*.78,h*.12); ctx.lineTo(s*w*.56,h*.32); ctx.closePath();
+      ctx.fillStyle='rgba(0,200,240,.22)'; ctx.fill();
+    });
+    ctx.beginPath(); ctx.arc(0,0,w*.18,0,Math.PI*2);
+    ctx.fillStyle='rgba(200,248,255,.38)'; ctx.fill();
+  },
+
+  // ── 15. Specter : filaire transparent violet sombre ──
+  specter(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.38,-h*.02); ctx.lineTo(w*.28,h*.5);
+    ctx.lineTo(-w*.28,h*.5); ctx.lineTo(-w*.38,-h*.02); ctx.closePath();
+    ctx.fillStyle='rgba(80,0,120,.35)'; ctx.fill();
+    ctx.strokeStyle='#aa44ff'; ctx.lineWidth=1.5; ctx.shadowColor='#8800ff'; ctx.shadowBlur=14; ctx.stroke(); ctx.shadowBlur=0;
+    [[0,-h*.38,w*.06],[0,h*.1,w*.12]].forEach(([x,y,r]) => {
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+      ctx.strokeStyle='rgba(180,80,255,.6)'; ctx.lineWidth=1; ctx.stroke();
+    });
+    [1,-1].forEach(s => {
+      ctx.beginPath();
+      ctx.moveTo(s*w*.38,-h*.02); ctx.lineTo(s*w*.62,h*.3); ctx.lineTo(s*w*.28,h*.5); ctx.closePath();
+      ctx.fillStyle='rgba(140,0,220,.18)'; ctx.fill(); ctx.strokeStyle='rgba(180,80,255,.4)'; ctx.lineWidth=1; ctx.stroke();
+    });
+  },
+
+  // ── 16. Inferno : flammes animées orange-rouge ──
+  inferno(ctx, w, h) {
+    const t = Date.now() * 0.004;
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.48); ctx.lineTo(w*.32,h*.02); ctx.lineTo(w*.42,h*.5);
+    ctx.lineTo(-w*.42,h*.5); ctx.lineTo(-w*.32,h*.02); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.48,0,h*.5);
+    g.addColorStop(0,'#ff8800'); g.addColorStop(.5,'#cc2200'); g.addColorStop(1,'#440000');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#ff4400'; ctx.lineWidth=1.5; ctx.shadowColor='#ff6600'; ctx.shadowBlur=12; ctx.stroke(); ctx.shadowBlur=0;
+    // Flammes animées
+    for (let i=0;i<5;i++) {
+      const fx = (i-2)*w*.16;
+      const fh = h*.18 + h*.1*Math.sin(t*2.5+i*1.1);
+      ctx.beginPath();
+      ctx.moveTo(fx,h*.52); ctx.quadraticCurveTo(fx+w*.08*Math.sin(t+i),h*.3-fh,fx,h*.5-fh*1.4);
+      ctx.quadraticCurveTo(fx-w*.08*Math.sin(t+i),h*.3-fh,fx,h*.52); ctx.closePath();
+      const gf = ctx.createLinearGradient(0,h*.52,0,h*.5-fh*1.4);
+      gf.addColorStop(0,'rgba(255,100,0,0)'); gf.addColorStop(.5,'rgba(255,160,0,.7)'); gf.addColorStop(1,'rgba(255,240,180,.9)');
+      ctx.fillStyle=gf; ctx.fill();
+    }
+    ctx.beginPath(); ctx.ellipse(0,h*.0,w*.1,h*.14,0,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,220,100,.5)'; ctx.fill();
+  },
+
+  // ── 17. Kraken : 6 tentacules sombres ──
+  kraken(ctx, w, h) {
+    const t = Date.now() * 0.003;
+    // Corps central
+    const g = ctx.createRadialGradient(0,0,w*.08,0,h*.1,w*.48);
+    g.addColorStop(0,'#1a0033'); g.addColorStop(1,'#000011');
+    ctx.beginPath(); ctx.ellipse(0,h*.08,w*.38,h*.36,0,0,Math.PI*2);
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#6600aa'; ctx.lineWidth=1.5; ctx.shadowColor='#8800cc'; ctx.shadowBlur=10; ctx.stroke(); ctx.shadowBlur=0;
+    // Tentacules (6)
+    for (let i=0;i<6;i++) {
+      const baseA = (i/6)*Math.PI*2 - Math.PI*.1;
+      const wave  = Math.sin(t*1.6+i*1.05)*0.22;
+      const x1 = Math.cos(baseA)*w*.38, y1 = Math.sin(baseA)*h*.36*.85+h*.08;
+      const x2 = x1 + Math.cos(baseA+wave)*w*.32, y2 = y1 + Math.sin(baseA+wave)*h*.28+h*.1;
+      ctx.beginPath(); ctx.moveTo(x1,y1);
+      ctx.quadraticCurveTo(x1+Math.cos(baseA+wave)*.5*w*.2, y1+h*.12, x2, y2);
+      ctx.strokeStyle=`rgba(140,0,220,.75)`; ctx.lineWidth=3.5-i*.2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x2,y2,2.5,0,Math.PI*2); ctx.fillStyle='#8800cc'; ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(0,h*.0,w*.12,0,Math.PI*2);
+    ctx.fillStyle='rgba(180,80,255,.45)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(-w*.1,h*.0,w*.05,0,Math.PI*2); ctx.arc(w*.1,h*.0,w*.05,0,Math.PI*2);
+    ctx.fillStyle='rgba(220,80,255,.9)'; ctx.fill();
+  },
+
+  // ── 18. Quantum : alterne entre 2 états ──
+  quantum(ctx, w, h) {
+    const phase = Math.floor(Date.now()/600)%2;
+    if (phase === 0) {
+      // État solide : bleu électrique
+      ctx.beginPath();
+      ctx.moveTo(0,-h*.5); ctx.lineTo(w*.36,-h*.06); ctx.lineTo(w*.46,h*.5);
+      ctx.lineTo(-w*.46,h*.5); ctx.lineTo(-w*.36,-h*.06); ctx.closePath();
+      ctx.fillStyle='rgba(0,40,120,.9)'; ctx.fill();
+      ctx.strokeStyle='#00aaff'; ctx.lineWidth=2; ctx.shadowColor='#00aaff'; ctx.shadowBlur=14; ctx.stroke(); ctx.shadowBlur=0;
+      [[0,-h*.22],[w*.2,h*.16],[-w*.2,h*.16]].forEach(([x,y]) => {
+        ctx.beginPath(); ctx.arc(x,y,w*.07,0,Math.PI*2); ctx.fillStyle='rgba(0,200,255,.6)'; ctx.fill();
+      });
+    } else {
+      // État plasma : cyan translucide
+      ctx.save(); ctx.globalAlpha=0.72;
+      ctx.beginPath();
+      ctx.moveTo(0,-h*.5); ctx.lineTo(w*.36,-h*.06); ctx.lineTo(w*.46,h*.5);
+      ctx.lineTo(-w*.46,h*.5); ctx.lineTo(-w*.36,-h*.06); ctx.closePath();
+      ctx.fillStyle='rgba(0,220,220,.35)'; ctx.fill();
+      ctx.strokeStyle='#00ffee'; ctx.lineWidth=1.5; ctx.shadowColor='#00ffee'; ctx.shadowBlur=18; ctx.stroke(); ctx.shadowBlur=0;
+      ctx.restore();
+      for (let i=0;i<6;i++) {
+        const a=(i/6)*Math.PI*2; ctx.beginPath();
+        ctx.arc(Math.cos(a)*w*.28,h*.04+Math.sin(a)*h*.22,2.5,0,Math.PI*2);
+        ctx.fillStyle='rgba(0,255,230,.8)'; ctx.fill();
+      }
+    }
+  },
+
+  // ── 19. Nébula : nébuleuse colorée dans la coque ──
+  nebula(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.4,-h*.04); ctx.lineTo(w*.5,h*.5);
+    ctx.lineTo(-w*.5,h*.5); ctx.lineTo(-w*.4,-h*.04); ctx.closePath();
+    ctx.fillStyle='#050018'; ctx.fill();
+    // Nébuleuse intérieure (clip)
+    ctx.save(); ctx.clip();
+    const t = Date.now()*0.0008;
+    [['#6600aa',-.3],['#002299',.5],['#cc0066',.1]].forEach(([c,off]) => {
+      const gn = ctx.createRadialGradient(w*(-.1+off+Math.sin(t+off)*.15),h*(.1+Math.cos(t*.7+off)*.2),0,0,h*.05,w*.55);
+      gn.addColorStop(0,c+'aa'); gn.addColorStop(1,'transparent');
+      ctx.fillStyle=gn; ctx.fillRect(-w*.6,-h*.6,w*1.2,h*1.2);
+    });
+    // Étoiles mini
+    for (let i=0;i<14;i++) {
+      const sx=(i*.618%1-.5)*w*.9, sy=(i*.382%1-.5)*h*.9;
+      ctx.beginPath(); ctx.arc(sx,sy,1,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.7)'; ctx.fill();
+    }
+    ctx.restore();
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.4,-h*.04); ctx.lineTo(w*.5,h*.5);
+    ctx.lineTo(-w*.5,h*.5); ctx.lineTo(-w*.4,-h*.04); ctx.closePath();
+    ctx.strokeStyle='#aa44ff'; ctx.lineWidth=1.5; ctx.shadowColor='#8800ff'; ctx.shadowBlur=10; ctx.stroke(); ctx.shadowBlur=0;
+  },
+
+  // ── 20. Céleste : doré avec halo lumineux ──
+  celestial(ctx, w, h) {
+    const t = Date.now()*0.002;
+    // Halo animé
+    ctx.beginPath(); ctx.arc(0,0,w*.72,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(255,215,0,${0.15+0.1*Math.sin(t)})`; ctx.lineWidth=3; ctx.shadowColor='#FFD700'; ctx.shadowBlur=20; ctx.stroke(); ctx.shadowBlur=0;
+    // Corps
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.52); ctx.lineTo(w*.3,h*.0); ctx.lineTo(w*.42,h*.5);
+    ctx.lineTo(-w*.42,h*.5); ctx.lineTo(-w*.3,h*.0); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.52,0,h*.5);
+    g.addColorStop(0,'#fff8c0'); g.addColorStop(.4,'#FFD700'); g.addColorStop(1,'#885500');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#FFD700'; ctx.lineWidth=1.5; ctx.shadowColor='#ffe060'; ctx.shadowBlur=14; ctx.stroke(); ctx.shadowBlur=0;
+    // Ailes
+    [1,-1].forEach(s => {
+      ctx.beginPath();
+      ctx.moveTo(s*w*.3,h*.0); ctx.lineTo(s*w*.7,-h*.1); ctx.lineTo(s*w*.6,h*.4); ctx.lineTo(s*w*.42,h*.5); ctx.closePath();
+      ctx.fillStyle='rgba(255,215,0,.2)'; ctx.fill(); ctx.strokeStyle='rgba(255,215,0,.55)'; ctx.lineWidth=1; ctx.stroke();
+    });
+    ctx.beginPath(); ctx.arc(0,-h*.1,w*.12,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,248,180,.55)'; ctx.shadowColor='#FFD700'; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
+  },
+
+  // ── 21. Void : noir avec fissures cyan ──
+  void(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.38,-h*.04); ctx.lineTo(w*.5,h*.5);
+    ctx.lineTo(-w*.5,h*.5); ctx.lineTo(-w*.38,-h*.04); ctx.closePath();
+    ctx.fillStyle='#000000'; ctx.fill();
+    ctx.strokeStyle='#00FFDC'; ctx.lineWidth=1.5; ctx.shadowColor='#00FFDC'; ctx.shadowBlur=12; ctx.stroke(); ctx.shadowBlur=0;
+    // Fissures
+    const cracks = [[0,-h*.5,w*.18,h*.0],[w*.1,h*.0,w*.38,h*.42],[-w*.14,h*.06,-w*.44,h*.46]];
+    cracks.forEach(([x1,y1,x2,y2]) => {
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+      ctx.strokeStyle='rgba(0,255,220,.6)'; ctx.lineWidth=1.2; ctx.shadowColor='#00FFDC'; ctx.shadowBlur=6; ctx.stroke(); ctx.shadowBlur=0;
+    });
+    [1,-1].forEach(s => {
+      ctx.beginPath();
+      ctx.moveTo(s*w*.38,-h*.04); ctx.lineTo(s*w*.68,h*.12); ctx.lineTo(s*w*.5,h*.5); ctx.closePath();
+      ctx.fillStyle='rgba(0,255,220,.07)'; ctx.fill(); ctx.strokeStyle='rgba(0,255,220,.35)'; ctx.lineWidth=1; ctx.stroke();
+    });
+    ctx.beginPath(); ctx.arc(0,h*.04,w*.1,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,255,220,.25)'; ctx.fill();
+  },
+
+  // ── 22. Aurora : nacre irisée arc-en-ciel ──
+  aurora(ctx, w, h) {
+    const t = Date.now()*0.0015;
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.34,-h*.02); ctx.lineTo(w*.46,h*.5);
+    ctx.lineTo(-w*.46,h*.5); ctx.lineTo(-w*.34,-h*.02); ctx.closePath();
+    const hue = (t*40)%360;
+    const g = ctx.createLinearGradient(-w*.5,-h*.5,w*.5,h*.5);
+    g.addColorStop(0,`hsl(${hue},90%,65%)`);
+    g.addColorStop(.35,`hsl(${(hue+90)%360},90%,60%)`);
+    g.addColorStop(.7,`hsl(${(hue+200)%360},90%,60%)`);
+    g.addColorStop(1,`hsl(${(hue+310)%360},90%,55%)`);
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle=`hsl(${hue},100%,78%)`; ctx.lineWidth=1.5; ctx.shadowColor=`hsl(${hue},100%,70%)`; ctx.shadowBlur=12; ctx.stroke(); ctx.shadowBlur=0;
+    [1,-1].forEach(s => {
+      ctx.beginPath();
+      ctx.moveTo(s*w*.34,-h*.02); ctx.lineTo(s*w*.66,h*.18); ctx.lineTo(s*w*.46,h*.5); ctx.closePath();
+      ctx.fillStyle=`hsla(${(hue+120)%360},80%,60%,.25)`; ctx.fill();
+      ctx.strokeStyle=`hsla(${(hue+120)%360},90%,70%,.5)`; ctx.lineWidth=1; ctx.stroke();
+    });
+    ctx.beginPath(); ctx.arc(0,-h*.1,w*.11,0,Math.PI*2);
+    ctx.fillStyle=`hsla(${(hue+180)%360},100%,80%,.5)`; ctx.fill();
+  },
 };
 
 // ============================================================
@@ -703,6 +1052,7 @@ class Player {
     // Cosmétiques (définis par le jeu avant chaque partie)
     this.skin        = 'starter';
     this.bulletColor = '#ffffff';
+    this.laserType   = '';
 
     // Tir
     this.fireCooldown = 0;
@@ -818,6 +1168,23 @@ class Player {
         Math.random() > 0.5 ? '#00e5ff' : '#ff6b35',
         rand(0.08, 0.22), rand(1.5, 3.2)
       ));
+      // Effets traînée skins légendaires
+      if (this.skin === 'celestial') {
+        this._thrustParticles.push(new Particle(
+          this.x + rand(-14, 14), this.y + this.h * 0.4,
+          rand(-20, 20), rand(65, 125),
+          Math.random() > 0.5 ? '#FFD700' : '#FFAA00',
+          rand(0.18, 0.42), rand(2.5, 5)
+        ));
+      } else if (this.skin === 'aurora') {
+        const hue = Math.floor(Date.now() / 55) % 360;
+        this._thrustParticles.push(new Particle(
+          this.x + rand(-14, 14), this.y + this.h * 0.4,
+          rand(-25, 25), rand(70, 130),
+          `hsl(${hue},100%,65%)`,
+          rand(0.18, 0.4), rand(2, 4.5)
+        ));
+      }
     }
     this._thrustParticles = this._thrustParticles.filter(p => { p.update(dt); return !p.dead; });
   }
@@ -827,13 +1194,14 @@ class Player {
     if (this.fireCooldown > 0) return;
     this.fireCooldown = CFG.PLAYER_FIRE_RATE;
     const c = this.bulletColor;
+    const lt = this.laserType;
 
     if (this.doubleShot) {
-      bullets.push(new Bullet(this.x - 12, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true));
-      bullets.push(new Bullet(this.x + 12, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true));
+      bullets.push(new Bullet(this.x - 12, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true, lt));
+      bullets.push(new Bullet(this.x + 12, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true, lt));
       audio.shootDouble();
     } else {
-      bullets.push(new Bullet(this.x, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true));
+      bullets.push(new Bullet(this.x, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true, lt));
       audio.shoot();
     }
   }
@@ -850,6 +1218,22 @@ class Player {
     // Corps selon le skin équipé
     const renderer = SKIN_RENDERERS[this.skin] || SKIN_RENDERERS.starter;
     renderer(ctx, this.w, this.h);
+
+    // Void : distorsion spatiale animée
+    if (this.skin === 'void') {
+      const tv = Date.now() * 0.003;
+      for (let i = 0; i < 3; i++) {
+        const a = tv * (0.6 + i * 0.35) + i * Math.PI * 2 / 3;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * 3, Math.sin(a) * 3, this.w * 0.68 + i * 5, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0,255,220,${0.14 - i * 0.04})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(0, 0, this.w * 0.52, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(0,255,220,${0.28 + 0.12 * Math.sin(Date.now() * 0.005)})`;
+      ctx.lineWidth = 1.5; ctx.shadowColor = '#00FFDC'; ctx.shadowBlur = 10; ctx.stroke(); ctx.shadowBlur = 0;
+    }
 
     // Bouclier actif (commun à tous les skins)
     if (this.shield) {
@@ -872,11 +1256,12 @@ class Player {
 // SECTION 6 — BALLES
 // ============================================================
 class Bullet {
-  constructor(x, y, vx, vy, color, fromPlayer) {
+  constructor(x, y, vx, vy, color, fromPlayer, laserType = '') {
     this.x = x; this.y = y;
     this.vx = vx; this.vy = vy;
     this.color      = color;
     this.fromPlayer = fromPlayer;
+    this.laserType  = laserType;
     this.w = fromPlayer ? 4 : 7;
     this.h = fromPlayer ? 18 : 9;
     this.dead = false;
@@ -894,13 +1279,17 @@ class Bullet {
     ctx.save();
     if (this.fromPlayer) {
       // Laser coloré : corps + noyau blanc
+      const isPhantom = this.laserType === 'phantom';
+      const isSolar   = this.laserType === 'solar';
+      if (isPhantom) ctx.globalAlpha = 0.7;
       ctx.shadowColor = this.color;
-      ctx.shadowBlur  = 10;
+      ctx.shadowBlur  = isSolar ? 18 : 10;
       ctx.fillStyle   = this.color;
       ctx.fillRect(this.x - this.w/2, this.y - this.h/2, this.w, this.h);
       ctx.shadowBlur  = 0;
-      ctx.fillStyle   = 'rgba(255,255,255,0.65)';
+      ctx.fillStyle   = isSolar ? 'rgba(255,255,220,0.85)' : 'rgba(255,255,255,0.65)';
       ctx.fillRect(this.x - 1, this.y - this.h/2, 2, this.h);
+      if (isPhantom) ctx.globalAlpha = 1;
     } else {
       // Projectile ennemi : orbe rouge pulsant
       const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.w);
@@ -1754,8 +2143,10 @@ class ShopManager {
     this.equippedSkin  = this.owned.has(eq.skin)  ? eq.skin  : 'starter';
     this.equippedColor = this.owned.has(eq.color) ? eq.color : 'white';
 
-    this._tab   = 'skins';  // onglet actif
-    this._coins = 0;        // snapshot pour re-render sans argument
+    this._tab          = 'skins';  // onglet actif
+    this._rarityFilter = 'all';    // filtre rareté actif
+    this._coins        = 0;        // snapshot pour re-render sans argument
+    this._shopAnimId   = null;     // rAF pour particules légendaires
   }
 
   // ── Couleur de balle courante (gère le rainbow) ──────────
@@ -1808,14 +2199,28 @@ class ShopManager {
     document.querySelectorAll('.shop-tab').forEach(btn =>
       btn.classList.toggle('active', btn.dataset.tab === this._tab)
     );
+    document.querySelectorAll('.rarity-filter-btn').forEach(btn =>
+      btn.classList.toggle('active', btn.dataset.rarity === this._rarityFilter)
+    );
   }
 
   _renderGrid(coins) {
+    // Stop legendary particle animation
+    if (this._shopAnimId) { cancelAnimationFrame(this._shopAnimId); this._shopAnimId = null; }
+
     const grid = document.getElementById('shop-grid');
     if (!grid) return;
     grid.innerHTML = '';
-    const items = this._tab === 'skins' ? SKIN_DATA : COLOR_DATA;
+
+    const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3 };
+    let items = (this._tab === 'skins' ? SKIN_DATA : COLOR_DATA).slice();
+    if (this._rarityFilter !== 'all') items = items.filter(i => i.rarity === this._rarityFilter);
+    items.sort((a, b) => (RARITY_ORDER[a.rarity] ?? 0) - (RARITY_ORDER[b.rarity] ?? 0));
+
     items.forEach(item => this._renderCard(grid, item, coins));
+
+    // Start legendary animation if any visible
+    if (items.some(i => i.rarity === 'legendary')) this._startShopAnims();
   }
 
   _renderCard(grid, item, coins) {
@@ -1823,11 +2228,19 @@ class ShopManager {
     const equipped = this.equippedSkin === item.id || this.equippedColor === item.id;
     const isSkin   = SKIN_DATA.some(s => s.id === item.id);
     const canBuy   = coins >= item.price;
+    const rarity   = item.rarity || 'common';
 
-    // Classe d'état de la carte
     const stateClass = equipped ? 'equipped' : owned ? 'owned' : 'locked';
     const card = document.createElement('div');
-    card.className = `shop-card ${stateClass}`;
+    card.className = `shop-card ${stateClass} rarity-${rarity}`;
+    card.dataset.rarity = rarity;
+
+    // Badge de rareté
+    const RARITY_LABELS = { common: 'COMMUN', rare: 'RARE', epic: 'ÉPIQUE', legendary: 'LÉGEND.' };
+    const badge = document.createElement('div');
+    badge.className = `card-rarity-badge rarity-badge-${rarity}`;
+    badge.textContent = RARITY_LABELS[rarity] || rarity.toUpperCase();
+    card.appendChild(badge);
 
     // Canvas aperçu
     const cv = document.createElement('canvas');
@@ -1836,6 +2249,17 @@ class ShopManager {
     cv.height = isSkin ? 76 : 36;
     this._drawPreview(cv, item, isSkin);
     card.appendChild(cv);
+
+    // Canvas overlay particules légendaires
+    if (rarity === 'legendary') {
+      const oc = document.createElement('canvas');
+      oc.className = 'legendary-canvas';
+      oc.dataset.legendaryCard = '1';
+      oc.style.cssText = 'position:absolute;inset:0;pointer-events:none;border-radius:10px;z-index:2;';
+      oc.width = 115; oc.height = 155;
+      card.style.position = 'relative';
+      card.appendChild(oc);
+    }
 
     // Nom
     const nameEl = document.createElement('div');
@@ -1876,6 +2300,37 @@ class ShopManager {
     }
     card.appendChild(btn);
     grid.appendChild(card);
+  }
+
+  // ── Animation particules pour cartes légendaires ──────────
+  _startShopAnims() {
+    const step = () => {
+      const canvases = document.querySelectorAll('[data-legendary-card]');
+      if (!canvases.length) return;
+      const t = Date.now() / 1000;
+      canvases.forEach(oc => {
+        const ctx2 = oc.getContext('2d');
+        ctx2.clearRect(0, 0, oc.width, oc.height);
+        const cx = oc.width / 2, cy = oc.height / 2;
+        const rx = oc.width * 0.52, ry = oc.height * 0.50;
+        for (let i = 0; i < 8; i++) {
+          const a = t * 1.6 + i * Math.PI * 2 / 8;
+          const px = cx + Math.cos(a) * rx;
+          const py = cy + Math.sin(a) * ry;
+          const hue = ((t * 80 + i * 45) % 360);
+          const sz  = 2.2 + Math.sin(t * 3.5 + i) * 0.7;
+          ctx2.save();
+          ctx2.fillStyle = `hsl(${hue},100%,70%)`;
+          ctx2.shadowColor = `hsl(${hue},100%,70%)`;
+          ctx2.shadowBlur = 8;
+          ctx2.globalAlpha = 0.8 + 0.2 * Math.sin(t * 4 + i);
+          ctx2.beginPath(); ctx2.arc(px, py, sz, 0, Math.PI * 2); ctx2.fill();
+          ctx2.restore();
+        }
+      });
+      this._shopAnimId = requestAnimationFrame(step);
+    };
+    this._shopAnimId = requestAnimationFrame(step);
   }
 
   // Dessine l'aperçu dans un mini-canvas
@@ -2755,12 +3210,24 @@ class Game {
       this.ui.showScreen('shop');
     });
 
-    on('btn-shop-back', 'click', () => this.ui.showScreen('start'));
+    on('btn-shop-back', 'click', () => {
+      if (this.shop._shopAnimId) { cancelAnimationFrame(this.shop._shopAnimId); this.shop._shopAnimId = null; }
+      this.ui.showScreen('start');
+    });
 
     // Onglets de la boutique
     document.querySelectorAll('.shop-tab').forEach(btn => {
       btn.addEventListener('click', () => {
         this.shop._tab = btn.dataset.tab;
+        this.shop._rarityFilter = 'all';
+        this.shop.refresh(this.coins);
+      });
+    });
+
+    // Filtres de rareté
+    document.querySelectorAll('.rarity-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.shop._rarityFilter = btn.dataset.rarity;
         this.shop.refresh(this.coins);
       });
     });
@@ -2843,6 +3310,7 @@ class Game {
     this.player             = new Player(this.W / 2, this.H - 90);
     this.player.skin        = this.shop.equippedSkin;
     this.player.bulletColor = this.shop.getBulletColor();
+    this.player.laserType   = this.shop.equippedColor;
     this.wave   = new WaveManager();
     this.wave.start(1, this.W);
 
@@ -2877,6 +3345,7 @@ class Game {
     this.player             = new Player(this.W / 2, this.H - 90);
     this.player.skin        = this.shop.equippedSkin;
     this.player.bulletColor = this.shop.getBulletColor();
+    this.player.laserType   = this.shop.equippedColor;
 
     this.storyLevelId = levelId;
     const levelDef    = STORY_LEVELS.find(l => l.id === levelId);
@@ -2995,6 +3464,7 @@ class Game {
 
     this.stars.update(dt);
     this.player.bulletColor = this.shop.getBulletColor();
+    this.player.laserType   = this.shop.equippedColor;
     this.player.update(dt, inp, this.W, this.H);
 
     if (inp.fire) this.player.fire(this.playerBullets, this.audio);
@@ -3062,7 +3532,8 @@ class Game {
         const e = this.enemies[j];
         if (e.dying || !aabb(b.hitbox, e.hitbox)) continue;
         b.dead = true;
-        spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
+        if (b.laserType === 'solar') spawnBoom(this.particles, b.x, b.y, 'basic', null);
+        else spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
         if (e.hit()) {
           this.player.score += e.score;
           const tier = e instanceof BossTitan ? 'titan' : e.isBoss ? 'boss' : e.type;
@@ -3135,6 +3606,7 @@ class Game {
     // ── Joueur ───────────────────────────────────────────
     // Mise à jour couleur balle chaque frame (gère le rainbow live)
     this.player.bulletColor = this.shop.getBulletColor();
+    this.player.laserType   = this.shop.equippedColor;
     this.player.update(dt, inp, this.W, this.H);
 
     // Tir (clavier ou tactile)
@@ -3168,7 +3640,8 @@ class Game {
         if (!aabb(b.hitbox, e.hitbox)) continue;
 
         b.dead = true;
-        spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
+        if (b.laserType === 'solar') spawnBoom(this.particles, b.x, b.y, 'basic', null);
+        else spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
 
         if (e.hit()) {
           // Ennemi tué
