@@ -2530,6 +2530,7 @@ class Game {
 
     on('btn-start',     'click', () => { this._playMode = 'survival'; this._startGame(); });
     on('btn-replay',    'click', () => { this._playMode = 'survival'; this._startGame(); });
+    on('btn-go-menu',   'click', () => { this.state = 'start'; this.ui.showScreen('start'); });
     on('btn-resume',    'click', () => this._togglePause());
     on('btn-quit', 'click', () => {
       if (this._playMode === 'story') { this._openStorySelect(); }
