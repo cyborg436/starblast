@@ -388,6 +388,160 @@ function spawnExplosion(pool, x, y, color, count, big = false) {
 }
 
 // ============================================================
+// SECTION 4a-bis — SYSTÈME FX : PARTICULES AMÉLIORÉES + ONDES DE CHOC
+// ============================================================
+
+class FXParticle {
+  constructor() {
+    this.dead = true;
+    this.x=0; this.y=0; this.vx=0; this.vy=0;
+    this.color='#fff'; this.life=0; this.maxLife=1;
+    this.size=3; this.friction=3; this.keepSize=false; this.shape='circle';
+  }
+
+  reset(x, y, vx, vy, color, life, size, friction=3, keepSize=false, shape='circle') {
+    this.x=x; this.y=y; this.vx=vx; this.vy=vy;
+    this.color=color; this.life=life; this.maxLife=life;
+    this.size=size; this.friction=friction;
+    this.keepSize=keepSize; this.shape=shape;
+    this.dead=false;
+  }
+
+  update(dt) {
+    const f = 1 - this.friction * dt;
+    this.vx *= f; this.vy *= f;
+    this.x  += this.vx * dt;
+    this.y  += this.vy * dt;
+    this.life -= dt;
+    if (this.life <= 0) this.dead = true;
+  }
+
+  draw(ctx) {
+    if (this.dead) return;
+    const pct = this.life / this.maxLife;
+    ctx.globalAlpha = pct;
+    const r = this.keepSize ? this.size : Math.max(0.2, this.size * Math.sqrt(pct));
+    ctx.fillStyle = this.color;
+    if (this.shape === 'rect') {
+      ctx.fillRect(this.x - r * 0.7, this.y - r * 0.7, r * 1.4, r * 1.4);
+    } else {
+      ctx.beginPath(); ctx.arc(this.x, this.y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+class ShockWave {
+  constructor(x, y, maxR, color, duration) {
+    this.x=x; this.y=y; this.maxR=maxR;
+    this.color = color || 'rgba(255,200,100,0.8)';
+    this.life  = duration || 0.4;
+    this.maxLife = this.life;
+    this.dead  = false;
+  }
+
+  update(dt) { this.life -= dt; if (this.life <= 0) this.dead = true; }
+
+  draw(ctx) {
+    if (this.dead) return;
+    const pct = this.life / this.maxLife;
+    const r   = this.maxR * (1 - pct);
+    ctx.save();
+    ctx.globalAlpha  = pct * 0.78;
+    ctx.strokeStyle  = this.color;
+    ctx.lineWidth    = 3 * pct + 0.5;
+    ctx.shadowColor  = this.color;
+    ctx.shadowBlur   = 14;
+    ctx.beginPath(); ctx.arc(this.x, this.y, Math.max(1, r), 0, Math.PI * 2); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+}
+
+const _fxPool = [];
+function _acquireFX() { return _fxPool.length > 0 ? _fxPool.pop() : new FXParticle(); }
+
+const _BOOM_COLORS = {
+  basic:  ['#ff6600','#ff3300','#ff8800','#ffaa44'],
+  medium: ['#ff7700','#ffaa00','#ffdd00','#ffffff','#ff5500'],
+  heavy:  ['#ff3300','#ff7700','#ffcc00','#ffffff','#ff9944','#ffeeaa'],
+  boss:   ['#ff3300','#ff8800','#ffcc00','#ffffff','#00ffdd','#ff88ff','#ffaaaa'],
+  titan:  ['#FFD700','#ff8800','#ffffff','#ff3300','#00bbff','#ffee00','#aaffff'],
+};
+
+function spawnBoom(pool, x, y, tier, shakeCb) {
+  if (pool.length > 290) return;
+  const cols = _BOOM_COLORS[tier] || _BOOM_COLORS.basic;
+
+  const addFX = (vspd, life, size, friction=3, keepSize=false, shape='circle') => {
+    const p = _acquireFX();
+    const a = Math.random() * Math.PI * 2;
+    const s = rand(vspd * 0.28, vspd);
+    p.reset(x, y, Math.cos(a)*s, Math.sin(a)*s,
+      cols[randInt(0, cols.length - 1)], rand(life * 0.6, life),
+      size, friction, keepSize, shape);
+    pool.push(p);
+  };
+
+  switch (tier) {
+    case 'basic':
+      for (let i = 0; i < 8; i++) addFX(160, 0.65, rand(2, 4), 4.0);
+      break;
+
+    case 'medium':
+      for (let i = 0; i < 16; i++) addFX(230, 0.9, rand(3, 6), 3.5);
+      pool.push(new ShockWave(x, y, 55, 'rgba(255,170,70,0.7)', 0.36));
+      break;
+
+    case 'heavy':
+      for (let i = 0; i < 28; i++) {
+        const sh = Math.random() < 0.28 ? 'rect' : 'circle';
+        addFX(310, 1.1, rand(4, 8), 2.8, false, sh);
+      }
+      pool.push(new ShockWave(x, y, 80, 'rgba(255,130,40,0.85)', 0.4));
+      break;
+
+    case 'boss':
+      for (let i = 0; i < 50; i++) {
+        const sh = Math.random() < 0.3 ? 'rect' : 'circle';
+        addFX(400, 1.4, rand(5, 12), 2.2, false, sh);
+      }
+      [85, 135, 185].forEach((r, i) =>
+        pool.push(new ShockWave(x, y, r, 'rgba(255,195,90,0.88)', 0.46 + i * 0.18))
+      );
+      if (shakeCb) shakeCb(0.5, 8);
+      break;
+
+    case 'titan':
+      // Vague 1 (immédiate) — 40 particules + 5 ondes de choc
+      for (let i = 0; i < 40; i++) {
+        const sh = Math.random() < 0.35 ? 'rect' : 'circle';
+        addFX(520, rand(1.5, 3.0), rand(6, 14), 1.8, true, sh);
+      }
+      [65, 125, 185, 245, 310].forEach((r, i) =>
+        pool.push(new ShockWave(x, y, r, 'rgba(255,215,0,0.9)', 0.52 + i * 0.13))
+      );
+      if (shakeCb) shakeCb(2.0, 16);
+      break;
+  }
+}
+
+// Nettoyage en place : recycle les FXParticle mortes dans le pool
+function cleanParticles(arr) {
+  let j = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const p = arr[i];
+    if (p.dead) {
+      if (p instanceof FXParticle) _fxPool.push(p);
+    } else {
+      arr[j++] = p;
+    }
+  }
+  arr.length = j;
+  return arr;
+}
+
+// ============================================================
 // SECTION 4b — RENDERERS DE SKINS (joueur)
 // Chaque fonction dessine le corps du vaisseau centré sur (0,0).
 // Utilisée à la fois en jeu et dans les aperçus de la boutique.
@@ -2192,14 +2346,53 @@ class BossTitan extends BossBase {
     this.t += dt;
     if (this.dying) {
       this.deathTimer -= dt;
-      if (!this._deathSoundPlayed) {
-        this._deathSoundPlayed = true;
+      if (!this._deathSoundPlayed) { this._deathSoundPlayed = true; }
+
+      // Vague 2 à ~2,3 s restantes
+      if (particles && this.deathTimer <= 2.3 && !this._wave2Done) {
+        this._wave2Done = true;
+        for (let i = 0; i < 40; i++) {
+          const p = _acquireFX();
+          const a = Math.random() * Math.PI * 2;
+          const s = rand(350, 600);
+          const cols = _BOOM_COLORS.titan;
+          p.reset(this.x + rand(-this.w*0.4, this.w*0.4),
+                  this.y + rand(-this.h*0.4, this.h*0.4),
+                  Math.cos(a)*s, Math.sin(a)*s,
+                  cols[randInt(0, cols.length-1)], rand(1.2, 2.5),
+                  rand(5, 12), 1.9, true, Math.random()<0.35?'rect':'circle');
+          particles.push(p);
+        }
+        [90, 155].forEach((r, i) =>
+          particles.push(new ShockWave(this.x, this.y, r, 'rgba(255,215,0,0.85)', 0.48 + i*0.16))
+        );
       }
-      if (particles && Math.random() < 0.7) {
+
+      // Vague 3 à ~1,0 s restantes
+      if (particles && this.deathTimer <= 1.0 && !this._wave3Done) {
+        this._wave3Done = true;
+        for (let i = 0; i < 40; i++) {
+          const p = _acquireFX();
+          const a = Math.random() * Math.PI * 2;
+          const s = rand(200, 480);
+          const cols = _BOOM_COLORS.titan;
+          p.reset(this.x + rand(-this.w*0.5, this.w*0.5),
+                  this.y + rand(-this.h*0.5, this.h*0.5),
+                  Math.cos(a)*s, Math.sin(a)*s,
+                  cols[randInt(0, cols.length-1)], rand(0.8, 2.0),
+                  rand(4, 10), 2.2, false, Math.random()<0.4?'rect':'circle');
+          particles.push(p);
+        }
+        particles.push(new ShockWave(this.x, this.y, 280, 'rgba(255,255,255,0.95)', 0.6));
+      }
+
+      // Petites explosions continues
+      if (particles && Math.random() < 0.55) {
         const ox = (Math.random() - 0.5) * this.w;
         const oy = (Math.random() - 0.5) * this.h;
-        spawnExplosion(particles, this.x + ox, this.y + oy, this.color, 18, true);
+        spawnExplosion(particles, this.x + ox, this.y + oy, this.color, 8, true);
       }
+
       if (this.deathTimer <= 0) this.dead = true;
       return;
     }
@@ -2466,6 +2659,8 @@ class Game {
     this.enemyBullets  = [];
     this.particles    = [];
     this.powerups     = [];
+    this._shakeTimer     = 0;
+    this._shakeIntensity = 0;
 
     // Contrôleur de vague histoire (actif seulement en mode histoire)
     this.storyCtrl   = null;
@@ -2610,6 +2805,13 @@ class Game {
 
   _showModal() { document.getElementById('modal-overlay')?.classList.remove('hidden'); }
   _hideModal() { document.getElementById('modal-overlay')?.classList.add('hidden'); }
+
+  _triggerShake(duration, intensity) {
+    if (duration > this._shakeTimer) {
+      this._shakeTimer     = duration;
+      this._shakeIntensity = intensity;
+    }
+  }
 
   _togglePause() {
     if (this.state === 'playing' || this.state === 'story-playing') {
@@ -2803,6 +3005,8 @@ class Game {
       }
     }
 
+    if (this._shakeTimer > 0) this._shakeTimer = Math.max(0, this._shakeTimer - dt);
+
     this.playerBullets.forEach(b => b.update(dt, this.W, this.H));
     this.enemyBullets.forEach( b => b.update(dt, this.W, this.H));
     this.enemies.forEach(      e => e.update(dt, this.W, this.H, this.enemyBullets, this.player, this.particles));
@@ -2861,8 +3065,9 @@ class Game {
         spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
         if (e.hit()) {
           this.player.score += e.score;
-          spawnExplosion(this.particles, e.x, e.y, e.color, e.type === 'heavy' ? 22 : 14, e.type === 'heavy');
-          this.audio.explosion(e.type === 'heavy');
+          const tier = e instanceof BossTitan ? 'titan' : e.isBoss ? 'boss' : e.type;
+          spawnBoom(this.particles, e.x, e.y, tier, (d, i) => this._triggerShake(d, i));
+          this.audio.explosion(e.type === 'heavy' || e.isBoss);
           e.dead = true;
           if (Math.random() < e.dropChance) {
             this.powerups.push(new PowerUp(e.x, e.y, ['shield','double','bomb'][randInt(0, 2)]));
@@ -2900,7 +3105,7 @@ class Game {
     this.enemyBullets  = this.enemyBullets.filter( b => !b.dead);
     this.enemies       = this.enemies.filter(      e => !e.dead);
     this.powerups      = this.powerups.filter(     p => !p.dead);
-    this.particles     = this.particles.filter(    p => !p.dead);
+    cleanParticles(this.particles);
 
     // Contrôleur de vagues histoire
     this.storyCtrl.update(dt, this.enemies);
@@ -2943,6 +3148,8 @@ class Game {
       }
     }
 
+    if (this._shakeTimer > 0) this._shakeTimer = Math.max(0, this._shakeTimer - dt);
+
     // ── Mise à jour des entités ──────────────────────────
     this.playerBullets.forEach(b => b.update(dt, this.W, this.H));
     this.enemyBullets.forEach( b => b.update(dt, this.W, this.H));
@@ -2967,7 +3174,7 @@ class Game {
           // Ennemi tué
           this.player.score += e.score * this.wave.level;
           this.wave.enemyKilled();
-          spawnExplosion(this.particles, e.x, e.y, e.color, e.type === 'heavy' ? 22 : 14, e.type === 'heavy');
+          spawnBoom(this.particles, e.x, e.y, e.type, (d, i) => this._triggerShake(d, i));
           this.audio.explosion(e.type === 'heavy');
           e.dead = true;
 
@@ -3014,7 +3221,7 @@ class Game {
     this.enemyBullets  = this.enemyBullets.filter( b => !b.dead);
     this.enemies       = this.enemies.filter(      e => !e.dead);
     this.powerups      = this.powerups.filter(     p => !p.dead);
-    this.particles     = this.particles.filter(    p => !p.dead);
+    cleanParticles(this.particles);
 
     // ── Gestion des vagues ───────────────────────────────
     const waveResult = this.wave.update(dt, this.enemies, this.W);
@@ -3040,6 +3247,15 @@ class Game {
     // Fond noir spatial
     ctx.fillStyle = '#00000d';
     ctx.fillRect(0, 0, this.W, this.H);
+
+    // Screen shake
+    const shaking = this._shakeTimer > 0;
+    if (shaking) {
+      const sx = (Math.random() - 0.5) * this._shakeIntensity;
+      const sy = (Math.random() - 0.5) * this._shakeIntensity;
+      ctx.save();
+      ctx.translate(sx, sy);
+    }
 
     // Étoiles (toujours dessinées, y compris sur les menus)
     this.stars.update(0.016);   // avancement minimal même en pause / menu
@@ -3130,6 +3346,8 @@ class Game {
         }
       }
     }
+
+    if (shaking) ctx.restore();
   }
 
   // ============================================================
