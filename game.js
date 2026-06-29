@@ -2248,18 +2248,13 @@ class ShopManager {
     cv.width  = 64;
     cv.height = isSkin ? 76 : 36;
     this._drawPreview(cv, item, isSkin);
-    card.appendChild(cv);
-
-    // Canvas overlay particules légendaires
+    // Pour les légendaires, les particules sont animées directement sur ce canvas
     if (rarity === 'legendary') {
-      const oc = document.createElement('canvas');
-      oc.className = 'legendary-canvas';
-      oc.dataset.legendaryCard = '1';
-      oc.style.cssText = 'position:absolute;inset:0;pointer-events:none;border-radius:10px;z-index:2;';
-      oc.width = 115; oc.height = 155;
-      card.style.position = 'relative';
-      card.appendChild(oc);
+      cv.dataset.legendaryCard = '1';
+      cv.dataset.skinId  = item.id;
+      cv.dataset.isSkin  = isSkin ? '1' : '0';
     }
+    card.appendChild(cv);
 
     // Nom
     const nameEl = document.createElement('div');
@@ -2303,27 +2298,44 @@ class ShopManager {
   }
 
   // ── Animation particules pour cartes légendaires ──────────
+  // Redessine le skin + les particules orbitales directement sur le canvas aperçu.
+  // Pas de canvas overlay séparé : évite la perte de contexte GPU en vue "Tous".
   _startShopAnims() {
     const step = () => {
       const canvases = document.querySelectorAll('[data-legendary-card]');
       if (!canvases.length) return;
       const t = Date.now() / 1000;
-      canvases.forEach(oc => {
-        const ctx2 = oc.getContext('2d');
-        ctx2.clearRect(0, 0, oc.width, oc.height);
-        const cx = oc.width / 2, cy = oc.height / 2;
-        const rx = oc.width * 0.52, ry = oc.height * 0.50;
+      canvases.forEach(cv => {
+        const ctx2 = cv.getContext('2d');
+        if (!ctx2) return;
+        const W = cv.width, H = cv.height;
+        ctx2.clearRect(0, 0, W, H);
+
+        // 1. Redessiner le skin (animated skins like aurora/celestial bénéficient de ça)
+        if (cv.dataset.isSkin === '1') {
+          const renderer = SKIN_RENDERERS[cv.dataset.skinId];
+          if (renderer) {
+            ctx2.save();
+            ctx2.translate(W / 2, H / 2);
+            renderer(ctx2, 46, 58);
+            ctx2.restore();
+          }
+        }
+
+        // 2. Particules orbitales arc-en-ciel sur le canvas (pas d'overlay)
+        const cx = W / 2, cy = H / 2;
+        const rx = W * 0.50, ry = H * 0.48;
         for (let i = 0; i < 8; i++) {
           const a = t * 1.6 + i * Math.PI * 2 / 8;
           const px = cx + Math.cos(a) * rx;
           const py = cy + Math.sin(a) * ry;
           const hue = ((t * 80 + i * 45) % 360);
-          const sz  = 2.2 + Math.sin(t * 3.5 + i) * 0.7;
+          const sz  = 2.0 + Math.sin(t * 3.5 + i) * 0.6;
           ctx2.save();
-          ctx2.fillStyle = `hsl(${hue},100%,70%)`;
+          ctx2.fillStyle   = `hsl(${hue},100%,70%)`;
           ctx2.shadowColor = `hsl(${hue},100%,70%)`;
-          ctx2.shadowBlur = 8;
-          ctx2.globalAlpha = 0.8 + 0.2 * Math.sin(t * 4 + i);
+          ctx2.shadowBlur  = 7;
+          ctx2.globalAlpha = 0.82 + 0.18 * Math.sin(t * 4 + i);
           ctx2.beginPath(); ctx2.arc(px, py, sz, 0, Math.PI * 2); ctx2.fill();
           ctx2.restore();
         }

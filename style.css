@@ -1256,7 +1256,6 @@ body.is-mobile #mobile-ui { display: flex; }
 .shop-card.rarity-legendary {
   border-color: #FFD700;
   animation: border-legendary 3s linear infinite;
-  overflow: hidden;
 }
 .shop-card.rarity-legendary.equipped { animation: border-legendary 3s linear infinite; }
 @keyframes border-legendary {
