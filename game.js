@@ -3363,9 +3363,23 @@ class Game {
     const _startEl = document.getElementById('screen-start');
     if (_startEl) {
       new MutationObserver(() => {
-        if (_startEl.classList.contains('active')) this.titleScene.start();
-        else this.titleScene.stop();
+        if (_startEl.classList.contains('active')) {
+          this.titleScene.start();
+          musicManager.play('odyssey');
+        } else {
+          this.titleScene.stop();
+        }
       }).observe(_startEl, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    // Bouton musique
+    const _musicBtn = document.getElementById('btn-music-toggle');
+    if (_musicBtn) {
+      _musicBtn.addEventListener('click', () => {
+        const muted = musicManager.toggleMute();
+        _musicBtn.textContent = muted ? '🔇' : '🔊';
+      });
+      _musicBtn.textContent = musicManager.muted ? '🔇' : '🔊';
     }
 
     // Démarre la boucle de rendu (étoiles animées sur les écrans de menu)
@@ -3545,6 +3559,7 @@ class Game {
     this.state     = 'playing';
     this.lastTime  = performance.now();
 
+    musicManager.play('afterburn');
     this.ui.hideScreens();
     this.ui.showLevelNotif(1);
     this.ui.updateHUD(0, 1, CFG.LIVES, this.highscore);
@@ -3583,6 +3598,8 @@ class Game {
     this.state     = 'story-playing';
     this.lastTime  = performance.now();
 
+    const _storyTrack = levelId <= 3 ? 'frontier' : levelId <= 6 ? 'tension' : 'assault';
+    musicManager.play(_storyTrack);
     this.ui.hideScreens();
     this.ui.showLevelNotif(levelId);
     this.ui.updateHUD(0, 1, CFG.LIVES, this.highscore);
@@ -3592,6 +3609,7 @@ class Game {
 
   // ── Mode Histoire : victoire ──────────────────────────────
   _storyVictory() {
+    musicManager.play('triumph');
     this.state = 'story-victory';
     const score     = this.player.score;
     const livesLost = CFG.LIVES - this.player.lives;
@@ -3644,12 +3662,14 @@ class Game {
 
   // ── Mode Histoire : échec ────────────────────────────────
   _storyFailed() {
+    musicManager.stop();
     this.state = 'story-failed';
     this.ui.showStoryFailed(this.storyLevelId);
   }
 
   // ── Game Over ────────────────────────────────────────────
   _gameOver() {
+    musicManager.stop();
     this.state = 'gameover';
     const score = this.player.score;
 
@@ -3714,6 +3734,7 @@ class Game {
     if (this.storyCtrl.needsBossAlert) {
       this.storyCtrl.needsBossAlert = false;
       this.audio.bossAlert();
+      musicManager.play('nemesis');
     }
 
     // Récompense boss (transition alive → dying)

@@ -625,6 +625,22 @@ kbd {
 
 .remove-ads-persistent:hover { color: var(--c-text); border-color: rgba(255,255,255,0.25); }
 
+/* ── Music toggle button ─────────────────────────────────────────── */
+.music-toggle-btn {
+  position: absolute;
+  top: 8px; right: 8px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px;
+  padding: 5px 9px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  z-index: 11;
+  transition: all 0.18s;
+  line-height: 1;
+}
+.music-toggle-btn:hover { background: rgba(255,130,0,0.18); border-color: rgba(255,130,0,0.4); }
+
 /* ── Contrôles mobiles ───────────────────────────────────────── */
 #mobile-ui {
   position: absolute;
