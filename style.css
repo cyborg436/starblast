@@ -230,6 +230,31 @@ html, body {
   animation: screen-in 0.3s ease;
 }
 
+/* L'écran d'accueil : fond transparent, le canvas titre fait le décor */
+#screen-start {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+/* Panel frosté derrière le contenu du menu */
+#screen-start .start-inner {
+  position: relative;
+  z-index: 1;
+  background: rgba(4, 4, 18, 0.74);
+  backdrop-filter: blur(10px);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 110, 30, 0.22);
+  box-shadow: 0 0 40px rgba(255, 80, 0, 0.10), 0 8px 32px rgba(0,0,0,0.5);
+}
+
+/* Hover orange sur boutons de l'écran titre */
+#screen-start .btn:hover {
+  box-shadow: 0 0 20px rgba(255, 130, 0, 0.45);
+}
+#screen-start .btn-primary:hover {
+  box-shadow: 0 0 24px rgba(255, 140, 0, 0.55), var(--glow-primary);
+}
+
 @keyframes screen-in {
   from { opacity: 0; transform: scale(0.97); }
   to   { opacity: 1; transform: scale(1); }
@@ -246,32 +271,52 @@ html, body {
   text-align: center;
 }
 
+/* ── Canvas de fond titre ────────────────────────────────────── */
+.title-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  display: block;
+}
+
 /* ── Titre principal ─────────────────────────────────────────── */
 .title-container { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+
+/* Flottement du titre + sous-titre ensemble */
+#screen-start .title-container {
+  animation: title-float 2.0s ease-in-out infinite;
+}
 
 .game-title {
   font-size: clamp(2.4rem, 9vw, 4rem);
   font-weight: 900;
   letter-spacing: 0.07em;
-  color: var(--c-text);
-  text-shadow: 0 0 30px rgba(0, 229, 255, 0.4);
-  animation: title-glow 2.2s ease-in-out infinite alternate;
+  color: #fff8f0;
+  text-shadow: 0 0 30px rgba(255, 110, 0, 0.5);
+  animation: title-glow-orange 2.2s ease-in-out infinite alternate;
 }
 
 .title-accent {
-  color: var(--c-primary);
-  text-shadow: 0 0 20px var(--c-primary), 0 0 50px rgba(0, 229, 255, 0.5);
+  color: #FF6600;
+  text-shadow: 0 0 22px #FF6600, 0 0 55px rgba(255, 100, 0, 0.55);
 }
 
 .title-tagline {
   font-size: 0.65rem;
   letter-spacing: 0.28em;
-  color: var(--c-muted);
+  color: rgba(255, 220, 190, 0.65);
 }
 
-@keyframes title-glow {
-  from { text-shadow: 0 0 20px rgba(0, 229, 255, 0.25); }
-  to   { text-shadow: 0 0 40px rgba(0, 229, 255, 0.7), 0 0 80px rgba(0, 229, 255, 0.25); }
+@keyframes title-float {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-5px); }
+}
+
+@keyframes title-glow-orange {
+  from { text-shadow: 0 0 18px rgba(255, 80, 0, 0.30); }
+  to   { text-shadow: 0 0 40px rgba(255, 140, 0, 0.80), 0 0 80px rgba(255, 60, 0, 0.30); }
 }
 
 .start-highscore {

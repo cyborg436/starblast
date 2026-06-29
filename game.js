@@ -2382,6 +2382,210 @@ class ShopManager {
 }
 
 // ============================================================
+// SECTION 11b-bis — SCÈNE TITRE (Fond animé écran d'accueil)
+// ============================================================
+class TitleScene {
+  constructor(W, H) {
+    this.W = W; this.H = H;
+    this._raf   = null;
+    this._last  = 0;
+    this._t     = 0;
+    this._stars = null;
+    this._asteroids = null;
+  }
+
+  start() {
+    const cv = document.getElementById('title-canvas');
+    if (!cv || this._raf) return;
+    cv.width  = this.W;
+    cv.height = this.H;
+    this._cv  = cv;
+    this._ctx = cv.getContext('2d');
+    if (!this._stars) this._init();
+    this._last = performance.now();
+    const step = ts => {
+      if (!this._raf) return;
+      const dt = Math.min((ts - this._last) / 1000, 0.05);
+      this._last = ts;
+      this._t   += dt;
+      this._draw(dt);
+      this._raf = requestAnimationFrame(step);
+    };
+    this._raf = requestAnimationFrame(step);
+  }
+
+  stop() {
+    if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
+  }
+
+  _init() {
+    const { W, H } = this;
+    const PI2 = Math.PI * 2;
+    this._stars = Array.from({ length: 200 }, () => ({
+      x: Math.random() * W,  y: Math.random() * H,
+      sz:  0.5 + Math.random() * 2.2,
+      bop: 0.3 + Math.random() * 0.7,
+      twk: 0.6 + Math.random() * 2.4,
+      ph:  Math.random() * PI2,
+      spd: 0.004 + Math.random() * 0.038,
+    }));
+    this._asteroids = Array.from({ length: 7 }, (_, i) => {
+      const nv    = 5 + (Math.random() * 4 | 0);
+      const sz    = 8  + Math.random() * 18;
+      const verts = Array.from({ length: nv }, (_, j) => {
+        const a = (j / nv) * PI2;
+        const r = sz * (0.62 + 0.38 * Math.random());
+        return [Math.cos(a) * r, Math.sin(a) * r];
+      });
+      const orange = i < 3;
+      return {
+        x: Math.random() * W, y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 20,
+        vy: (Math.random() - 0.5) * 11,
+        verts, rot: Math.random() * PI2,
+        rotV: (Math.random() - 0.5) * 0.9,
+        fill: orange
+          ? `rgba(${170 + (Math.random() * 60 | 0)},${60 + (Math.random() * 40 | 0)},0,0.80)`
+          : `rgba(${100 + (Math.random() * 50 | 0)},${100 + (Math.random() * 50 | 0)},${120 + (Math.random() * 55 | 0)},0.80)`,
+        stroke: orange ? 'rgba(220,110,20,0.55)' : 'rgba(140,140,160,0.50)',
+      };
+    });
+  }
+
+  _draw(dt) {
+    const { _ctx: ctx, W, H, _t: t } = this;
+    const PI2 = Math.PI * 2;
+
+    // ── Couche 0 : fond ──────────────────────────────────────
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, W, H);
+
+    // ── Couche 1 : nébuleuse (4 gradients radiaux pulsants) ──
+    [
+      { x: W * 0.28, y: H * 0.28, r: W * 0.65, c: [80, 0, 130],   ph: 0.0, sp: 0.22 },
+      { x: W * 0.72, y: H * 0.15, r: W * 0.50, c: [0,  22, 110],  ph: 2.1, sp: 0.17 },
+      { x: W * 0.44, y: H * 0.65, r: W * 0.55, c: [110, 0, 60],   ph: 4.2, sp: 0.19 },
+      { x: W * 0.14, y: H * 0.78, r: W * 0.42, c: [28,  0, 88],   ph: 1.0, sp: 0.14 },
+    ].forEach(n => {
+      const a = 0.07 + 0.04 * Math.sin(t * n.sp + n.ph);
+      const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
+      g.addColorStop(0, `rgba(${n.c[0]},${n.c[1]},${n.c[2]},${a.toFixed(3)})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+    });
+
+    // ── Couche 2 : étoiles (parallaxe + scintillement) ───────
+    this._stars.forEach(s => {
+      s.x -= s.spd * dt * 1000;
+      if (s.x < -4) s.x = W + 4;
+      const op = Math.max(0, s.bop * (0.5 + 0.5 * Math.sin(t * s.twk + s.ph)));
+      ctx.save();
+      ctx.globalAlpha = op;
+      if (s.sz > 1.5) {
+        ctx.fillStyle   = '#ffffff';
+        ctx.shadowColor = '#aaddff';
+        ctx.shadowBlur  = s.sz * 2.2;
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.sz, 0, PI2); ctx.fill();
+        ctx.shadowBlur  = 0;
+      } else {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(s.x, s.y, s.sz, s.sz);
+      }
+      ctx.restore();
+    });
+
+    // ── Couche 3 : planète enflammée (bas-droite) ────────────
+    const pcx = W * 0.84, pcy = H * 1.08, R = H * 0.42;
+
+    // Halo atmosphère
+    const atmo = ctx.createRadialGradient(pcx, pcy, R * 0.72, pcx, pcy, R * 1.35);
+    atmo.addColorStop(0,    'rgba(255,90,0,0.30)');
+    atmo.addColorStop(0.35, 'rgba(255,45,0,0.13)');
+    atmo.addColorStop(0.75, 'rgba(180,15,0,0.05)');
+    atmo.addColorStop(1,    'rgba(0,0,0,0)');
+    ctx.fillStyle = atmo;
+    ctx.beginPath(); ctx.arc(pcx, pcy, R * 1.35, 0, PI2); ctx.fill();
+
+    // Sphère clippée
+    ctx.save();
+    ctx.beginPath(); ctx.arc(pcx, pcy, R, 0, PI2); ctx.clip();
+
+    // Gradient lave de base
+    const lava = ctx.createRadialGradient(pcx - R * 0.18, pcy - R * 0.16, 0, pcx, pcy, R);
+    lava.addColorStop(0,    '#FFBB00');
+    lava.addColorStop(0.32, '#FF6600');
+    lava.addColorStop(0.68, '#DD1800');
+    lava.addColorStop(1,    '#660000');
+    ctx.fillStyle = lava;
+    ctx.fillRect(pcx - R, pcy - R, R * 2, R * 2);
+
+    // Blobs de turbulence
+    for (let i = 0; i < 8; i++) {
+      const a  = t * (0.055 + i * 0.007) + i * PI2 / 8;
+      const bx = pcx + Math.cos(a) * R * 0.40;
+      const by = pcy + Math.sin(a * 0.73) * R * 0.30;
+      const br = R * (0.13 + 0.09 * Math.sin(t * 0.11 + i * 0.8));
+      const bg = ctx.createRadialGradient(bx, by, 0, bx, by, br);
+      bg.addColorStop(0,    'rgba(255,185,0,0.38)');
+      bg.addColorStop(0.55, 'rgba(255,95,0,0.12)');
+      bg.addColorStop(1,    'rgba(0,0,0,0)');
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.arc(bx, by, br, 0, PI2); ctx.fill();
+    }
+
+    // Taches sombres (rotation simulée)
+    for (let i = 0; i < 5; i++) {
+      const a  = t * 0.04 + i * PI2 / 5;
+      const sx = pcx + Math.cos(a) * R * 0.46;
+      const sy = pcy + Math.sin(a * 0.62) * R * 0.33;
+      const sr = R * (0.075 + 0.038 * Math.sin(t * 0.16 + i));
+      ctx.fillStyle = 'rgba(70,4,0,0.30)';
+      ctx.beginPath(); ctx.arc(sx, sy, sr, 0, PI2); ctx.fill();
+    }
+    ctx.restore(); // fin clip sphère
+
+    // Contour lumineux
+    ctx.beginPath(); ctx.arc(pcx, pcy, R, 0, PI2);
+    ctx.strokeStyle = 'rgba(255,100,20,0.30)'; ctx.lineWidth = 2.5; ctx.stroke();
+
+    // Anneaux diagonaux
+    ctx.save(); ctx.translate(pcx, pcy);
+    [
+      { rx: R * 1.42, ry: R * 0.13, ang: -0.18, col: 'rgba(255,135,30,0.22)', lw: 14 },
+      { rx: R * 1.72, ry: R * 0.09, ang: -0.18, col: 'rgba(255,80,10,0.13)',  lw:  9 },
+    ].forEach(ring => {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, ring.rx, ring.ry, ring.ang, 0, PI2);
+      ctx.strokeStyle = ring.col; ctx.lineWidth = ring.lw; ctx.stroke();
+    });
+    ctx.restore();
+
+    // ── Couche 4 : astéroïdes ────────────────────────────────
+    this._asteroids.forEach(ast => {
+      ast.x   += ast.vx   * dt;
+      ast.y   += ast.vy   * dt;
+      ast.rot += ast.rotV * dt;
+      if (ast.x < -60) ast.x = W + 60;
+      if (ast.x > W + 60) ast.x = -60;
+      if (ast.y < -60) ast.y = H + 60;
+      if (ast.y > H + 60) ast.y = -60;
+
+      ctx.save();
+      ctx.translate(ast.x, ast.y);
+      ctx.rotate(ast.rot);
+      ctx.beginPath();
+      ctx.moveTo(ast.verts[0][0], ast.verts[0][1]);
+      for (let vi = 1; vi < ast.verts.length; vi++) ctx.lineTo(ast.verts[vi][0], ast.verts[vi][1]);
+      ctx.closePath();
+      ctx.fillStyle = ast.fill;   ctx.fill();
+      ctx.strokeStyle = ast.stroke; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.restore();
+    });
+  }
+}
+
+// ============================================================
 // SECTION 11c-bis — CLASSES BOSS (Sentinelle, Chasseur, Titan)
 // ============================================================
 
@@ -3119,6 +3323,7 @@ class Game {
     this.shop        = new ShopManager();
     this.progression = new ProgressionManager();
     this.story       = new StoryManager();
+    this.titleScene  = new TitleScene(this.W, this.H);
 
     this.player       = null;
     this.enemies      = [];
@@ -3152,6 +3357,16 @@ class Game {
     this.ui.updateXPBar(this.progression.level, this.progression.progressRatio);
     this.ui.updateLegendBadge(this.progression.level);
     this.ui.showScreen('start');
+    this.titleScene.start();
+
+    // Auto start/stop titleScene quand l'écran d'accueil est affiché/masqué
+    const _startEl = document.getElementById('screen-start');
+    if (_startEl) {
+      new MutationObserver(() => {
+        if (_startEl.classList.contains('active')) this.titleScene.start();
+        else this.titleScene.stop();
+      }).observe(_startEl, { attributes: true, attributeFilter: ['class'] });
+    }
 
     // Démarre la boucle de rendu (étoiles animées sur les écrans de menu)
     requestAnimationFrame(ts => this._loop(ts));
