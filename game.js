@@ -31,6 +31,7 @@ const CFG = {
     shield: 0.05, double: 0.05, bomb: 0.05,
     surcharge: 0.05, mirror: 0.04, freeze: 0.03, orbital: 0.03,
     repair: 0.04, swarm: 0.05, magnet: 0.06, frenzy: 0.01,
+    reload: 0.05,
   },
   STAR_COUNT: 130,
 
@@ -1509,6 +1510,9 @@ class Player {
     this.bulletColor = '#ffffff';
     this.laserType   = '';
 
+    // Armes — fournies par Game (référence)
+    this.weapons     = null;
+
     // Tir
     this.fireCooldown = 0;
 
@@ -1723,29 +1727,36 @@ class Player {
     this._thrustParticles = this._thrustParticles.filter(p => { p.update(dt); return !p.dead; });
   }
 
-  /** Tire une ou deux balles selon le power-up actif. Retourne le nombre de balles tirées. */
+  /**
+   * Tire en délégant à WeaponManager. Cadence et type de projectile selon l'arme.
+   * Le bonus "doubleShot" duplique le pattern (deux tirs côte à côte) sauf armes spéciales.
+   * Retourne le nombre de projectiles produits.
+   */
   fire(bullets, audio) {
+    if (!this.weapons) return 0;
     if (this.fireCooldown > 0) return 0;
-    // Surcharge : cadence ×3
-    this.fireCooldown = CFG.PLAYER_FIRE_RATE / (this.surcharge ? 3 : 1);
-    const c = this.surcharge ? '#ff3344' : this.bulletColor;
-    const lt = this.laserType;
 
-    const mkBullet = (x, y) => {
-      const b = new Bullet(x, y, 0, -CFG.BULLET_SPEED, c, true, lt);
-      if (this.surcharge) { b.w *= 2.2; b.h *= 1.35; }
-      return b;
-    };
+    const def = this.weapons.def();
+    if (!this.weapons.hasAmmo()) return 0;
+    // Armes à charge (Plasma) : pilotées par WeaponManager.tick — pas d'auto-fire ici
+    if (def.chargeTime) return 0;
 
-    if (this.doubleShot) {
-      bullets.push(mkBullet(this.x - 12, this.y - this.h * 0.46));
-      bullets.push(mkBullet(this.x + 12, this.y - this.h * 0.46));
-      audio.shootDouble();
-      return 2;
+    // Cadence : × surcharge (3) × def.fireRate
+    const baseRate = def.fireRate || CFG.PLAYER_FIRE_RATE;
+    this.fireCooldown = baseRate / (this.surcharge ? 3 : 1);
+
+    // Double-shot power-up : dédouble le pattern uniquement pour blaster/twin/spread
+    const allowDoubling = ['blaster', 'twin', 'spread'].includes(def.id);
+    if (this.doubleShot && allowDoubling) {
+      const origX = this.x;
+      this.x = origX - 8;
+      const a = this.weapons.fire(this, bullets, audio);
+      this.x = origX + 8;
+      const b = this.weapons.fire(this, bullets, audio);
+      this.x = origX;
+      return a + b;
     }
-    bullets.push(mkBullet(this.x, this.y - this.h * 0.46));
-    audio.shoot();
-    return 1;
+    return this.weapons.fire(this, bullets, audio);
   }
 
   draw(ctx) {
@@ -2084,8 +2095,8 @@ class Enemy {
     return { x: this.x - this.w*0.42, y: this.y - this.h*0.42, w: this.w*0.84, h: this.h*0.84 };
   }
 
-  hit() {
-    this.hp--;
+  hit(damage = 1) {
+    this.hp -= damage;
     this.flashTimer = 0.1;
     return this.hp <= 0;
   }
@@ -2188,6 +2199,7 @@ const PU_DEFS = {
   swarm:     { emoji: '🐝', color: '#ff9933', glow: '#ffcc66', name: 'ESSAIM' },
   magnet:    { emoji: '🧲', color: '#cc55ff', glow: '#dd88ff', name: 'MAGNÉTISME' },
   frenzy:    { emoji: '💀', color: '#ff1133', glow: '#ff4466', name: 'FRÉNÉSIE' },
+  reload:    { emoji: '🔄', color: '#00ddff', glow: '#88eeff', name: 'RECHARGEMENT' },
 };
 
 class PowerUp {
@@ -2386,13 +2398,34 @@ class WaveManager {
   }
 
   /** Vitesse de base des ennemis pour le niveau courant. */
-  _speedScale() { return this.level; }
+  _speedScale() {
+    // Plafonné à 30 — au-delà, on garde la même vitesse et on augmente la densité
+    return Math.min(this.level, 30);
+  }
+
+  /**
+   * Multiplicateur de PV ennemi pour le niveau courant.
+   * Vagues 1-10 : 1.0 (pas de scale)
+   * Vagues 11-20 : +15 % cumulés par vague entre 10 et 20 (max ×2.5 à v20)
+   * Vagues 21-30 : +10 % supplémentaires par vague (max ×3.5 à v30)
+   * Vagues 30+   : plafonné à v30 (×3.5) — la difficulté monte via la densité
+   */
+  static hpMultiplier(level) {
+    if (level <= 10) return 1.0;
+    let mult = 1.0;
+    const cappedLevel = Math.min(level, 30);
+    for (let lv = 11; lv <= Math.min(20, cappedLevel); lv++) mult += 0.15;
+    for (let lv = 21; lv <= cappedLevel;                  lv++) mult += 0.10;
+    return mult;
+  }
 
   /** Construit la file de spawn pour un niveau donné. */
   _buildWave(level, W) {
     const queue  = [];
+    // Densité supplémentaire après v30
+    const densityBoost = level > 30 ? 1 + (level - 30) * 0.15 : 1;
     const cols   = Math.min(2 + Math.floor(level * 0.7), 7);
-    const rows   = 1 + Math.floor((level - 1) / 3);
+    const rows   = Math.floor((1 + Math.floor((level - 1) / 3)) * densityBoost);
 
     const types  = ['basic'];
     if (level >= 3) types.push('medium');
@@ -2451,7 +2484,12 @@ class WaveManager {
       this.spawnTimer += dt;
       while (this.spawnQueue.length > 0 && this.spawnTimer >= this.spawnQueue[0].delay) {
         const s = this.spawnQueue.shift();
-        enemies.push(new Enemy(s.type, s.x, s.y, this._speedScale()));
+        const e = new Enemy(s.type, s.x, s.y, this._speedScale());
+        // Application du multiplicateur de PV par vague
+        const hpMult = WaveManager.hpMultiplier(this.level);
+        e.hp    = Math.ceil(e.hp    * hpMult);
+        e.maxHp = Math.ceil(e.maxHp * hpMult);
+        enemies.push(e);
       }
     }
 
@@ -2540,9 +2578,9 @@ class Meteor {
     if (this.y > H + this.h) this.dead = true;
   }
 
-  /** Inflige 1 point de dégât. Retourne true si la météorite est détruite. */
-  hit() {
-    this.hp--;
+  /** Inflige des dégâts. Retourne true si la météorite est détruite. */
+  hit(damage = 1) {
+    this.hp -= damage;
     this.flashTimer = 0.06;
     return this.hp <= 0;
   }
@@ -3903,9 +3941,9 @@ class BossBase {
     return { x: this.x - this.w * 0.42, y: this.y - this.h * 0.42, w: this.w * 0.84, h: this.h * 0.84 };
   }
 
-  hit() {
+  hit(damage = 1) {
     if (this.dying) return false;
-    this.hp = Math.max(0, this.hp - 1);
+    this.hp = Math.max(0, this.hp - damage);
     this.flashTimer = 0.08;
     if (this.hp <= 0) {
       this.dying = true;
@@ -4622,6 +4660,8 @@ class Game {
     this.achievementsUI = new AchievementUI(this.achievements);
     this.leaderboard    = new LeaderboardManager();
     this.leaderboardUI  = new LeaderboardUI(this.leaderboard);
+    this.weapons        = new WeaponManager();
+    this._weaponUnlockToast = null;   // notification de nouvelle arme
     this.achievements.setRefs({ shop: this.shop, story: this.story, progression: this.progression, audio: this.audio });
     this.achievements.setCoinsCallback(n => {
       this.coins += n;
@@ -4851,7 +4891,22 @@ class Game {
           this._togglePause();
         }
       }
+      // Changement d'arme avec 1..6
+      if (this.state === 'playing' || this.state === 'story-playing') {
+        const m = e.code.match(/^Digit([1-6])$/);
+        if (m) {
+          const idx = parseInt(m[1], 10) - 1;
+          if (this.weapons.select(idx)) this.audio.powerup();
+        }
+      }
     });
+
+    // Molette souris : switch d'arme
+    window.addEventListener('wheel', e => {
+      if (this.state !== 'playing' && this.state !== 'story-playing') return;
+      const delta = e.deltaY > 0 ? 1 : -1;
+      if (this.weapons.switchBy(delta)) this.audio.powerup();
+    }, { passive: true });
 
     // Boutons "Supprimer les pubs"
     ['btn-remove-ads-start', 'btn-remove-ads-go', 'btn-remove-ads-persistent'].forEach(id =>
@@ -4918,6 +4973,7 @@ class Game {
     this.player.skin        = this.shop.equippedSkin;
     this.player.bulletColor = this.shop.getBulletColor();
     this.player.laserType   = this.shop.equippedColor;
+    this.player.weapons     = this.weapons;
     this.wave   = new WaveManager();
     this.wave.start(1, this.W);
 
@@ -4929,6 +4985,8 @@ class Game {
     this.achievements.onWaveReached(1);
     this._prevLives = CFG.LIVES;
     this._runStartTime = Date.now();
+    // Réinitialise les munitions au début de la partie (mais conserve les déverrouillages)
+    this.weapons.rechargeAll();
 
     musicManager.play('afterburn');
     this.ui.hideScreens();
@@ -4965,6 +5023,7 @@ class Game {
     this.player.skin        = this.shop.equippedSkin;
     this.player.bulletColor = this.shop.getBulletColor();
     this.player.laserType   = this.shop.equippedColor;
+    this.player.weapons     = this.weapons;
 
     this.storyLevelId = levelId;
     const levelDef    = STORY_LEVELS.find(l => l.id === levelId);
@@ -4977,6 +5036,7 @@ class Game {
     this.combo.reset();
     this.achievements.onRunStart();
     this._prevLives = CFG.LIVES;
+    this.weapons.rechargeAll();
 
     const _storyTrack = levelId <= 3 ? 'frontier' : levelId <= 6 ? 'tension' : 'assault';
     musicManager.play(_storyTrack);
@@ -5080,6 +5140,10 @@ class Game {
         if (this.player.lives < CFG.LIVES) this.player.lives++;
         else                                this.player.score += 500;
         return;
+      case 'reload':
+        this.audio.powerup();
+        this.weapons.rechargeAll();
+        return;
       default:
         // Effets locaux au joueur
         this.player.activatePowerup(p.type, this.audio);
@@ -5155,6 +5219,116 @@ class Game {
     ctx.restore();
   }
 
+  // ── Notification "nouvelle arme débloquée" ───────────────
+  _showWeaponUnlock(def) {
+    this._weaponUnlockToast = {
+      text: `NOUVELLE ARME : ${def.name}`,
+      icon: def.icon,
+      life: 3.0,
+    };
+    this.audio.levelUp();
+    // Sélectionne automatiquement l'arme nouvellement débloquée
+    const idx = WEAPON_DEFS.findIndex(w => w.id === def.id);
+    if (idx >= 0) this.weapons.select(idx);
+  }
+
+  // ── Anneau de charge Plasma ─────────────────────────────────
+  _drawPlasmaCharge(ctx) {
+    if (!this.weapons) return;
+    const p = this.weapons.chargeProgress();
+    if (p <= 0) return;
+    ctx.save();
+    ctx.translate(this.player.x, this.player.y);
+    const r = this.player.w * 0.7;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2);
+    ctx.strokeStyle = '#00ffaa';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#00ffaa';
+    ctx.shadowBlur = 16;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // ── Barre d'armes en bas de l'écran ─────────────────────────
+  _drawWeaponsBar(ctx) {
+    if (!this.weapons) return;
+    const wm = this.weapons;
+    const n  = WEAPON_DEFS.length;
+    const cellW = 56, cellH = 38, gap = 4;
+    const totalW = n * cellW + (n - 1) * gap;
+    const x0 = (this.W - totalW) / 2;
+    const y0 = this.H - cellH - 6;
+
+    ctx.save();
+    ctx.font = '700 9px Orbitron, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    WEAPON_DEFS.forEach((d, idx) => {
+      const cx = x0 + idx * (cellW + gap);
+      const isCurrent  = idx === wm.current;
+      const isUnlocked = wm.unlocked.has(d.id);
+      // Fond
+      ctx.fillStyle = isCurrent ? 'rgba(255,215,0,0.18)' : 'rgba(0,0,0,0.55)';
+      ctx.fillRect(cx, y0, cellW, cellH);
+      ctx.strokeStyle = isCurrent ? '#ffd700' : isUnlocked ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = isCurrent ? 2 : 1;
+      ctx.strokeRect(cx + 0.5, y0 + 0.5, cellW - 1, cellH - 1);
+      // Numéro 1-6 en haut-gauche
+      ctx.fillStyle = isUnlocked ? 'rgba(255,215,0,0.7)' : 'rgba(255,255,255,0.25)';
+      ctx.font = '700 8px Orbitron, monospace';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText(String(idx + 1), cx + 3, y0 + 3);
+      // Icône (emoji)
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '15px serif';
+      ctx.globalAlpha = isUnlocked ? 1 : 0.35;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(d.icon, cx + cellW / 2, y0 + 14);
+      ctx.globalAlpha = 1;
+      // Munitions ou seuil vague
+      ctx.font = '700 7.5px Orbitron, monospace';
+      if (!isUnlocked) {
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillText(`V.${d.wave}`, cx + cellW / 2, y0 + cellH - 7);
+      } else if (isFinite(d.maxAmmo)) {
+        ctx.fillStyle = wm.ammo[d.id] > 0 ? '#ffd700' : '#ff5566';
+        ctx.fillText(`${wm.ammo[d.id]}/${d.maxAmmo}`, cx + cellW / 2, y0 + cellH - 7);
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fillText('∞', cx + cellW / 2, y0 + cellH - 7);
+      }
+      // Barre de rechargement
+      if (isUnlocked && isFinite(d.maxAmmo) && d.ammoReload && wm.ammo[d.id] < d.maxAmmo) {
+        const reloadRatio = (wm.reloadCd[d.id] || 0) / d.ammoReload;
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.fillRect(cx + 3, y0 + cellH - 3, cellW - 6, 2);
+        ctx.fillStyle = '#00ddff';
+        ctx.fillRect(cx + 3, y0 + cellH - 3, (cellW - 6) * reloadRatio, 2);
+      }
+    });
+    ctx.restore();
+  }
+
+  // ── Toast "nouvelle arme" ───────────────────────────────────
+  _drawWeaponUnlockToast(ctx) {
+    const t = this._weaponUnlockToast;
+    if (!t) return;
+    const alpha = t.life > 2.5 ? (3.0 - t.life) / 0.5
+                : t.life < 0.5 ? t.life / 0.5
+                : 1;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = '900 18px Orbitron, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const y = this.H / 2 - 30;
+    ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 18;
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText(`${t.icon}  ${t.text}  ${t.icon}`, this.W / 2, y);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
   // ── Bouclier Miroir : transforme une balle ennemie en balle joueur ──
   _reflectBullet(b) {
     // Retire de la liste ennemie et la repousse vers les ennemis
@@ -5227,6 +5401,12 @@ class Game {
       f.y    += f.vy * dt;
       f.life -= dt;
       if (f.life <= 0) this.pickupFloats.splice(i, 1);
+    }
+
+    // Toast nouvelle arme
+    if (this._weaponUnlockToast) {
+      this._weaponUnlockToast.life -= dt;
+      if (this._weaponUnlockToast.life <= 0) this._weaponUnlockToast = null;
     }
   }
 
@@ -5322,7 +5502,7 @@ class Game {
 
     if (this._shakeTimer > 0) this._shakeTimer = Math.max(0, this._shakeTimer - dt);
 
-    this.playerBullets.forEach(b => b.update(dt, this.W, this.H));
+    this.playerBullets.forEach(b => b.update(dt, this.W, this.H, this.enemies, this.particles));
     this.enemyBullets.forEach( b => b.update(dt, this.W, this.H));
     // Temps gelé : on saute la mise à jour des ennemis (mais les balles continuent)
     if (this.freezeTimer > 0) this.freezeTimer -= dt;
@@ -5383,16 +5563,33 @@ class Game {
     for (let i = this.playerBullets.length - 1; i >= 0; i--) {
       const b = this.playerBullets[i];
       if (b.dead) continue;
+      // Missiles & plasma (Histoire)
+      if (b.isMissile || b.isPlasma) {
+        for (const e of this.enemies) {
+          if (e.dead || e.dying) continue;
+          if (!aabb(b.hitbox, e.hitbox)) continue;
+          b.explode(this.enemies, this.particles, this.audio, (killed) => {
+            this.player.score += this.combo.addKill(killed.score);
+            this.achievements.onKill();
+            if (Math.random() < killed.dropChance) {
+              this.powerups.push(new PowerUp(killed.x, killed.y, _pickPowerupType()));
+            }
+          });
+          break;
+        }
+        continue;
+      }
       for (let j = this.enemies.length - 1; j >= 0; j--) {
         const e = this.enemies[j];
         if (e.dying || !aabb(b.hitbox, e.hitbox)) continue;
-        b.dead = true;
+        if (b.pierce) { if (b._hitSet && b._hitSet.has(e)) continue; b._hitSet && b._hitSet.add(e); }
+        else            b.dead = true;
         if (b.laserType === 'solar')           spawnBoom(this.particles, b.x, b.y, 'basic', null);
         else if (b.laserType === 'apocalypse') { spawnBoom(this.particles, b.x, b.y, 'medium', null); spawnExplosion(this.particles, b.x, b.y, '#FF1744', 14, true); }
         else if (b.laserType === 'lightning')  spawnExplosion(this.particles, b.x, b.y, '#FFEC3D', 10);
         else                                    spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
         this.achievements.onShotHit();
-        if (e.hit()) {
+        if (e.hit(b.damage || 1)) {
           this.player.score += this.combo.addKill(e.score);
           this.achievements.onKill();
           const tier = e instanceof BossTitan ? 'titan' : e.isBoss ? 'boss' : e.type;
@@ -5403,7 +5600,7 @@ class Game {
             this.powerups.push(new PowerUp(e.x, e.y, _pickPowerupType()));
           }
         }
-        break;
+        if (!b.pierce) break;
       }
       if (b.dead) continue;
 
@@ -5411,10 +5608,11 @@ class Game {
       for (let j = this.meteors.length - 1; j >= 0; j--) {
         const m = this.meteors[j];
         if (m.dead || !aabb(b.hitbox, m.hitbox)) continue;
-        b.dead = true;
+        if (b.pierce) { if (b._hitSet && b._hitSet.has(m)) continue; b._hitSet && b._hitSet.add(m); }
+        else            b.dead = true;
         this.achievements.onShotHit();
         spawnExplosion(this.particles, b.x, b.y, '#bba070', 4);
-        if (m.hit()) {
+        if (m.hit(b.damage || 1)) {
           this.player.score += this.combo.addKill(m.score);
           this.achievements.onKill();
           spawnBoom(this.particles, m.x, m.y, METEOR_DEFS[m.size].boom, (d, i) => this._triggerShake(d, i));
@@ -5422,7 +5620,7 @@ class Game {
           if (m.size === 'large') MeteorSpawner.fragment(m, this.meteors);
           m.dead = true;
         }
-        break;
+        if (!b.pierce) break;
       }
     }
 
@@ -5472,6 +5670,13 @@ class Game {
 
     // Contrôleur de vagues histoire
     this.storyCtrl.update(dt, this.enemies);
+
+    // Tick weapons (recharge + charge plasma)
+    const fireReq = this.weapons.tick(dt, !!this.input.fire);
+    if (fireReq === 'fire') {
+      const n = this.weapons.fire(this.player, this.playerBullets, this.audio);
+      for (let k = 0; k < n; k++) this.achievements.onShotFired();
+    }
 
     // Combo
     this.combo.tick();
@@ -5530,7 +5735,7 @@ class Game {
     if (this._shakeTimer > 0) this._shakeTimer = Math.max(0, this._shakeTimer - dt);
 
     // ── Mise à jour des entités ──────────────────────────
-    this.playerBullets.forEach(b => b.update(dt, this.W, this.H));
+    this.playerBullets.forEach(b => b.update(dt, this.W, this.H, this.enemies, this.particles));
     this.enemyBullets.forEach( b => b.update(dt, this.W, this.H));
     // Temps gelé : on saute la mise à jour des ennemis
     if (this.freezeTimer > 0) this.freezeTimer -= dt;
@@ -5556,18 +5761,40 @@ class Game {
     for (let i = this.playerBullets.length - 1; i >= 0; i--) {
       const b = this.playerBullets[i];
       if (b.dead) continue;
+      // Missiles & plasma : explose au premier contact en zone, puis dead
+      if (b.isMissile || b.isPlasma) {
+        for (const e of this.enemies) {
+          if (e.dead || e.dying) continue;
+          if (!aabb(b.hitbox, e.hitbox)) continue;
+          b.explode(this.enemies, this.particles, this.audio, (killed) => {
+            this.player.score += this.combo.addKill(killed.score * this.wave.level);
+            this.achievements.onKill();
+            this.wave.enemyKilled();
+            if (Math.random() < killed.dropChance) {
+              this.powerups.push(new PowerUp(killed.x, killed.y, _pickPowerupType()));
+            }
+          });
+          break;
+        }
+        continue;
+      }
       for (let j = this.enemies.length - 1; j >= 0; j--) {
         const e = this.enemies[j];
         if (!aabb(b.hitbox, e.hitbox)) continue;
-
-        b.dead = true;
+        // Railgun/pierce : évite de hit le même ennemi 2 fois
+        if (b.pierce) {
+          if (b._hitSet && b._hitSet.has(e)) continue;
+          b._hitSet && b._hitSet.add(e);
+        } else {
+          b.dead = true;
+        }
         if (b.laserType === 'solar')           spawnBoom(this.particles, b.x, b.y, 'basic', null);
         else if (b.laserType === 'apocalypse') { spawnBoom(this.particles, b.x, b.y, 'medium', null); spawnExplosion(this.particles, b.x, b.y, '#FF1744', 14, true); }
         else if (b.laserType === 'lightning')  spawnExplosion(this.particles, b.x, b.y, '#FFEC3D', 10);
         else                                    spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
 
         this.achievements.onShotHit();
-        if (e.hit()) {
+        if (e.hit(b.damage || 1)) {
           // Ennemi tué — score : base × niveau de vague × multiplicateur de combo
           this.player.score += this.combo.addKill(e.score * this.wave.level);
           this.achievements.onKill();
@@ -5581,7 +5808,8 @@ class Game {
             this.powerups.push(new PowerUp(e.x, e.y, _pickPowerupType()));
           }
         }
-        break;
+        // Railgun/pierce : continue à traverser ; sinon stoppe au premier hit
+        if (!b.pierce) break;
       }
       if (b.dead) continue;
 
@@ -5589,10 +5817,11 @@ class Game {
       for (let j = this.meteors.length - 1; j >= 0; j--) {
         const m = this.meteors[j];
         if (m.dead || !aabb(b.hitbox, m.hitbox)) continue;
-        b.dead = true;
+        if (b.pierce) { if (b._hitSet && b._hitSet.has(m)) continue; b._hitSet && b._hitSet.add(m); }
+        else            b.dead = true;
         this.achievements.onShotHit();
         spawnExplosion(this.particles, b.x, b.y, '#bba070', 4);
-        if (m.hit()) {
+        if (m.hit(b.damage || 1)) {
           this.player.score += this.combo.addKill(m.score);
           this.achievements.onKill();
           spawnBoom(this.particles, m.x, m.y, METEOR_DEFS[m.size].boom, (d, i) => this._triggerShake(d, i));
@@ -5600,7 +5829,7 @@ class Game {
           if (m.size === 'large') MeteorSpawner.fragment(m, this.meteors);
           m.dead = true;
         }
-        break;
+        if (!b.pierce) break;
       }
     }
 
@@ -5661,6 +5890,17 @@ class Game {
       this.audio.levelUp();
       this.ui.showLevelNotif(this.wave.level);
       this.achievements.onWaveReached(this.wave.level);
+      // Déverrouille les armes éligibles + notification
+      const newly = this.weapons.unlockUpToWave(this.wave.level);
+      newly.forEach(def => this._showWeaponUnlock(def));
+    }
+
+    // ── Tick weapons (recharge + charge plasma) ──────────
+    const fireRequest = this.weapons.tick(dt, !!this.input.fire);
+    if (fireRequest === 'fire') {
+      // Plasma : tir auto à la fin de la charge (consume ammo et pousse la balle)
+      const n = this.weapons.fire(this.player, this.playerBullets, this.audio);
+      for (let k = 0; k < n; k++) this.achievements.onShotFired();
     }
 
     // ── Combo ───────────────────────────────────────────
@@ -5754,6 +5994,13 @@ class Game {
 
       // Textes flottants de ramassage
       this._drawPickupFloats(ctx);
+
+      // Anneau de charge Plasma autour du joueur
+      this._drawPlasmaCharge(ctx);
+
+      // Barre d'armes (bas de l'écran) + toast nouvelle arme
+      this._drawWeaponsBar(ctx);
+      this._drawWeaponUnlockToast(ctx);
 
       // Particules (par-dessus tout le reste)
       this.particles.forEach(p => p.draw(ctx));
