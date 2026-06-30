@@ -95,8 +95,10 @@ class WeaponManager {
 
   /** Switch d'arme par index, par delta (molette), ou par id. */
   select(idx) {
+    const id = WEAPON_DEFS[idx]?.id;
+    console.log(`[WeaponManager] select(${idx}) id=${id} unlocked=${this.unlocked.has(id)} current=${this.current}`);
     if (idx < 0 || idx >= WEAPON_DEFS.length) return false;
-    if (!this.unlocked.has(WEAPON_DEFS[idx].id)) return false;
+    if (!this.unlocked.has(id)) return false;
     this.current  = idx;
     this.charge   = 0;
     this._wasFiring = false;

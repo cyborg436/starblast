@@ -4884,19 +4884,50 @@ class Game {
       this.achievements.onShopBuy();
     });
 
-    // Touche Pause (P / Échap)
+    // Clavier global : Pause + Armes (QWERTY/AZERTY/pavé numérique)
     window.addEventListener('keydown', e => {
       if (e.code === 'KeyP' || e.code === 'Escape') {
         if (this.state === 'playing' || this.state === 'paused' || this.state === 'story-playing') {
           this._togglePause();
         }
       }
-      // Changement d'arme avec 1..6
+      // Changement d'arme — couvre :
+      //   QWERTY/AZERTY physique  : e.code Digit1–Digit6
+      //   Pavé numérique          : e.code Numpad1–Numpad6
+      //   AZERTY caractères       : e.key & é " ' ( -
       if (this.state === 'playing' || this.state === 'story-playing') {
-        const m = e.code.match(/^Digit([1-6])$/);
-        if (m) {
-          const idx = parseInt(m[1], 10) - 1;
+        const AZERTY_MAP = { '&':0, 'é':1, '"':2, "'":3, '(':4, '-':5 };
+        let idx = -1;
+        const codeM = e.code.match(/^(?:Digit|Numpad)([1-6])$/);
+        if (codeM) {
+          idx = parseInt(codeM[1], 10) - 1;
+        } else if (e.key in AZERTY_MAP) {
+          idx = AZERTY_MAP[e.key];
+        }
+        if (idx >= 0) {
+          e.preventDefault();
           if (this.weapons.select(idx)) this.audio.powerup();
+        }
+      }
+    });
+
+    // Clic sur les icônes d'armes (canvas)
+    this.canvas.addEventListener('click', e => {
+      if (this.state !== 'playing' && this.state !== 'story-playing') return;
+      const rect = this.canvas.getBoundingClientRect();
+      const scaleX = this.W / rect.width;
+      const scaleY = this.H / rect.height;
+      const mx = (e.clientX - rect.left) * scaleX;
+      const my = (e.clientY - rect.top)  * scaleY;
+      const cellW = 56, cellH = 38, gap = 4;
+      const n     = WEAPON_DEFS.length;
+      const x0    = (this.W - (n * cellW + (n - 1) * gap)) / 2;
+      const y0    = this.H - cellH - 6;
+      if (my >= y0 && my <= y0 + cellH) {
+        const rel  = mx - x0;
+        const slot = Math.floor(rel / (cellW + gap));
+        if (slot >= 0 && slot < n && rel % (cellW + gap) < cellW) {
+          if (this.weapons.select(slot)) this.audio.powerup();
         }
       }
     });
