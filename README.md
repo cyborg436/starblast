@@ -20,12 +20,14 @@ npx serve .
 
 ```
 starblast/
-├── index.html      — Structure HTML, placeholders publicitaires
-├── style.css       — Thème spatial sombre, UI responsive
-├── game.js         — Moteur de jeu complet (14 sections commentées)
-├── music.js        — Musique procédurale (Web Audio API, 7 morceaux)
-├── battlepass.js   — Battle Pass saisonnier (50 paliers, voies gratuite et premium)
-└── README.md       — Ce fichier
+├── index.html         — Structure HTML, placeholders publicitaires
+├── style.css          — Thème spatial sombre, UI responsive
+├── game.js            — Moteur de jeu complet (14 sections commentées)
+├── music.js           — Musique procédurale (Web Audio API, 7 morceaux)
+├── battlepass.js      — Battle Pass saisonnier (50 paliers, voies gratuite et premium)
+├── achievements.js    — Système de 20 succès avec toasts et persistance
+├── leaderboard.js     — Classement mondial via Supabase + Edge Function
+└── README.md          — Ce fichier
 ```
 
 ---
@@ -196,3 +198,173 @@ Voir `BP_REWARDS` dans `battlepass.js` pour la table complète.
 - Delta-time plafonné à 50 ms — pas de saut physique si l'onglet perd le focus
 - Canvas 480×720 (logique), mis à l'échelle via CSS — aucune re-création du canvas au resize
 - Aucune dépendance externe — chargement instantané (hormis Google Fonts)
+
+---
+
+## Leaderboard mondial — Configuration Supabase
+
+Le classement utilise [Supabase](https://supabase.com) avec lecture publique et
+insertion sécurisée via Edge Function (anti-triche basique).
+
+### 1. Créer la table `leaderboard`
+
+Dans **Supabase → SQL Editor**, exécute :
+
+```sql
+-- Table principale du classement
+create table public.leaderboard (
+  id            uuid          primary key default gen_random_uuid(),
+  player_id     uuid          references auth.users(id) on delete set null,
+  pseudo        text          not null check (char_length(pseudo) between 1 and 20),
+  score         integer       not null check (score >= 0),
+  wave_reached  integer       not null default 0 check (wave_reached >= 0),
+  mode          text          not null check (mode in ('survie','histoire')),
+  skin_used     text          not null default 'starter',
+  created_at    timestamptz   not null default now()
+);
+
+-- Index pour les tris du top 100
+create index idx_leaderboard_score on public.leaderboard (mode, score desc);
+create index idx_leaderboard_player on public.leaderboard (player_id);
+```
+
+### 2. Activer RLS et créer les policies
+
+```sql
+-- Active RLS
+alter table public.leaderboard enable row level security;
+
+-- Lecture : publique (anonymes inclus)
+create policy "Leaderboard est public en lecture"
+  on public.leaderboard for select
+  using ( true );
+
+-- Écriture : interdite aux clients (anon + authenticated)
+-- → seules les Edge Functions avec service_role pourront insérer.
+-- Aucune policy d'INSERT créée volontairement.
+```
+
+### 3. Créer l'Edge Function `submit-score`
+
+Crée le fichier `supabase/functions/submit-score/index.ts` :
+
+```ts
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// Anti-triche : limite raisonnable de score par seconde de jeu
+const MAX_SCORE_PER_SECOND = 1500;
+const MAX_SCORE_ABSOLUTE   = 99_999_999;
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST")    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+
+  let body: any = {};
+  try { body = await req.json(); } catch { return json({ error: "JSON invalide" }, 400); }
+
+  const { pseudo, score, wave_reached, mode, skin_used, playtime } = body;
+
+  // Validations strictes
+  if (typeof score !== "number" || score < 0 || score > MAX_SCORE_ABSOLUTE)  return json({ error: "score invalide" }, 400);
+  if (!["survie","histoire"].includes(mode))                                 return json({ error: "mode invalide" }, 400);
+  if (typeof playtime !== "number" || playtime <= 0 || playtime > 86400)     return json({ error: "playtime invalide" }, 400);
+  if (typeof wave_reached !== "number" || wave_reached < 0 || wave_reached > 999) return json({ error: "wave invalide" }, 400);
+  if (score > playtime * MAX_SCORE_PER_SECOND)                               return json({ error: "score suspect (ratio score/temps)" }, 400);
+
+  const cleanPseudo = String(pseudo || "Anonyme").slice(0, 20).trim() || "Anonyme";
+  const cleanSkin   = String(skin_used || "starter").slice(0, 30);
+
+  // service_role pour bypass RLS (l'insert est uniquement déclenché depuis cette function)
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  // Détection d'un utilisateur authentifié (token Bearer transmis par le client)
+  let playerId: string | null = null;
+  const auth = req.headers.get("Authorization") || "";
+  if (auth.startsWith("Bearer ")) {
+    const jwt = auth.slice(7);
+    const { data } = await admin.auth.getUser(jwt);
+    playerId = data.user?.id ?? null;
+  }
+
+  const { error } = await admin.from("leaderboard").insert({
+    player_id:    playerId,
+    pseudo:       cleanPseudo,
+    score:        Math.floor(score),
+    wave_reached: Math.floor(wave_reached),
+    mode,
+    skin_used:    cleanSkin,
+  });
+
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true }, 200);
+});
+
+function json(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+```
+
+### 4. Déployer l'Edge Function
+
+```bash
+# Installer le CLI si nécessaire
+npm install -g supabase
+
+# Lier le projet local au projet Supabase
+supabase link --project-ref VOTRE_PROJECT_REF
+
+# Déployer
+supabase functions deploy submit-score
+```
+
+L'Edge Function a accès à `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` qui sont
+automatiquement injectées par Supabase — aucune configuration supplémentaire.
+
+### 5. Configurer le client
+
+Dans `leaderboard.js`, remplace les placeholders en haut du fichier :
+
+```js
+const SUPABASE_CONFIG = {
+  url:     'https://VOTRE-PROJECT.supabase.co',
+  anonKey: 'VOTRE_ANON_KEY',           // dispo dans Project Settings → API
+  edgeFn:  'submit-score',
+};
+```
+
+Tant que ces valeurs restent à `YOUR_*`, le leaderboard se désactive proprement
+(l'écran affiche "Leaderboard hors-ligne") sans planter le reste du jeu.
+
+### Flux de soumission
+
+1. À chaque Game Over en **mode Survie**, le client interroge le top 100.
+2. Si le score s'y qualifie, une modale demande le pseudo (max 20 caractères,
+   pré-rempli avec la partie avant `@` de l'email si l'utilisateur est connecté).
+3. Le client `POST` vers `/functions/v1/submit-score` avec son JWT (si connecté)
+   ou la clé anonyme. L'Edge Function revalide le ratio score/temps puis insère
+   avec `service_role`.
+4. La table cache est invalidée → le score apparaît au prochain refresh
+   (auto-refresh toutes les 60 s sur l'écran Classement).
+
+### Anti-triche
+
+- **Côté client** : pré-validation `score / playtime ≤ 1500 pts/s`
+- **Côté serveur (autoritaire)** : même validation + bornes absolues
+  (score ≤ 99 999 999, playtime ≤ 86 400 s, wave ≤ 999)
+- **RLS** : aucune policy d'INSERT côté client — seule la Edge Function avec
+  `service_role` peut écrire
+- **Pseudo** : tronqué à 20 caractères, sanitisé (échappé à l'affichage côté
+  client pour éviter le XSS)

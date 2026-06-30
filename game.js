@@ -3016,14 +3016,14 @@ class UIManager {
 
   // ── Écrans ───────────────────────────────────────────────
   showScreen(name) {
-    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass','achievements'].forEach(id => {
+    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass','achievements','leaderboard'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.toggle('active', id === name);
     });
   }
 
   hideScreens() {
-    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass','achievements'].forEach(id => {
+    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass','achievements','leaderboard'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.remove('active');
     });
@@ -4620,6 +4620,8 @@ class Game {
     this.pickupFloats   = [];       // Textes flottants de ramassage
     this.achievements   = new AchievementManager();
     this.achievementsUI = new AchievementUI(this.achievements);
+    this.leaderboard    = new LeaderboardManager();
+    this.leaderboardUI  = new LeaderboardUI(this.leaderboard);
     this.achievements.setRefs({ shop: this.shop, story: this.story, progression: this.progression, audio: this.audio });
     this.achievements.setCoinsCallback(n => {
       this.coins += n;
@@ -4801,6 +4803,18 @@ class Game {
     });
     on('btn-ach-back', 'click', () => this.ui.showScreen('start'));
 
+    // ── Classement ────────────────────────────────────────
+    on('btn-open-leaderboard', 'click', async () => {
+      this.ui.showScreen('leaderboard');
+      await this.leaderboardUI.open();
+    });
+    on('btn-lb-back', 'click', () => {
+      this.leaderboardUI.close();
+      this.ui.showScreen('start');
+    });
+    on('lb-prev', 'click', () => this.leaderboardUI.prevPage());
+    on('lb-next', 'click', () => this.leaderboardUI.nextPage());
+
     // Onglets de la boutique
     document.querySelectorAll('.shop-tab').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -4914,6 +4928,7 @@ class Game {
     this.achievements.onRunStart();
     this.achievements.onWaveReached(1);
     this._prevLives = CFG.LIVES;
+    this._runStartTime = Date.now();
 
     musicManager.play('afterburn');
     this.ui.hideScreens();
@@ -5254,6 +5269,32 @@ class Game {
     this.ui.updateXPBar(this.progression.level, this.progression.progressRatio);
     this.ui.updateLegendBadge(this.progression.level);
     this.ui.showGameOverXP(xpAdded, this.progression.level, levelsGained);
+
+    // Soumission au leaderboard mondial (mode survie uniquement)
+    this._maybeSubmitToLeaderboard(score, this.wave.level, 'survie');
+  }
+
+  /** Si le score se qualifie pour le top 100, affiche la modale et soumet. */
+  async _maybeSubmitToLeaderboard(score, wave, mode) {
+    if (!this.leaderboard.ready || score <= 0) return;
+    const playtime = Math.max(1, Math.floor((Date.now() - (this._runStartTime || Date.now())) / 1000));
+    try {
+      const ok = await this.leaderboard.isTop100(mode, score);
+      if (!ok) return;
+      const pseudo = await showScoreSubmitModal(
+        this.leaderboard.defaultPseudo(),
+        { score, wave }
+      );
+      if (!pseudo) return;  // joueur a cliqué "Passer"
+      const res = await this.leaderboard.submit({
+        pseudo, score, wave, mode,
+        skinUsed: this.shop.equippedSkin,
+        playtime,
+      });
+      if (!res.ok) console.warn('[Leaderboard] submission failed:', res.error);
+    } catch (e) {
+      console.warn('[Leaderboard] flow error:', e?.message);
+    }
   }
 
   // ============================================================

@@ -145,6 +145,7 @@
           <button id="btn-open-shop"       class="btn btn-shop">🏪 BOUTIQUE</button>
           <button id="btn-open-battlepass" class="btn btn-battlepass">🏆 BATTLE PASS <span id="bp-premium-badge" class="bp-premium-mini hidden">PREMIUM</span></button>
           <button id="btn-open-achievements" class="btn btn-achievements">🎖 SUCCÈS<span id="btn-ach-badge" class="ach-menu-badge hidden">!</span></button>
+          <button id="btn-open-leaderboard" class="btn btn-leaderboard">🌍 CLASSEMENT</button>
         </div>
 
         <div class="controls-card">
@@ -305,6 +306,58 @@
       </div>
     </div>
 
+    <!-- Écran Classement -->
+    <div id="screen-leaderboard" class="screen">
+      <div class="lb-wrap">
+        <header class="lb-header">
+          <button id="btn-lb-back" class="btn btn-secondary shop-back">← RETOUR</button>
+          <h2 class="lb-title">CLASSEMENT MONDIAL</h2>
+          <div></div>
+        </header>
+
+        <div class="lb-tabs">
+          <button class="lb-tab active" data-mode="survie">SURVIE</button>
+          <button class="lb-tab" data-mode="histoire">HISTOIRE</button>
+        </div>
+
+        <div class="lb-table">
+          <div class="lb-row lb-row-header">
+            <div class="lb-cell lb-rank">RANG</div>
+            <div class="lb-cell lb-pseudo">PSEUDO</div>
+            <div class="lb-cell lb-score">SCORE</div>
+            <div class="lb-cell lb-wave">VAGUE</div>
+            <div class="lb-cell lb-date">DATE</div>
+          </div>
+          <div id="lb-body" class="lb-body"></div>
+        </div>
+
+        <div id="lb-loading" class="lb-loading hidden">Chargement…</div>
+        <div id="lb-empty" class="lb-empty hidden"></div>
+
+        <footer class="lb-pagination">
+          <button id="lb-prev" class="btn btn-secondary lb-page-btn">◄</button>
+          <span id="lb-page-info" class="lb-page-info">Page 1 / 1</span>
+          <button id="lb-next" class="btn btn-secondary lb-page-btn">►</button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Modale Soumission de score (Top 100) -->
+    <div id="lb-modal-overlay" class="modal-overlay hidden">
+      <div class="modal lb-modal" role="dialog" aria-modal="true">
+        <div class="modal-icon">🏅</div>
+        <h3 class="modal-title">TU ES DANS LE TOP 100 !</h3>
+        <p id="lb-modal-score" class="modal-desc">Score : 0 · Vague 0</p>
+        <p class="modal-desc">Entre ton pseudo (20 caractères max) pour rejoindre le classement mondial.</p>
+        <input id="lb-pseudo-input" class="lb-pseudo-input" type="text" maxlength="20" placeholder="Ton pseudo" />
+        <div id="lb-modal-error" class="lb-modal-error"></div>
+        <div class="lb-modal-buttons">
+          <button id="lb-submit-btn" class="btn btn-stripe">✓ SOUMETTRE</button>
+          <button id="lb-skip-btn" class="btn btn-secondary">PASSER</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Écran Succès -->
     <div id="screen-achievements" class="screen">
       <div class="ach-wrap">
@@ -416,9 +469,12 @@
 
 </div><!-- /game-wrapper -->
 
+<!-- Supabase JS SDK (utilisé par leaderboard.js) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="music.js"></script>
 <script src="battlepass.js"></script>
 <script src="achievements.js"></script>
+<script src="leaderboard.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
