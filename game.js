@@ -88,6 +88,8 @@ const SKIN_DATA = [
   { id: 'dreadnought',name: 'Dreadnought',price: 0, rarity: 'epic',      bpOnly: true },
   { id: 'sovereign',  name: 'Sovereign',  price: 0, rarity: 'legendary', bpOnly: true },
   { id: 'genesis',    name: 'GENESIS',    price: 0, rarity: 'legendary', bpOnly: true },
+  // ── Boss Rush (exclusif — débloqué via victoire 10/10) ──
+  { id: 'nemesis',    name: 'NEMESIS',    price: 0, rarity: 'legendary', brOnly: true },
 ];
 
 const COLOR_DATA = [
@@ -3054,14 +3056,14 @@ class UIManager {
 
   // ── Écrans ───────────────────────────────────────────────
   showScreen(name) {
-    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass','achievements','leaderboard'].forEach(id => {
+    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass','achievements','leaderboard','bossrush-victory','bossrush-failed'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.toggle('active', id === name);
     });
   }
 
   hideScreens() {
-    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass','achievements','leaderboard'].forEach(id => {
+    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass','achievements','leaderboard','bossrush-victory','bossrush-failed'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.remove('active');
     });
@@ -3537,8 +3539,8 @@ class ShopManager {
 
     const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3 };
     let items = (this._tab === 'skins' ? SKIN_DATA : COLOR_DATA).slice();
-    // Cacher les exclusivités Battle Pass tant qu'elles ne sont pas possédées
-    items = items.filter(i => !i.bpOnly || this.owned.has(i.id));
+    // Cacher les exclusivités Battle Pass / Boss Rush tant qu'elles ne sont pas possédées
+    items = items.filter(i => (!i.bpOnly && !i.brOnly) || this.owned.has(i.id));
     if (this._rarityFilter !== 'all') items = items.filter(i => i.rarity === this._rarityFilter);
     items.sort((a, b) => (RARITY_ORDER[a.rarity] ?? 0) - (RARITY_ORDER[b.rarity] ?? 0));
 
@@ -4662,6 +4664,10 @@ class Game {
     this.leaderboardUI  = new LeaderboardUI(this.leaderboard);
     this.weapons        = new WeaponManager();
     this._weaponUnlockToast = null;   // notification de nouvelle arme
+    this.bossRush       = (typeof BossRushManager !== 'undefined') ? new BossRushManager(this.W, this.H) : null;
+    this.bossRushBoss   = null;       // référence directe au boss actif
+    this._brStartLives  = (typeof BR_STARTING_LIVES !== 'undefined') ? BR_STARTING_LIVES : 5;
+    this._brVictoryAnim = null;       // animation finale victoire
     this.achievements.setRefs({ shop: this.shop, story: this.story, progression: this.progression, audio: this.audio });
     this.achievements.setCoinsCallback(n => {
       this.coins += n;
@@ -4707,6 +4713,7 @@ class Game {
 
     // États : 'start' | 'playing' | 'paused' | 'gameover'
     //         'story-select' | 'story-playing' | 'story-victory' | 'story-failed'
+    //         'bossrush-playing' | 'bossrush-victory' | 'bossrush-failed'
     this.state     = 'start';
     this._playMode = 'survival'; // 'survival' | 'story'
     this.highscore = parseInt(localStorage.getItem('starblast_hs')    || '0', 10);
@@ -4793,9 +4800,16 @@ class Game {
     on('btn-go-menu',   'click', () => { this.state = 'start'; this.ui.showScreen('start'); });
     on('btn-resume',    'click', () => this._togglePause());
     on('btn-quit', 'click', () => {
-      if (this._playMode === 'story') { this._openStorySelect(); }
-      else { this.state = 'start'; this.ui.showScreen('start'); }
+      if (this._playMode === 'story')         { this._openStorySelect(); }
+      else if (this._playMode === 'bossrush') { this.state = 'start'; this.ui.showScreen('start'); }
+      else                                    { this.state = 'start'; this.ui.showScreen('start'); }
     });
+
+    // ── Mode Boss Rush ────────────────────────────────────
+    on('btn-open-bossrush',  'click', () => this._startBossRush());
+    on('btn-br-replay',      'click', () => this._startBossRush());
+    on('btn-br-menu',        'click', () => { this.state = 'start'; this.ui.showScreen('start'); });
+    on('btn-br-menu2',       'click', () => { this.state = 'start'; this.ui.showScreen('start'); });
 
     // ── Mode Histoire ─────────────────────────────────────
     on('btn-open-story',   'click', () => this._openStorySelect());
@@ -4887,7 +4901,7 @@ class Game {
     // Clavier global : Pause + Armes (QWERTY/AZERTY/pavé numérique)
     window.addEventListener('keydown', e => {
       if (e.code === 'KeyP' || e.code === 'Escape') {
-        if (this.state === 'playing' || this.state === 'paused' || this.state === 'story-playing') {
+        if (this.state === 'playing' || this.state === 'paused' || this.state === 'story-playing' || this.state === 'bossrush-playing') {
           this._togglePause();
         }
       }
@@ -4895,7 +4909,7 @@ class Game {
       //   QWERTY/AZERTY physique  : e.code Digit1–Digit6
       //   Pavé numérique          : e.code Numpad1–Numpad6
       //   AZERTY caractères       : e.key & é " ' ( -
-      if (this.state === 'playing' || this.state === 'story-playing') {
+      if (this.state === 'playing' || this.state === 'story-playing' || this.state === 'bossrush-playing') {
         const AZERTY_MAP = { '&':0, 'é':1, '"':2, "'":3, '(':4, '-':5 };
         let idx = -1;
         const codeM = e.code.match(/^(?:Digit|Numpad)([1-6])$/);
@@ -4913,7 +4927,7 @@ class Game {
 
     // Clic sur les icônes d'armes (canvas)
     this.canvas.addEventListener('click', e => {
-      if (this.state !== 'playing' && this.state !== 'story-playing') return;
+      if (this.state !== 'playing' && this.state !== 'story-playing' && this.state !== 'bossrush-playing') return;
       const rect = this.canvas.getBoundingClientRect();
       const scaleX = this.W / rect.width;
       const scaleY = this.H / rect.height;
@@ -4934,7 +4948,7 @@ class Game {
 
     // Molette souris : switch d'arme
     window.addEventListener('wheel', e => {
-      if (this.state !== 'playing' && this.state !== 'story-playing') return;
+      if (this.state !== 'playing' && this.state !== 'story-playing' && this.state !== 'bossrush-playing') return;
       const delta = e.deltaY > 0 ? 1 : -1;
       if (this.weapons.switchBy(delta)) this.audio.powerup();
     }, { passive: true });
@@ -4968,7 +4982,7 @@ class Game {
   }
 
   _togglePause() {
-    if (this.state === 'playing' || this.state === 'story-playing') {
+    if (this.state === 'playing' || this.state === 'story-playing' || this.state === 'bossrush-playing') {
       this._pausedFrom = this.state;
       this.state = 'paused';
       this.ui.showScreen('pause');
@@ -5141,6 +5155,125 @@ class Game {
     this.state = 'story-failed';
     this.combo.reset(); this.ui.updateCombo(this.combo);
     this.ui.showStoryFailed(this.storyLevelId);
+  }
+
+  // ── Mode Boss Rush : démarrer ─────────────────────────────
+  _startBossRush() {
+    if (!this.bossRush) return;
+    this.audio.resume();
+
+    this.enemies       = [];
+    this.playerBullets = [];
+    this.enemyBullets  = [];
+    this.particles     = [];
+    this.powerups      = [];
+    this.meteors       = [];
+    this.meteorSpawner.reset();
+    this.ionicStorm.reset();
+    this.freezeTimer    = 0;
+    this.orbitalStrikes = [];
+    this.pickupFloats   = [];
+
+    this.player             = new Player(this.W / 2, this.H - 90);
+    this.player.skin        = this.shop.equippedSkin;
+    this.player.bulletColor = this.shop.getBulletColor();
+    this.player.laserType   = this.shop.equippedColor;
+    this.player.weapons     = this.weapons;
+    this.player.lives       = this._brStartLives;
+
+    this.bossRush.start();
+    this.bossRushBoss = this.bossRush.boss;
+    if (this.bossRushBoss) this.enemies.push(this.bossRushBoss);
+
+    this._playMode = 'bossrush';
+    this.state     = 'bossrush-playing';
+    this.lastTime  = performance.now();
+    this.combo.reset();
+    this.achievements.onRunStart();
+    this._prevLives = this._brStartLives;
+    this._runStartTime = Date.now();
+    // Toutes les armes débloquées en Boss Rush
+    BR_BOSS_FACTORIES.length;  // touch global
+    this.weapons.unlockUpToWave(999);
+    this.weapons.rechargeAll();
+
+    musicManager.play('bossrush');
+    this.ui.hideScreens();
+    this.ui.updateHUD(0, 1, this.player.lives, this.highscore);
+  }
+
+  // ── Mode Boss Rush : victoire finale ──────────────────────
+  _bossRushVictory() {
+    musicManager.play('triumph');
+    this.state = 'bossrush-victory';
+    this.combo.reset(); this.ui.updateCombo(this.combo);
+
+    const score = this.player.score;
+    if (score > this.highscore) {
+      this.highscore = score;
+      localStorage.setItem('starblast_hs', score.toString());
+    }
+    // Récompenses : 10 000 pièces + 5000 XP + skin NEMESIS
+    this.coins += BR_VICTORY_REWARD_COINS;
+    localStorage.setItem('starblast_coins', this.coins.toString());
+    // Débloque le skin NEMESIS via le shop
+    if (this.shop && !this.shop.owned.has('nemesis')) {
+      this.shop.buy('nemesis');
+    }
+    this.battlepass.addXP(BR_VICTORY_REWARD_XP);
+    this.progression.addXP(BR_VICTORY_REWARD_XP, this.shop);
+    this.ui.updateCoins(this.coins);
+    this.ui.updateStartCoins(this.coins);
+    this.ui.updateStartHS(this.highscore);
+
+    // Remplit l'écran de victoire
+    const totalTime = this.bossRush.totalTime;
+    const mm = Math.floor(totalTime / 60), ss = totalTime % 60;
+    this._setText('br-victory-score', score.toLocaleString('fr-FR'));
+    this._setText('br-victory-time', `${mm}:${String(ss).padStart(2,'0')}`);
+    this._setText('br-victory-coins', `+${BR_VICTORY_REWARD_COINS.toLocaleString('fr-FR')}`);
+    this._setText('br-victory-xp',    `+${BR_VICTORY_REWARD_XP.toLocaleString('fr-FR')} XP`);
+    this.ui.showScreen('bossrush-victory');
+
+    // Soumission au classement Boss Rush
+    this._maybeSubmitToLeaderboard(score, BR_BOSS_FACTORIES.length, 'bossrush');
+  }
+
+  // ── Mode Boss Rush : échec ─────────────────────────────────
+  _bossRushFailed() {
+    musicManager.stop();
+    this.state = 'bossrush-failed';
+    this.combo.reset(); this.ui.updateCombo(this.combo);
+    this.bossRush.fail();
+    const reached = this.bossRush.bossReached();
+    const score   = this.player.score;
+    // Pièces : score / 10
+    const earned  = Math.floor(score / 10);
+    this.coins   += earned;
+    localStorage.setItem('starblast_coins', this.coins.toString());
+    if (score > this.highscore) {
+      this.highscore = score;
+      localStorage.setItem('starblast_hs', score.toString());
+    }
+    this.ui.updateCoins(this.coins);
+    this.ui.updateStartCoins(this.coins);
+    this.ui.updateStartHS(this.highscore);
+
+    const totalTime = this.bossRush.totalTime;
+    const mm = Math.floor(totalTime / 60), ss = totalTime % 60;
+    this._setText('br-failed-score',    score.toLocaleString('fr-FR'));
+    this._setText('br-failed-reached',  `${reached} / ${BR_BOSS_FACTORIES.length}`);
+    this._setText('br-failed-time',     `${mm}:${String(ss).padStart(2,'0')}`);
+    this._setText('br-failed-coins',    `+${earned.toLocaleString('fr-FR')}`);
+    this.ui.showScreen('bossrush-failed');
+
+    // Soumission au classement
+    this._maybeSubmitToLeaderboard(score, reached, 'bossrush');
+  }
+
+  _setText(id, txt) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
   }
 
   // ── Ramassage d'un power-up : dispatch + animations ───────
@@ -5731,10 +5864,260 @@ class Game {
   }
 
   // ============================================================
+  // BOUCLE DE JEU : UPDATE MODE BOSS RUSH
+  // ============================================================
+  _updateBossRush(dt) {
+    this.input.update();
+    const inp = this.input;
+
+    this.stars.update(dt);
+    this.player.bulletColor = this.shop.getBulletColor();
+    this.player.laserType   = this.shop.equippedColor;
+    this.player.update(dt, inp, this.W, this.H);
+
+    // Boss NOVA EMP : désactive les tirs joueur pendant 2s
+    const novaBoss = this.bossRushBoss instanceof BRNova ? this.bossRushBoss : null;
+    const empBlocking = novaBoss?.isEMPActive() || false;
+
+    if (inp.fire && !empBlocking) {
+      const n = this.player.fire(this.playerBullets, this.audio);
+      for (let k = 0; k < n; k++) this.achievements.onShotFired();
+    }
+    if (inp.bomb) {
+      if (this.player.useBomb(this.enemies, this.particles, this.audio)) {
+        this.ui.flash('#ff6b35', 0.5);
+        this.input.bomb = false;
+      }
+    }
+
+    if (this._shakeTimer > 0) this._shakeTimer = Math.max(0, this._shakeTimer - dt);
+
+    // Update entités
+    this.playerBullets.forEach(b => b.update(dt, this.W, this.H, this.enemies, this.particles));
+    this.enemyBullets.forEach( b => b.update(dt, this.W, this.H, this.player));
+    this.enemies.forEach(e => e.update(dt, this.W, this.H, this.enemyBullets, this.player, this.particles));
+    this._tickPowerupExtras(dt);
+    this.powerups.forEach(p => p.update(dt, this.H));
+    this.particles.forEach(p => p.update(dt));
+
+    // ── Collisions balles joueur → boss ─────────────────────
+    for (let i = this.playerBullets.length - 1; i >= 0; i--) {
+      const b = this.playerBullets[i];
+      if (b.dead) continue;
+      if (b.isMissile || b.isPlasma) {
+        for (const e of this.enemies) {
+          if (e.dead || e.dying) continue;
+          if (!aabb(b.hitbox, e.hitbox)) continue;
+          // Snapshot des bosses non-dying avant explosion
+          const preDying = new Set(this.enemies.filter(en => en.isBoss && !en.dying).map(en => en));
+          b.explode(this.enemies, this.particles, this.audio, (killed) => {
+            if (!killed._brKilled) { killed._brKilled = true; this._onBossRushKill(killed); }
+          });
+          // Détecte les bosses qui sont devenus dying via explode (BossBase.hit ne renvoie pas true)
+          this.enemies.forEach(en => {
+            if (preDying.has(en) && en.dying && !en._brKilled) {
+              en._brKilled = true;
+              this._onBossRushKill(en);
+            }
+          });
+          break;
+        }
+        continue;
+      }
+      for (const e of this.enemies) {
+        if (e.dead || e.dying) continue;
+        // Boss avec hitbox étendue (Leviathan)
+        let hit = aabb(b.hitbox, e.hitbox);
+        if (!hit && e instanceof BRLeviathan) {
+          hit = e.bodyHitboxes().some(box => aabb(b.hitbox, box));
+        }
+        if (!hit) continue;
+        // Leviathan : la queue détruit les projectiles
+        if (e instanceof BRLeviathan) {
+          if (aabb(b.hitbox, e.tailHitbox())) { b.dead = true; break; }
+        }
+        if (b.pierce) {
+          if (b._hitSet && b._hitSet.has(e)) continue;
+          b._hitSet && b._hitSet.add(e);
+        } else {
+          b.dead = true;
+        }
+        spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
+        this.achievements.onShotHit();
+        const dmg = b.damage || 1;
+        const wasDying = e.dying;
+        e.hit(dmg);
+        // Phantom invincible en mode fantôme
+        if (e instanceof BRPhantom && e.isGhost) { /* damage canceled inside hit() */ }
+        // Transition vivant → mourant : récompense une seule fois
+        if (!wasDying && e.dying && !e._brKilled) {
+          e._brKilled = true;
+          this._onBossRushKill(e);
+        }
+        if (!b.pierce) break;
+      }
+    }
+
+    // ── Bouclier énergétique FORTRESS : annule les balles joueur ────
+    const fortressBoss = this.bossRushBoss instanceof BRFortress ? this.bossRushBoss : null;
+    if (fortressBoss && fortressBoss.shieldActive > 0) {
+      this.playerBullets.forEach(b => {
+        const dx = b.x - fortressBoss.x, dy = b.y - fortressBoss.y;
+        if (Math.hypot(dx, dy) < fortressBoss.w * 0.65 && Math.hypot(dx, dy) > fortressBoss.w * 0.5) {
+          if (!b._fortressBlocked) { b._fortressBlocked = true; b.dead = true; }
+        }
+      });
+    }
+
+    // ── Trous noirs ECLIPSE : update + dégât au joueur ─────────────
+    const eclipseBoss = this.bossRushBoss instanceof BREclipse ? this.bossRushBoss : null;
+    if (eclipseBoss) {
+      eclipseBoss.blackHoles.forEach(bh => bh.update(dt, this.W, this.H, this.playerBullets));
+      eclipseBoss.blackHoles = eclipseBoss.blackHoles.filter(bh => !bh.dead);
+      // Laser rotatif : test sur joueur
+      if (eclipseBoss.laserHitsPoint(this.player.x, this.player.y)) {
+        if (this.player.hit(this.particles, this.audio)) {
+          this.ui.flash('#ff44aa', 0.6);
+          this.combo.reset();
+        }
+      }
+    }
+
+    // ── COLOSSUS : ondes de choc, griffe, méga laser ──────────────
+    const colossusBoss = this.bossRushBoss instanceof BRColossus ? this.bossRushBoss : null;
+    if (colossusBoss) {
+      if (colossusBoss.shockwaveHits(this.player.x - colossusBoss.x, this.player.y - colossusBoss.y) ||
+          colossusBoss.clawHits(this.player.x - colossusBoss.x, this.player.y - colossusBoss.y) ||
+          colossusBoss.beamHits(this.player.x - colossusBoss.x, this.player.y - colossusBoss.y)) {
+        if (this.player.hit(this.particles, this.audio)) {
+          this.ui.flash('#ffaa44', 0.6);
+          this.combo.reset();
+        }
+      }
+    }
+
+    // ── NEMESIS PRIME : laser mortel phase 4 ──────────────────────
+    const nemesisBoss = this.bossRushBoss instanceof BRNemesisPrime ? this.bossRushBoss : null;
+    if (nemesisBoss && nemesisBoss.lastStandLaserHits(this.player.x, this.player.y)) {
+      if (this.player.hit(this.particles, this.audio)) {
+        this.ui.flash('#ff2222', 0.7);
+        this.combo.reset();
+      }
+    }
+
+    // ── Balles ennemies → Joueur ───────────────────────────
+    for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+      const b = this.enemyBullets[i];
+      if (b.dead || !aabb(b.hitbox, this.player.hitbox)) continue;
+      if (this.player.mirror) { this._reflectBullet(b); continue; }
+      b.dead = true;
+      if (this.player.hit(this.particles, this.audio)) {
+        this.ui.flash('#ff3355', 0.5);
+        this.combo.reset();
+      }
+    }
+
+    // ── Boss/Leviathan corps → Joueur ──────────────────────
+    this.enemies.forEach(e => {
+      if (e.dead || e.dying) return;
+      // Phantom invincible en mode fantôme : pas de collision corps
+      if (e instanceof BRPhantom && e.isGhost) return;
+      let hit = aabb(e.hitbox, this.player.hitbox);
+      if (!hit && e instanceof BRLeviathan) {
+        hit = e.bodyHitboxes().some(box => aabb(box, this.player.hitbox));
+      }
+      if (!hit) return;
+      if (this.player.hit(this.particles, this.audio)) {
+        this.ui.flash('#ff3355', 0.6);
+        this.combo.reset();
+      }
+    });
+
+    // ── Power-ups → Joueur ─────────────────────────────────
+    for (let i = this.powerups.length - 1; i >= 0; i--) {
+      const p = this.powerups[i];
+      if (!aabb(p.hitbox, this.player.hitbox)) continue;
+      this._applyPickup(p);
+      spawnExplosion(this.particles, p.x, p.y, p.color, 12);
+      this.powerups.splice(i, 1);
+    }
+
+    // ── Nettoyage ──────────────────────────────────────────
+    this.playerBullets = this.playerBullets.filter(b => !b.dead);
+    this.enemyBullets  = this.enemyBullets.filter( b => !b.dead);
+    this.enemies       = this.enemies.filter(      e => !e.dead);
+    this.powerups      = this.powerups.filter(     p => !p.dead);
+    cleanParticles(this.particles);
+
+    // ── Boss Rush : avancement ─────────────────────────────
+    const brResult = this.bossRush.update(dt, this.player);
+    // Synchronise this.bossRushBoss avec this.bossRush.boss
+    if (this.bossRush.boss !== this.bossRushBoss) {
+      this.bossRushBoss = this.bossRush.boss;
+      if (this.bossRushBoss && !this.enemies.includes(this.bossRushBoss)) {
+        this.enemies.push(this.bossRushBoss);
+      }
+    }
+    if (brResult?.event === 'victory') {
+      this._bossRushVictory();
+      return;
+    }
+
+    // ── Tick weapons (recharge + charge plasma) ────────────
+    const fireReq = this.weapons.tick(dt, !!this.input.fire && !empBlocking);
+    if (fireReq === 'fire' && !empBlocking) {
+      const n = this.weapons.fire(this.player, this.playerBullets, this.audio);
+      for (let k = 0; k < n; k++) this.achievements.onShotFired();
+    }
+
+    // ── Combo ──────────────────────────────────────────────
+    this.combo.tick();
+    this.achievements.onComboChanged(this.combo.multiplier);
+    this.achievements.onComboTick(dt, this.combo.multiplier);
+
+    if (this._prevLives !== undefined && this.player.lives < this._prevLives) {
+      this.achievements.onLifeLost();
+    }
+    this._prevLives = this.player.lives;
+
+    // HUD : la "vague" affiche le n° du boss courant
+    this.ui.updateHUD(this.player.score, this.bossRush.bossReached(), this.player.lives, this.highscore);
+    this.ui.updateCombo(this.combo);
+    this.ui.updatePowerupBar(this.player);
+
+    if (this.player.lives <= 0) this._bossRushFailed();
+  }
+
+  /** Appelé quand un boss meurt en Boss Rush. */
+  _onBossRushKill(boss) {
+    if (!boss || !boss.isBoss) return;
+    // Score combo
+    this.player.score += this.combo.addKill(boss.score || 1000);
+    this.achievements.onKill();
+    spawnBoom(this.particles, boss.x, boss.y, 'heavy', (d, i) => this._triggerShake(d, i));
+    this.audio.explosion(true);
+    // Récompense : pièces = maxHp / 2
+    const reward = Math.floor((boss.maxHp || 0) / 2);
+    if (reward > 0) {
+      this.coins += reward;
+      localStorage.setItem('starblast_coins', this.coins.toString());
+      this.ui.updateCoins(this.coins);
+      this.ui.updateStartCoins(this.coins);
+      this.pickupFloats.push({
+        x: boss.x, y: boss.y - 40,
+        text: `+${reward} ★`,
+        color: '#FFD700',
+        life: 2.0, vy: -36,
+      });
+    }
+  }
+
+  // ============================================================
   // BOUCLE DE JEU : UPDATE MODE SURVIE
   // ============================================================
   _update(dt) {
-    if (this.state === 'story-playing') { this._updateStory(dt); return; }
+    if (this.state === 'story-playing')   { this._updateStory(dt); return; }
+    if (this.state === 'bossrush-playing'){ this._updateBossRush(dt); return; }
     if (this.state !== 'playing') return;
 
     this.input.update();
@@ -5977,7 +6360,23 @@ class Game {
     this.stars.update(0.016);   // avancement minimal même en pause / menu
     this.stars.draw(ctx);
 
-    if (this.state === 'playing' || this.state === 'paused' || this.state === 'story-playing') {
+    if (this.state === 'playing' || this.state === 'paused' || this.state === 'story-playing' || this.state === 'bossrush-playing') {
+      // ── Boss Rush : effets de fond ──
+      if (this.state === 'bossrush-playing') {
+        // Eclipse : assombrissement
+        const eb = this.bossRushBoss instanceof BREclipse ? this.bossRushBoss : null;
+        if (eb && eb.darknessLevel > 0) {
+          ctx.fillStyle = `rgba(0,0,0,${eb.darknessLevel})`;
+          ctx.fillRect(0, 0, this.W, this.H);
+        }
+        // Trous noirs (en arrière-plan)
+        if (eb) eb.blackHoles.forEach(bh => bh.draw(ctx));
+        // Flash d'entrée
+        if (this.bossRush.entranceFlash > 0) {
+          ctx.fillStyle = `rgba(255,255,255,${Math.min(1, this.bossRush.entranceFlash)})`;
+          ctx.fillRect(0, 0, this.W, this.H);
+        }
+      }
       // Overlay rouge TITAN phase 3 (avant les entités)
       if (this.state === 'story-playing') {
         const titan = this.enemies.find(e => e instanceof BossTitan && !e.dying);
@@ -6087,6 +6486,67 @@ class Game {
           ctx.restore();
         }
       }
+
+      // ── Boss Rush : overlay UI ─────────────────────────────
+      if (this.state === 'bossrush-playing') {
+        // Bannière "BOSS X / 10" en haut
+        const idx = this.bossRush.bossReached();
+        ctx.save();
+        ctx.font = '800 14px Orbitron, monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillStyle = '#FFD700';
+        ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 12;
+        ctx.fillText(`BOSS ${idx} / 10`, this.W / 2, 6);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+
+        // Intermission countdown
+        if (this.bossRush.intermission > 0) {
+          const secs = this.bossRush.intermissionRemaining();
+          ctx.save();
+          ctx.fillStyle = 'rgba(0,0,0,0.45)';
+          ctx.fillRect(0, this.H/2 - 80, this.W, 160);
+          ctx.fillStyle = '#FFD700';
+          ctx.font = '900 26px Orbitron, monospace';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 22;
+          ctx.fillText('BOSS SUIVANT DANS', this.W/2, this.H/2 - 30);
+          ctx.font = '900 64px Orbitron, monospace';
+          ctx.fillText(secs, this.W/2, this.H/2 + 28);
+          ctx.shadowBlur = 0;
+          ctx.restore();
+        }
+
+        // EMP NOVA : indicateur "TIRS DÉSACTIVÉS"
+        const nb = this.bossRushBoss instanceof BRNova ? this.bossRushBoss : null;
+        if (nb && nb.isEMPActive()) {
+          ctx.save();
+          ctx.font = '800 16px Orbitron, monospace';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          const blink = Math.floor(Date.now() / 200) % 2 === 0;
+          ctx.fillStyle = blink ? '#88ccff' : '#aaeeff';
+          ctx.shadowColor = '#88ccff'; ctx.shadowBlur = 16;
+          ctx.fillText('⚡ EMP — TIRS DÉSACTIVÉS', this.W/2, this.H - 90);
+          ctx.shadowBlur = 0;
+          ctx.restore();
+        }
+
+        // Annonce boss courant — clignotant 1.5s à l'apparition
+        if (this.bossRush.entranceFlash > -1 && this.bossRush.entranceFlash < 0.5 && this.bossRush.entranceFlash > -1.0 && this.bossRushBoss) {
+          const phase = this.bossRush.entranceFlash + 1.0;
+          if (phase > 0 && phase < 1.5) {
+            ctx.save();
+            ctx.globalAlpha = Math.min(1, phase * 1.5);
+            ctx.fillStyle = '#FFD700';
+            ctx.font = '900 32px Orbitron, monospace';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 28;
+            ctx.fillText(this.bossRushBoss.bossName || 'BOSS', this.W/2, 90);
+            ctx.shadowBlur = 0;
+            ctx.restore();
+          }
+        }
+      }
     }
 
     if (shaking) ctx.restore();
@@ -6100,7 +6560,7 @@ class Game {
     this.lastTime = timestamp;
 
     // Les étoiles s'animent en dehors des états "en jeu actif"
-    if (this.state !== 'playing' && this.state !== 'story-playing') this.stars.update(dt);
+    if (this.state !== 'playing' && this.state !== 'story-playing' && this.state !== 'bossrush-playing') this.stars.update(dt);
 
     this._update(dt);
     this._draw();

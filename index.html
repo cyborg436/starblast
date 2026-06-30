@@ -142,6 +142,7 @@
         <div class="start-buttons">
           <button id="btn-start"           class="btn btn-primary btn-glow">▶ SURVIE</button>
           <button id="btn-open-story"      class="btn btn-story">📖 HISTOIRE</button>
+          <button id="btn-open-bossrush"   class="btn btn-bossrush">👹 BOSS RUSH</button>
           <button id="btn-open-shop"       class="btn btn-shop">🏪 BOUTIQUE</button>
           <button id="btn-open-battlepass" class="btn btn-battlepass">🏆 BATTLE PASS <span id="bp-premium-badge" class="bp-premium-mini hidden">PREMIUM</span></button>
           <button id="btn-open-achievements" class="btn btn-achievements">🎖 SUCCÈS<span id="btn-ach-badge" class="ach-menu-badge hidden">!</span></button>
@@ -297,6 +298,73 @@
       </div>
     </div>
 
+    <!-- Écran Boss Rush — Victoire (10/10) -->
+    <div id="screen-bossrush-victory" class="screen">
+      <div class="screen-inner br-victory-inner">
+        <h2 class="br-victory-title">★ BOSS RUSH ★</h2>
+        <div class="br-victory-sub">— TOUS LES BOSS VAINCUS —</div>
+
+        <div class="results-table">
+          <div class="result-row">
+            <span>SCORE FINAL</span>
+            <span id="br-victory-score" class="result-value highlight">0</span>
+          </div>
+          <div class="result-row">
+            <span>TEMPS TOTAL</span>
+            <span id="br-victory-time" class="result-value">0:00</span>
+          </div>
+          <div class="result-row">
+            <span>PIÈCES GAGNÉES</span>
+            <span id="br-victory-coins" class="result-value coins-value">+0</span>
+          </div>
+          <div class="result-row">
+            <span>XP GAGNÉE</span>
+            <span id="br-victory-xp" class="result-value xp-value">+0 XP</span>
+          </div>
+        </div>
+
+        <div class="br-victory-reward">
+          <div class="br-reward-icon">★</div>
+          <div class="br-reward-text">
+            <div class="br-reward-name">SKIN EXCLUSIF DÉBLOQUÉ</div>
+            <div class="br-reward-skin">NEMESIS</div>
+          </div>
+        </div>
+
+        <button id="btn-br-replay" class="btn btn-primary btn-glow">↺ REJOUER</button>
+        <button id="btn-br-menu"   class="btn btn-secondary">⌂ MENU PRINCIPAL</button>
+      </div>
+    </div>
+
+    <!-- Écran Boss Rush — Échec -->
+    <div id="screen-bossrush-failed" class="screen">
+      <div class="screen-inner">
+        <h2 class="br-failed-title">BOSS RUSH — ÉCHEC</h2>
+
+        <div class="results-table">
+          <div class="result-row">
+            <span>BOSS ATTEINT</span>
+            <span id="br-failed-reached" class="result-value highlight">0 / 10</span>
+          </div>
+          <div class="result-row">
+            <span>SCORE FINAL</span>
+            <span id="br-failed-score" class="result-value">0</span>
+          </div>
+          <div class="result-row">
+            <span>TEMPS</span>
+            <span id="br-failed-time" class="result-value">0:00</span>
+          </div>
+          <div class="result-row">
+            <span>PIÈCES GAGNÉES</span>
+            <span id="br-failed-coins" class="result-value coins-value">+0</span>
+          </div>
+        </div>
+
+        <button id="btn-br-replay" class="btn btn-primary btn-glow">↺ RÉESSAYER</button>
+        <button id="btn-br-menu2"  class="btn btn-secondary">⌂ MENU PRINCIPAL</button>
+      </div>
+    </div>
+
     <!-- Écran Pause -->
     <div id="screen-pause" class="screen">
       <div class="screen-inner">
@@ -318,6 +386,7 @@
         <div class="lb-tabs">
           <button class="lb-tab active" data-mode="survie">SURVIE</button>
           <button class="lb-tab" data-mode="histoire">HISTOIRE</button>
+          <button class="lb-tab" data-mode="bossrush">BOSS RUSH</button>
         </div>
 
         <div class="lb-table">
@@ -475,8 +544,9 @@
 <script src="battlepass.js"></script>
 <script src="achievements.js"></script>
 <script src="leaderboard.js"></script>
-<!-- weapons.js DOIT être chargé APRÈS game.js (extends Bullet) -->
+<!-- weapons.js et bossrush.js DOIVENT être chargés APRÈS game.js (extends Bullet/BossBase) -->
 <script src="game.js"></script>
 <script src="weapons.js"></script>
+<script src="bossrush.js"></script>
 </body>
 </html>

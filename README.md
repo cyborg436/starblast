@@ -27,6 +27,8 @@ starblast/
 ├── battlepass.js      — Battle Pass saisonnier (50 paliers, voies gratuite et premium)
 ├── achievements.js    — Système de 20 succès avec toasts et persistance
 ├── leaderboard.js     — Classement mondial via Supabase + Edge Function
+├── weapons.js         — Système d'armes évolutif (6 armes)
+├── bossrush.js        — Mode Boss Rush (10 boss en séquence)
 └── README.md          — Ce fichier
 ```
 
@@ -171,6 +173,38 @@ Voir `BP_REWARDS` dans `battlepass.js` pour la table complète.
 
 ---
 
+## Mode Boss Rush
+
+Accessible depuis le menu principal via le bouton **👹 BOSS RUSH**. Le joueur affronte
+**10 boss en séquence** sans interruption (pas d'ennemis normaux), avec 5 vies au départ
+et 5 secondes de répit entre chaque boss.
+
+### Les 10 boss
+
+1. **SENTINEL** (300 PV) — Cube rotatif gris, tir en croix
+2. **HYDRA** (500 PV) — 3 têtes indépendantes, accélèrent quand on en détruit
+3. **PHANTOM** (700 PV) — Mode fantôme invincible + téléportation
+4. **LEVIATHAN** (1000 PV) — Serpent à 5 segments, queue détruit les balles
+5. **NOVA** (1200 PV, mi-parcours) — Étoile à 6 branches, 2 phases, EMP périodique
+6. **REAPER** (1500 PV) — Faux géante, mini-faux orbitales, dash diagonal
+7. **FORTRESS** (2000 PV) — 6 tourelles destructibles, bouclier + missile à tête chercheuse
+8. **ECLIPSE** (2500 PV) — Trous noirs miniatures, laser rotatif à 360°
+9. **COLOSSUS** (3500 PV) — Titan mécanique, ondes de choc, griffe, méga laser
+10. **NEMESIS PRIME** (5000 PV, boss final) — 4 phases distinctes, fragmentation, miroir
+
+### Récompenses
+
+- Chaque boss tué : pièces = `maxHp / 2` (150 → 2500)
+- Compléter les 10 boss : **10 000 pièces + 5000 XP + skin exclusif NEMESIS**
+  (noir/doré, inspiré du boss final)
+- Score soumis au classement avec `mode = 'bossrush'` (onglet dédié dans le leaderboard)
+
+### Musique
+
+Track procédural dédié `bossrush` (175 BPM, ultra-intense) via le `MusicManager` existant.
+
+---
+
 ## Contrôles
 
 | Action | Clavier | Mobile |
@@ -218,7 +252,7 @@ create table public.leaderboard (
   pseudo        text          not null check (char_length(pseudo) between 1 and 20),
   score         integer       not null check (score >= 0),
   wave_reached  integer       not null default 0 check (wave_reached >= 0),
-  mode          text          not null check (mode in ('survie','histoire')),
+  mode          text          not null check (mode in ('survie','histoire','bossrush')),
   skin_used     text          not null default 'starter',
   created_at    timestamptz   not null default now()
 );
@@ -273,7 +307,7 @@ serve(async (req) => {
 
   // Validations strictes
   if (typeof score !== "number" || score < 0 || score > MAX_SCORE_ABSOLUTE)  return json({ error: "score invalide" }, 400);
-  if (!["survie","histoire"].includes(mode))                                 return json({ error: "mode invalide" }, 400);
+  if (!["survie","histoire","bossrush"].includes(mode))                      return json({ error: "mode invalide" }, 400);
   if (typeof playtime !== "number" || playtime <= 0 || playtime > 86400)     return json({ error: "playtime invalide" }, 400);
   if (typeof wave_reached !== "number" || wave_reached < 0 || wave_reached > 999) return json({ error: "wave invalide" }, 400);
   if (score > playtime * MAX_SCORE_PER_SECOND)                               return json({ error: "score suspect (ratio score/temps)" }, 400);

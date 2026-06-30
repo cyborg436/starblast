@@ -22,7 +22,7 @@ class LeaderboardManager {
     this.client = null;
     this.ready  = false;
     this.user   = null;
-    this._cache = { survie: { rows: [], at: 0 }, histoire: { rows: [], at: 0 } };
+    this._cache = { survie: { rows: [], at: 0 }, histoire: { rows: [], at: 0 }, bossrush: { rows: [], at: 0 } };
     this._init();
   }
 
@@ -69,6 +69,7 @@ class LeaderboardManager {
   invalidate() {
     this._cache.survie.at   = 0;
     this._cache.histoire.at = 0;
+    this._cache.bossrush.at = 0;
   }
 
   /** Vrai si `score` se qualifie pour le top 100 (ou s'il en reste de la place). */
@@ -99,7 +100,7 @@ class LeaderboardManager {
     if (score > playtime * MAX_SCORE_PER_SECOND && score > 1000) {
       return { ok: false, error: 'score-suspect' };
     }
-    if (!['survie', 'histoire'].includes(mode)) {
+    if (!['survie', 'histoire', 'bossrush'].includes(mode)) {
       return { ok: false, error: 'mode-invalide' };
     }
 
