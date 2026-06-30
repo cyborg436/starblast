@@ -2336,10 +2336,8 @@ class UIManager {
     this.$flash      = document.getElementById('flash-overlay');
     this.$comboBox   = document.getElementById('hud-combo-box');
     this.$comboMult  = document.getElementById('hud-combo-mult');
-    this.$comboStreak= document.getElementById('hud-combo-streak');
     this.$comboBar   = document.getElementById('hud-combo-bar');
     this._coinAnimId = null;   // RAF id de l'animation de comptage
-    this._lastFlashMult = 1;
   }
 
   // ── HUD ──────────────────────────────────────────────────
@@ -2360,25 +2358,39 @@ class UIManager {
   /** Met à jour l'affichage du multiplicateur de combo. */
   updateCombo(combo) {
     if (!this.$comboBox) return;
-    const mult = combo.mult;
-    if (mult <= 1) {
-      this.$comboBox.classList.add('hidden');
-      this._lastFlashMult = 1;
-      return;
-    }
+    const mult = combo.multiplier;
+    // Toujours visible (x1 reste discret en haut au centre)
     this.$comboBox.classList.remove('hidden');
-    if (this.$comboMult)   this.$comboMult.textContent   = `×${mult}`;
-    if (this.$comboStreak) this.$comboStreak.textContent = combo.streak;
-    if (this.$comboBar)    this.$comboBar.style.width    = `${Math.round(combo.ratio * 100)}%`;
-    // Flash + scale up quand le palier vient de monter
-    if (mult > this._lastFlashMult) {
-      this._lastFlashMult = mult;
-      this.$comboBox.classList.remove('combo-bump');
-      void this.$comboBox.offsetWidth; // retrigger l'animation
-      this.$comboBox.classList.add('combo-bump');
+    if (this.$comboMult) this.$comboMult.textContent = `×${mult}`;
+    if (this.$comboBar) {
+      this.$comboBar.style.width = `${Math.round(combo.ratio * 100)}%`;
     }
-    this.$comboBox.classList.toggle('combo-x5', mult >= 5);
-    this.$comboBox.classList.toggle('combo-x3', mult >= 3 && mult < 5);
+
+    // Classes de palier — pilotent taille/couleur/glow
+    this.$comboBox.classList.toggle('combo-tier-1', mult === 1);
+    this.$comboBox.classList.toggle('combo-tier-2', mult === 2);
+    this.$comboBox.classList.toggle('combo-tier-3', mult === 3);
+    this.$comboBox.classList.toggle('combo-tier-5', mult === 5);
+
+    // Détection d'une montée de palier → bump + flottant "+COMBO"
+    const newTier = combo.consumeLevelUp();
+    if (newTier > 0) {
+      this.$comboBox.classList.remove('combo-bump');
+      void this.$comboBox.offsetWidth;        // retrigger
+      this.$comboBox.classList.add('combo-bump');
+      this._spawnComboFloat(newTier);
+    }
+  }
+
+  /** Crée un texte "+COMBO" qui monte au-dessus du HUD multiplicateur. */
+  _spawnComboFloat(tier) {
+    const host = document.getElementById('hud-combo-float-host');
+    if (!host) return;
+    const el = document.createElement('div');
+    el.className = `combo-float combo-float-t${tier}`;
+    el.textContent = `+COMBO ×${tier}`;
+    host.appendChild(el);
+    setTimeout(() => el.remove(), 1100);
   }
 
   updatePowerupBar(player) {
@@ -2709,62 +2721,94 @@ class ProgressionManager {
 // SECTION 11c-bis — GESTIONNAIRE DE COMBO
 // ============================================================
 // Multiplicateur de score basé sur des kills enchaînés.
-// Fenêtre par défaut : 1,8 s entre deux kills (réinitialise à x1 sinon).
-// Paliers : 5 kills → x2 · 10 kills → x3 · 20 kills → x5.
-// Reset immédiat dès que le joueur est touché.
+// Fenêtre : 1 800 ms entre deux kills (sinon, combo brisé).
+// Paliers : 3 kills → x2 · 6 kills → x3 · 10 kills → x5.
+// Reset immédiat dès que le joueur perd une vie.
+const COMBO_WINDOW_MS = 1800;
+const COMBO_TIERS = [
+  { streak: 10, mult: 5 },
+  { streak: 6,  mult: 3 },
+  { streak: 3,  mult: 2 },
+];
+
 class ComboManager {
   constructor() {
-    this.WINDOW = 1.8;
-    this.TIERS  = [
-      { streak: 20, mult: 5 },
-      { streak: 10, mult: 3 },
-      { streak: 5,  mult: 2 },
-    ];
     this.reset();
   }
 
   reset() {
-    this.streak    = 0;
-    this.timer     = 0;
-    this._lastMult = 1;
-    this._flashCd  = 0;
+    this.streak           = 0;          // kills consécutifs (= comboKillCount)
+    this.multiplier       = 1;          // multiplicateur courant (= comboMultiplier)
+    this.lastKillTime     = 0;          // Date.now() du dernier kill (= lastKillTime)
+    this._lastTierMult    = 1;          // pour détecter une montée de palier
+    this.justLeveledUp    = false;      // signal one-shot pour l'UI
+    this.justLeveledUpTo  = 1;
   }
 
-  /** Calcule le multiplicateur courant en fonction du streak. */
-  get mult() {
-    for (const t of this.TIERS) if (this.streak >= t.streak) return t.mult;
-    return 1;
+  /** Recalcule this.multiplier en fonction de this.streak. */
+  _computeMult() {
+    let m = 1;
+    for (const t of COMBO_TIERS) if (this.streak >= t.streak) { m = t.mult; break; }
+    this.multiplier = m;
   }
 
-  /** Temps restant avant la rupture du combo (0..1). */
-  get ratio() { return this.WINDOW > 0 ? Math.max(0, this.timer / this.WINDOW) : 0; }
-
-  /** Indique un flash visuel (le multiplicateur vient d'augmenter). */
-  get flashing() { return this._flashCd > 0; }
+  /** Ratio restant avant la rupture du combo (0..1). Utilisé pour la barre HUD. */
+  get ratio() {
+    if (this.streak === 0 || this.lastKillTime === 0) return 0;
+    const dt = Date.now() - this.lastKillTime;
+    return Math.max(0, Math.min(1, 1 - dt / COMBO_WINDOW_MS));
+  }
 
   /**
-   * Enregistre un kill. Retourne le score à créditer (base × mult courant).
-   * Met le flash à 1 si le palier monte.
+   * Enregistre un kill. Retourne le score à créditer (base × multiplicateur courant).
+   * — applique la logique exacte demandée :
+   *   1) now = Date.now()
+   *   2) si (now - lastKillTime) < 1800 → streak++
+   *   3) sinon                          → streak = 1
+   *   4) lastKillTime = now
+   *   5) recalcul du multiplicateur
+   *   6) retourne baseScore × multiplier
    */
   addKill(baseScore) {
-    this.streak++;
-    this.timer = this.WINDOW;
-    const m = this.mult;
-    if (m > this._lastMult) {
-      this._lastMult = m;
-      this._flashCd  = 0.55;
-    } else if (m < this._lastMult) {
-      this._lastMult = m;
+    const now = Date.now();
+    if (now - this.lastKillTime < COMBO_WINDOW_MS && this.streak > 0) {
+      this.streak++;
+    } else {
+      this.streak = 1;
     }
-    return baseScore * m;
+    this.lastKillTime = now;
+    this._computeMult();
+
+    if (this.multiplier > this._lastTierMult) {
+      this.justLeveledUp   = true;
+      this.justLeveledUpTo = this.multiplier;
+    }
+    this._lastTierMult = this.multiplier;
+
+    const gained = baseScore * this.multiplier;
+    // Debug temporaire — désactivable via window.__COMBO_DEBUG = false
+    if (window.__COMBO_DEBUG !== false) {
+      console.log('Kill! Combo:', this.streak, 'Multi:', this.multiplier, 'Score ajouté:', gained);
+    }
+    return gained;
   }
 
-  update(dt) {
-    if (this.timer > 0) {
-      this.timer -= dt;
-      if (this.timer <= 0) this.reset();
+  /**
+   * À appeler chaque frame : si la fenêtre est expirée, casse le combo.
+   * Ne dépend pas de dt — utilise Date.now() pour ne jamais dériver.
+   */
+  tick() {
+    if (this.streak > 0 && Date.now() - this.lastKillTime >= COMBO_WINDOW_MS) {
+      this.reset();
     }
-    if (this._flashCd > 0) this._flashCd -= dt;
+  }
+
+  /** Consomme et retourne true si un "+COMBO" doit être affiché. */
+  consumeLevelUp() {
+    if (!this.justLeveledUp) return 0;
+    const tier = this.justLeveledUpTo;
+    this.justLeveledUp = false;
+    return tier;
   }
 }
 
@@ -4513,7 +4557,7 @@ class Game {
     this.storyCtrl.update(dt, this.enemies);
 
     // Combo
-    this.combo.update(dt);
+    this.combo.tick();
 
     // HUD
     this.ui.updateHUD(this.player.score, this.storyCtrl.waveNum, this.player.lives, this.highscore);
@@ -4643,7 +4687,7 @@ class Game {
     }
 
     // ── Combo ───────────────────────────────────────────
-    this.combo.update(dt);
+    this.combo.tick();
 
     // ── HUD ──────────────────────────────────────────────
     this.ui.updateHUD(this.player.score, this.wave.level, this.player.lives, this.highscore);

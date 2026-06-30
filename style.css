@@ -121,67 +121,141 @@ html, body {
   opacity: 0.25;
 }
 
-/* ── Combo multiplier ────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════
+   COMBO MULTIPLIER (haut centre)
+   ════════════════════════════════════════════════════════════════ */
 .hud-combo-box {
   position: absolute;
-  top: 48px; left: 10px;
-  background: rgba(10, 8, 20, 0.78);
-  border: 1.5px solid #ffcc00;
-  border-radius: 8px;
-  padding: 5px 9px 6px;
-  display: flex; align-items: center; gap: 5px;
+  top: 46px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center;
   font-family: var(--font);
   font-weight: 900;
-  color: #ffcc00;
-  letter-spacing: 0.06em;
-  box-shadow: 0 0 14px rgba(255, 200, 0, 0.35);
-  z-index: 6;
-  min-width: 110px;
-  transform-origin: left center;
-  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s;
+  letter-spacing: 0.05em;
+  z-index: 7;
+  pointer-events: none;
+  transition: color 0.18s, filter 0.18s;
 }
 .hud-combo-box.hidden { display: none; }
-.hud-combo-mult   { font-size: 0.95rem; letter-spacing: 0.04em; text-shadow: 0 0 8px rgba(255, 200, 0, 0.7); }
-.hud-combo-sep    { opacity: 0.5; font-size: 0.6rem; }
-.hud-combo-streak { font-size: 0.6rem; }
-.hud-combo-kills  { font-size: 0.4rem; opacity: 0.7; letter-spacing: 0.1em; margin-left: 2px; }
+
+.hud-combo-mult {
+  display: inline-block;
+  transform-origin: center center;
+  line-height: 1;
+  transition: font-size 0.22s, color 0.22s, text-shadow 0.22s, transform 0.22s;
+}
+
+/* Barre fine sous le multiplicateur — se vide en 1.8 s */
 .hud-combo-bar {
-  position: absolute;
-  left: 6px; right: 6px; bottom: 2px;
-  height: 2px;
-  background: rgba(255, 200, 0, 0.18);
-  border-radius: 1px;
+  margin-top: 3px;
+  width: 64px;
+  height: 3px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
   overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.2s, width 0.2s, background 0.2s;
 }
 .hud-combo-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #ffcc00, #ff6b35);
   width: 0%;
-  transition: width 0.12s linear;
+  border-radius: 2px;
+  transition: width 0.12s linear, background 0.2s;
 }
 
-.hud-combo-box.combo-x3 {
-  border-color: #ff8800;
-  color: #ffaa33;
-  box-shadow: 0 0 18px rgba(255, 140, 0, 0.5);
+/* ── Palier x1 : discret, blanc ──────────────────────── */
+.hud-combo-box.combo-tier-1 .hud-combo-mult {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.55);
+  text-shadow: none;
 }
-.hud-combo-box.combo-x5 {
-  border-color: #ff3355;
-  color: #ff5577;
-  box-shadow: 0 0 24px rgba(255, 60, 90, 0.7);
-  animation: combo-x5-pulse 0.9s ease-in-out infinite;
+.hud-combo-box.combo-tier-1 .hud-combo-bar { opacity: 0; }
+
+/* ── Palier x2 : jaune, +20 % ─────────────────────────── */
+.hud-combo-box.combo-tier-2 .hud-combo-mult {
+  font-size: 0.84rem;
+  color: #FFD700;
+  text-shadow: 0 0 8px rgba(255,215,0,0.55);
 }
-.hud-combo-box.combo-bump { animation: combo-bump 0.5s cubic-bezier(.34,1.56,.64,1); }
-.hud-combo-box.combo-x5.combo-bump { animation: combo-bump 0.5s cubic-bezier(.34,1.56,.64,1), combo-x5-pulse 0.9s ease-in-out infinite 0.5s; }
+.hud-combo-box.combo-tier-2 .hud-combo-bar { opacity: 1; width: 80px; }
+.hud-combo-box.combo-tier-2 .hud-combo-bar-fill { background: #FFD700; }
+
+/* ── Palier x3 : orange, +35 %, glow ──────────────────── */
+.hud-combo-box.combo-tier-3 .hud-combo-mult {
+  font-size: 0.945rem;
+  color: #FF8C00;
+  text-shadow: 0 0 14px rgba(255,140,0,0.85), 0 0 28px rgba(255,140,0,0.45);
+}
+.hud-combo-box.combo-tier-3 .hud-combo-bar { opacity: 1; width: 96px; }
+.hud-combo-box.combo-tier-3 .hud-combo-bar-fill {
+  background: #FF8C00;
+  box-shadow: 0 0 8px rgba(255,140,0,0.7);
+}
+
+/* ── Palier x5 : rouge, +50 %, glow pulsant ───────────── */
+.hud-combo-box.combo-tier-5 .hud-combo-mult {
+  font-size: 1.05rem;
+  color: #FF3131;
+  text-shadow:
+    0 0 16px rgba(255, 49, 49, 1),
+    0 0 32px rgba(255, 49, 49, 0.7),
+    0 0 56px rgba(255, 49, 49, 0.45);
+  animation: combo-x5-pulse 0.8s ease-in-out infinite;
+}
+.hud-combo-box.combo-tier-5 .hud-combo-bar { opacity: 1; width: 112px; }
+.hud-combo-box.combo-tier-5 .hud-combo-bar-fill {
+  background: #FF3131;
+  box-shadow: 0 0 12px rgba(255,49,49,0.85);
+}
+
+/* ── Bump 150 % → 100 % en 0.3 s + flash 0.2 s ───────── */
+.hud-combo-box.combo-bump .hud-combo-mult {
+  animation: combo-bump 0.3s ease-out;
+}
+.hud-combo-box.combo-bump { animation: combo-flash 0.2s ease-out; }
 
 @keyframes combo-bump {
-  0%   { transform: scale(1);    filter: brightness(1); }
-  35%  { transform: scale(1.35); filter: brightness(2.2); }
-  100% { transform: scale(1);    filter: brightness(1); }
+  0%   { transform: scale(1.5); filter: brightness(2.4); }
+  100% { transform: scale(1);   filter: brightness(1); }
+}
+@keyframes combo-flash {
+  0%   { filter: brightness(2.4); }
+  100% { filter: brightness(1); }
 }
 @keyframes combo-x5-pulse {
-  0%, 100% { box-shadow: 0 0 18px rgba(255, 60, 90, 0.55); }
-  50%      { box-shadow: 0 0 28px rgba(255, 60, 90, 0.95); }
+  0%, 100% { filter: brightness(1)   drop-shadow(0 0 6px rgba(255,49,49,0.6)); }
+  50%      { filter: brightness(1.4) drop-shadow(0 0 16px rgba(255,49,49,1)); }
+}
+
+/* ── Texte flottant "+COMBO" ──────────────────────────── */
+.hud-combo-float-host {
+  position: absolute;
+  top: 46px; left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 8;
+  width: 0; height: 0;
+}
+.combo-float {
+  position: absolute;
+  left: 50%; top: 0;
+  transform: translate(-50%, 0);
+  font-family: var(--font);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  animation: combo-float-up 1s ease-out forwards;
+  pointer-events: none;
+}
+.combo-float-t2 { color: #FFD700; text-shadow: 0 0 10px rgba(255,215,0,0.85); }
+.combo-float-t3 { color: #FF8C00; text-shadow: 0 0 14px rgba(255,140,0,0.95); }
+.combo-float-t5 { color: #FF3131; text-shadow: 0 0 16px rgba(255,49,49,1); font-size: 0.85rem; }
+
+@keyframes combo-float-up {
+  0%   { transform: translate(-50%, 0)    scale(0.8); opacity: 0; }
+  15%  { transform: translate(-50%, -8px) scale(1.2); opacity: 1; }
+  100% { transform: translate(-50%, -52px) scale(1);  opacity: 0; }
 }
 
 /* ── Barre power-ups ─────────────────────────────────────────── */
