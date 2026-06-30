@@ -121,6 +121,69 @@ html, body {
   opacity: 0.25;
 }
 
+/* ── Combo multiplier ────────────────────────────────────────── */
+.hud-combo-box {
+  position: absolute;
+  top: 48px; left: 10px;
+  background: rgba(10, 8, 20, 0.78);
+  border: 1.5px solid #ffcc00;
+  border-radius: 8px;
+  padding: 5px 9px 6px;
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--font);
+  font-weight: 900;
+  color: #ffcc00;
+  letter-spacing: 0.06em;
+  box-shadow: 0 0 14px rgba(255, 200, 0, 0.35);
+  z-index: 6;
+  min-width: 110px;
+  transform-origin: left center;
+  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s;
+}
+.hud-combo-box.hidden { display: none; }
+.hud-combo-mult   { font-size: 0.95rem; letter-spacing: 0.04em; text-shadow: 0 0 8px rgba(255, 200, 0, 0.7); }
+.hud-combo-sep    { opacity: 0.5; font-size: 0.6rem; }
+.hud-combo-streak { font-size: 0.6rem; }
+.hud-combo-kills  { font-size: 0.4rem; opacity: 0.7; letter-spacing: 0.1em; margin-left: 2px; }
+.hud-combo-bar {
+  position: absolute;
+  left: 6px; right: 6px; bottom: 2px;
+  height: 2px;
+  background: rgba(255, 200, 0, 0.18);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.hud-combo-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffcc00, #ff6b35);
+  width: 0%;
+  transition: width 0.12s linear;
+}
+
+.hud-combo-box.combo-x3 {
+  border-color: #ff8800;
+  color: #ffaa33;
+  box-shadow: 0 0 18px rgba(255, 140, 0, 0.5);
+}
+.hud-combo-box.combo-x5 {
+  border-color: #ff3355;
+  color: #ff5577;
+  box-shadow: 0 0 24px rgba(255, 60, 90, 0.7);
+  animation: combo-x5-pulse 0.9s ease-in-out infinite;
+}
+.hud-combo-box.combo-bump { animation: combo-bump 0.5s cubic-bezier(.34,1.56,.64,1); }
+.hud-combo-box.combo-x5.combo-bump { animation: combo-bump 0.5s cubic-bezier(.34,1.56,.64,1), combo-x5-pulse 0.9s ease-in-out infinite 0.5s; }
+
+@keyframes combo-bump {
+  0%   { transform: scale(1);    filter: brightness(1); }
+  35%  { transform: scale(1.35); filter: brightness(2.2); }
+  100% { transform: scale(1);    filter: brightness(1); }
+}
+@keyframes combo-x5-pulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(255, 60, 90, 0.55); }
+  50%      { box-shadow: 0 0 28px rgba(255, 60, 90, 0.95); }
+}
+
 /* ── Barre power-ups ─────────────────────────────────────────── */
 #powerup-bar {
   position: absolute;

@@ -2334,7 +2334,12 @@ class UIManager {
     this.$bombCnt    = document.getElementById('pi-bomb-count');
     this.$notif      = document.getElementById('level-notif');
     this.$flash      = document.getElementById('flash-overlay');
+    this.$comboBox   = document.getElementById('hud-combo-box');
+    this.$comboMult  = document.getElementById('hud-combo-mult');
+    this.$comboStreak= document.getElementById('hud-combo-streak');
+    this.$comboBar   = document.getElementById('hud-combo-bar');
     this._coinAnimId = null;   // RAF id de l'animation de comptage
+    this._lastFlashMult = 1;
   }
 
   // ── HUD ──────────────────────────────────────────────────
@@ -2350,6 +2355,30 @@ class UIManager {
       d.className = 'life-icon' + (i >= lives ? ' lost' : '');
       this.$lives.appendChild(d);
     }
+  }
+
+  /** Met à jour l'affichage du multiplicateur de combo. */
+  updateCombo(combo) {
+    if (!this.$comboBox) return;
+    const mult = combo.mult;
+    if (mult <= 1) {
+      this.$comboBox.classList.add('hidden');
+      this._lastFlashMult = 1;
+      return;
+    }
+    this.$comboBox.classList.remove('hidden');
+    if (this.$comboMult)   this.$comboMult.textContent   = `×${mult}`;
+    if (this.$comboStreak) this.$comboStreak.textContent = combo.streak;
+    if (this.$comboBar)    this.$comboBar.style.width    = `${Math.round(combo.ratio * 100)}%`;
+    // Flash + scale up quand le palier vient de monter
+    if (mult > this._lastFlashMult) {
+      this._lastFlashMult = mult;
+      this.$comboBox.classList.remove('combo-bump');
+      void this.$comboBox.offsetWidth; // retrigger l'animation
+      this.$comboBox.classList.add('combo-bump');
+    }
+    this.$comboBox.classList.toggle('combo-x5', mult >= 5);
+    this.$comboBox.classList.toggle('combo-x3', mult >= 3 && mult < 5);
   }
 
   updatePowerupBar(player) {
@@ -2673,6 +2702,69 @@ class ProgressionManager {
 
   _save() {
     localStorage.setItem('starblast_progression', JSON.stringify({ totalXP: this.totalXP }));
+  }
+}
+
+// ============================================================
+// SECTION 11c-bis — GESTIONNAIRE DE COMBO
+// ============================================================
+// Multiplicateur de score basé sur des kills enchaînés.
+// Fenêtre par défaut : 1,8 s entre deux kills (réinitialise à x1 sinon).
+// Paliers : 5 kills → x2 · 10 kills → x3 · 20 kills → x5.
+// Reset immédiat dès que le joueur est touché.
+class ComboManager {
+  constructor() {
+    this.WINDOW = 1.8;
+    this.TIERS  = [
+      { streak: 20, mult: 5 },
+      { streak: 10, mult: 3 },
+      { streak: 5,  mult: 2 },
+    ];
+    this.reset();
+  }
+
+  reset() {
+    this.streak    = 0;
+    this.timer     = 0;
+    this._lastMult = 1;
+    this._flashCd  = 0;
+  }
+
+  /** Calcule le multiplicateur courant en fonction du streak. */
+  get mult() {
+    for (const t of this.TIERS) if (this.streak >= t.streak) return t.mult;
+    return 1;
+  }
+
+  /** Temps restant avant la rupture du combo (0..1). */
+  get ratio() { return this.WINDOW > 0 ? Math.max(0, this.timer / this.WINDOW) : 0; }
+
+  /** Indique un flash visuel (le multiplicateur vient d'augmenter). */
+  get flashing() { return this._flashCd > 0; }
+
+  /**
+   * Enregistre un kill. Retourne le score à créditer (base × mult courant).
+   * Met le flash à 1 si le palier monte.
+   */
+  addKill(baseScore) {
+    this.streak++;
+    this.timer = this.WINDOW;
+    const m = this.mult;
+    if (m > this._lastMult) {
+      this._lastMult = m;
+      this._flashCd  = 0.55;
+    } else if (m < this._lastMult) {
+      this._lastMult = m;
+    }
+    return baseScore * m;
+  }
+
+  update(dt) {
+    if (this.timer > 0) {
+      this.timer -= dt;
+      if (this.timer <= 0) this.reset();
+    }
+    if (this._flashCd > 0) this._flashCd -= dt;
   }
 }
 
@@ -3872,6 +3964,7 @@ class Game {
     this.progression = new ProgressionManager();
     this.story       = new StoryManager();
     this.titleScene  = new TitleScene(this.W, this.H);
+    this.combo       = new ComboManager();
     this.battlepass  = new BattlePass(this.shop);
     this.battlepassUI = new BattlePassUI(
       this.battlepass,
@@ -4139,6 +4232,7 @@ class Game {
     this._playMode = 'survival';
     this.state     = 'playing';
     this.lastTime  = performance.now();
+    this.combo.reset();
 
     musicManager.play('afterburn');
     this.ui.hideScreens();
@@ -4178,6 +4272,7 @@ class Game {
     this._playMode = 'story';
     this.state     = 'story-playing';
     this.lastTime  = performance.now();
+    this.combo.reset();
 
     const _storyTrack = levelId <= 3 ? 'frontier' : levelId <= 6 ? 'tension' : 'assault';
     musicManager.play(_storyTrack);
@@ -4192,6 +4287,7 @@ class Game {
   _storyVictory() {
     musicManager.play('triumph');
     this.state = 'story-victory';
+    this.combo.reset(); this.ui.updateCombo(this.combo);
     const score     = this.player.score;
     const livesLost = CFG.LIVES - this.player.lives;
     const stars     = livesLost === 0 ? 3 : livesLost === 1 ? 2 : 1;
@@ -4246,6 +4342,7 @@ class Game {
   _storyFailed() {
     musicManager.stop();
     this.state = 'story-failed';
+    this.combo.reset(); this.ui.updateCombo(this.combo);
     this.ui.showStoryFailed(this.storyLevelId);
   }
 
@@ -4253,6 +4350,7 @@ class Game {
   _gameOver() {
     musicManager.stop();
     this.state = 'gameover';
+    this.combo.reset(); this.ui.updateCombo(this.combo);
     const score = this.player.score;
 
     // Meilleur score
@@ -4324,7 +4422,7 @@ class Game {
     for (const e of this.enemies) {
       if (e.isBoss && e.dying && !e._rewardGiven) {
         e._rewardGiven = true;
-        this.player.score += e.score;
+        this.player.score += this.combo.addKill(e.score);
         spawnExplosion(this.particles, e.x, e.y, e.color, 28, true);
         if (e instanceof BossTitan) this.audio.titanDeath();
         else this.audio.explosion(true);
@@ -4349,7 +4447,7 @@ class Game {
       const lx = titan.laserX, lw = titan.laserW;
       if (this.player.x > lx - lw / 2 && this.player.x < lx + lw / 2 && !this._laserHit) {
         this._laserHit = true;
-        if (this.player.hit(this.particles, this.audio)) this.ui.flash('#ff0000', 0.7);
+        if (this.player.hit(this.particles, this.audio)) { this.ui.flash('#ff0000', 0.7); this.combo.reset(); }
       }
     } else {
       this._laserHit = false;
@@ -4368,7 +4466,7 @@ class Game {
         else if (b.laserType === 'lightning')  spawnExplosion(this.particles, b.x, b.y, '#FFEC3D', 10);
         else                                    spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
         if (e.hit()) {
-          this.player.score += e.score;
+          this.player.score += this.combo.addKill(e.score);
           const tier = e instanceof BossTitan ? 'titan' : e.isBoss ? 'boss' : e.type;
           spawnBoom(this.particles, e.x, e.y, tier, (d, i) => this._triggerShake(d, i));
           this.audio.explosion(e.type === 'heavy' || e.isBoss);
@@ -4386,13 +4484,13 @@ class Game {
       const b = this.enemyBullets[i];
       if (b.dead || !aabb(b.hitbox, this.player.hitbox)) continue;
       b.dead = true;
-      if (this.player.hit(this.particles, this.audio)) this.ui.flash('#ff3355', 0.5);
+      if (this.player.hit(this.particles, this.audio)) { this.ui.flash('#ff3355', 0.5); this.combo.reset(); }
     }
 
     // Ennemis → joueur (collision directe — seulement ennemis normaux)
     for (const e of this.enemies) {
       if (e.dead || e.isBoss || e.dying || !aabb(e.hitbox, this.player.hitbox)) continue;
-      if (this.player.hit(this.particles, this.audio)) { this.ui.flash('#ff3355', 0.6); e.dead = true; }
+      if (this.player.hit(this.particles, this.audio)) { this.ui.flash('#ff3355', 0.6); this.combo.reset(); e.dead = true; }
     }
 
     // Joueur → power-ups
@@ -4414,8 +4512,12 @@ class Game {
     // Contrôleur de vagues histoire
     this.storyCtrl.update(dt, this.enemies);
 
+    // Combo
+    this.combo.update(dt);
+
     // HUD
     this.ui.updateHUD(this.player.score, this.storyCtrl.waveNum, this.player.lives, this.highscore);
+    this.ui.updateCombo(this.combo);
     this.ui.updatePowerupBar(this.player);
 
     // Conditions de fin
@@ -4479,8 +4581,8 @@ class Game {
         else                                    spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
 
         if (e.hit()) {
-          // Ennemi tué
-          this.player.score += e.score * this.wave.level;
+          // Ennemi tué — score : base × niveau de vague × multiplicateur de combo
+          this.player.score += this.combo.addKill(e.score * this.wave.level);
           this.wave.enemyKilled();
           spawnBoom(this.particles, e.x, e.y, e.type, (d, i) => this._triggerShake(d, i));
           this.audio.explosion(e.type === 'heavy');
@@ -4503,6 +4605,7 @@ class Game {
       b.dead = true;
       if (this.player.hit(this.particles, this.audio)) {
         this.ui.flash('#ff3355', 0.5);
+        this.combo.reset();
       }
     }
 
@@ -4511,6 +4614,7 @@ class Game {
       if (e.dead || !aabb(e.hitbox, this.player.hitbox)) continue;
       if (this.player.hit(this.particles, this.audio)) {
         this.ui.flash('#ff3355', 0.6);
+        this.combo.reset();
         e.dead = true;
       }
     }
@@ -4538,8 +4642,12 @@ class Game {
       this.ui.showLevelNotif(this.wave.level);
     }
 
+    // ── Combo ───────────────────────────────────────────
+    this.combo.update(dt);
+
     // ── HUD ──────────────────────────────────────────────
     this.ui.updateHUD(this.player.score, this.wave.level, this.player.lives, this.highscore);
+    this.ui.updateCombo(this.combo);
     this.ui.updatePowerupBar(this.player);
 
     // ── Fin de partie ────────────────────────────────────
