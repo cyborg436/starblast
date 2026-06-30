@@ -641,6 +641,200 @@ kbd {
 }
 .music-toggle-btn:hover { background: rgba(255,130,0,0.18); border-color: rgba(255,130,0,0.4); }
 
+/* ════════════════════════════════════════════════════════════════════
+   BATTLE PASS
+   ════════════════════════════════════════════════════════════════════ */
+
+.btn-battlepass {
+  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+  color: #1a1a2a;
+  border: 1px solid #ffd700;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  box-shadow: 0 0 18px rgba(255,200,0,0.35);
+  position: relative;
+}
+.btn-battlepass:hover { box-shadow: 0 0 28px rgba(255,200,0,0.6); transform: translateY(-1px); }
+
+.bp-premium-mini {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  background: #1a1a2a;
+  color: #FFD700;
+  border-radius: 4px;
+  font-size: 0.42rem;
+  letter-spacing: 0.1em;
+  vertical-align: middle;
+}
+.bp-premium-mini.hidden { display: none; }
+
+#screen-battlepass {
+  background: linear-gradient(180deg, #0d0820 0%, #1a0f33 50%, #0a0820 100%);
+  overflow: hidden;
+}
+.bp-wrap {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  padding: 8px 10px;
+  box-sizing: border-box;
+}
+
+.bp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 6px;
+}
+.bp-title {
+  margin: 0;
+  font-size: 0.85rem; letter-spacing: 0.15em;
+  font-weight: 900;
+  background: linear-gradient(90deg, #ffd700, #ff6b35);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 12px rgba(255,200,0,0.25);
+}
+.bp-days { font-size: 0.5rem; color: rgba(255,255,255,0.55); letter-spacing: 0.06em; }
+
+.bp-premium-banner {
+  background: linear-gradient(135deg, rgba(255,215,0,0.12), rgba(170,0,255,0.12));
+  border: 1px solid rgba(255,215,0,0.35);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  display: flex; gap: 12px;
+  align-items: center; justify-content: space-between;
+}
+.bp-premium-banner.owned { border-color: rgba(0,255,150,0.5); }
+.bp-premium-banner.owned .bp-premium-cta button { display: none; }
+.bp-premium-banner.owned .bp-owned-tag { display: block; }
+.bp-owned-tag {
+  display: none;
+  font-size: 0.55rem; color: #00FF88; font-weight: 900; letter-spacing: 0.15em;
+  text-shadow: 0 0 10px rgba(0,255,136,0.6);
+}
+.bp-premium-info { flex: 1; }
+.bp-premium-title { font-size: 0.62rem; font-weight: 900; color: #FFD700; letter-spacing: 0.1em; margin-bottom: 4px; }
+.bp-premium-list { list-style: none; padding: 0; margin: 0; font-size: 0.48rem; color: rgba(255,255,255,0.78); line-height: 1.45; }
+.bp-premium-cta .btn { font-size: 0.52rem; padding: 7px 12px; }
+
+.bp-xp-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.46rem;
+  color: rgba(255,255,255,0.7);
+}
+.bp-tier-label { font-weight: 900; color: #FFD700; letter-spacing: 0.08em; min-width: 90px; }
+.bp-xp-bar { flex: 1; height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; }
+.bp-xp-fill { height: 100%; background: linear-gradient(90deg, #FFD700, #ff8c00); transition: width 0.4s ease; }
+.bp-xp-text { font-variant-numeric: tabular-nums; min-width: 80px; text-align: right; }
+
+.bp-tracks-legend {
+  display: flex; flex-direction: column; gap: 1px;
+  margin-bottom: 4px;
+  font-size: 0.42rem;
+  letter-spacing: 0.12em;
+}
+.bp-legend { padding: 3px 8px; border-radius: 4px; }
+.bp-legend-premium { background: rgba(255,215,0,0.15); color: #FFD700; }
+.bp-legend-free    { background: rgba(0,180,255,0.12);  color: #88ddff; }
+
+.bp-grid {
+  flex: 1;
+  display: flex; gap: 6px;
+  overflow-x: auto; overflow-y: hidden;
+  padding: 6px 4px 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,200,0,0.3) transparent;
+}
+.bp-grid::-webkit-scrollbar { height: 6px; }
+.bp-grid::-webkit-scrollbar-thumb { background: rgba(255,200,0,0.3); border-radius: 3px; }
+
+.bp-col {
+  display: flex; flex-direction: column; gap: 2px;
+  width: 78px;
+  flex-shrink: 0;
+  align-items: stretch;
+}
+.bp-col-num {
+  text-align: center;
+  font-size: 0.5rem; font-weight: 900;
+  color: rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.04);
+  padding: 2px;
+  border-radius: 3px;
+  letter-spacing: 0.05em;
+}
+.bp-col-current .bp-col-num {
+  color: #FFD700;
+  background: rgba(255,215,0,0.18);
+  text-shadow: 0 0 8px rgba(255,200,0,0.7);
+}
+
+.bp-cell {
+  position: relative;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 4px;
+  display: flex; flex-direction: column; align-items: center;
+  min-height: 110px;
+  transition: all 0.2s;
+}
+.bp-cell-premium { border-color: rgba(255,215,0,0.35); background: rgba(255,215,0,0.05); }
+.bp-cell-free    { border-color: rgba(0,180,255,0.3);  background: rgba(0,180,255,0.04); }
+
+.bp-cell.bp-available {
+  border-color: #00FF88;
+  box-shadow: 0 0 14px rgba(0,255,136,0.3);
+}
+.bp-cell.bp-claimed { opacity: 0.55; }
+.bp-cell.bp-locked-premium { opacity: 0.45; }
+
+.bp-cell-preview { display: block; width: 64px; height: 56px; }
+.bp-cell-label {
+  font-size: 0.42rem;
+  color: rgba(255,255,255,0.85);
+  text-align: center;
+  letter-spacing: 0.04em;
+  margin: 2px 0;
+  min-height: 0.42rem;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bp-claim-btn {
+  font-size: 0.42rem;
+  font-family: var(--font);
+  font-weight: 900;
+  background: linear-gradient(135deg, #00ff88, #00cc6a);
+  color: #052;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 6px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  width: 100%;
+}
+.bp-claim-blink { animation: bp-claim-pulse 1.05s ease-in-out infinite; }
+@keyframes bp-claim-pulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(0,255,136,0.45); transform: scale(1); }
+  50%      { box-shadow: 0 0 14px rgba(0,255,136,0.95); transform: scale(1.03); }
+}
+
+.bp-claimed-tag {
+  font-size: 0.4rem;
+  color: #00cc6a;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+.bp-lock-tag {
+  font-size: 0.4rem;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 0.08em;
+}
+
 /* ── Contrôles mobiles ───────────────────────────────────────── */
 #mobile-ui {
   position: absolute;

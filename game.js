@@ -62,6 +62,21 @@ const SKIN_DATA = [
   { id: 'celestial',  name: 'Céleste',    price: 5000, rarity: 'legendary' },
   { id: 'void',       name: 'Void',       price: 5000, rarity: 'legendary' },
   { id: 'aurora',     name: 'Aurora',     price: 5000, rarity: 'legendary' },
+  // ── Battle Pass (cosmétiques exclusifs — non achetables en boutique) ──
+  { id: 'interceptor',name: 'Interceptor',price: 0, rarity: 'common',    bpOnly: true },
+  { id: 'raptor',     name: 'Raptor',     price: 0, rarity: 'rare',      bpOnly: true },
+  { id: 'eclipse',    name: 'Eclipse',    price: 0, rarity: 'epic',      bpOnly: true },
+  { id: 'polaris',    name: 'Polaris',    price: 0, rarity: 'epic',      bpOnly: true },
+  { id: 'sentinel',   name: 'Sentinel',   price: 0, rarity: 'epic',      bpOnly: true },
+  { id: 'wraith',     name: 'Wraith',     price: 0, rarity: 'rare',      bpOnly: true },
+  { id: 'ironclad',   name: 'Ironclad',   price: 0, rarity: 'rare',      bpOnly: true },
+  { id: 'mirage',     name: 'Mirage',     price: 0, rarity: 'epic',      bpOnly: true },
+  { id: 'comet',      name: 'Comet',      price: 0, rarity: 'epic',      bpOnly: true },
+  { id: 'hydra',      name: 'Hydra',      price: 0, rarity: 'epic',      bpOnly: true },
+  { id: 'seraph',     name: 'Seraph',     price: 0, rarity: 'epic',      bpOnly: true },
+  { id: 'dreadnought',name: 'Dreadnought',price: 0, rarity: 'epic',      bpOnly: true },
+  { id: 'sovereign',  name: 'Sovereign',  price: 0, rarity: 'legendary', bpOnly: true },
+  { id: 'genesis',    name: 'GENESIS',    price: 0, rarity: 'legendary', bpOnly: true },
 ];
 
 const COLOR_DATA = [
@@ -79,6 +94,21 @@ const COLOR_DATA = [
   { id: 'phantom', name: 'Laser Fantôme', price: 1000, color: '#C0C8FF', rarity: 'epic'      },
   // ── Légendaire ──
   { id: 'solar',   name: 'Laser Solaire', price: 1500, color: '#FFFDE7', rarity: 'legendary' },
+  // ── Battle Pass (lasers exclusifs) ──
+  { id: 'neon_pink',  name: 'Néon Rose',       price: 0, color: '#FF69B4', rarity: 'common',    bpOnly: true },
+  { id: 'turquoise',  name: 'Turquoise',       price: 0, color: '#40E0D0', rarity: 'rare',      bpOnly: true },
+  { id: 'magma',      name: 'Magma',           price: 0, color: '#FF4500', rarity: 'rare',      bpOnly: true },
+  { id: 'lightning',  name: 'Foudre',          price: 0, color: '#FFEC3D', rarity: 'epic',      bpOnly: true },
+  { id: 'crystal',    name: 'Cristal',         price: 0, color: '#F0F8FF', rarity: 'rare',      bpOnly: true },
+  { id: 'darksun',    name: 'Soleil Noir',     price: 0, color: '#1a1a1a', rarity: 'epic',      bpOnly: true },
+  { id: 'redplasma',  name: 'Plasma Rouge',    price: 0, color: '#C2185B', rarity: 'epic',      bpOnly: true },
+  { id: 'abyssal',    name: 'Abyssal',         price: 0, color: '#0d1b6e', rarity: 'epic',      bpOnly: true },
+  { id: 'meteor',     name: 'Étoile filante',  price: 0, color: '#E8F5FF', rarity: 'epic',      bpOnly: true },
+  { id: 'cosmos',     name: 'Cosmos',          price: 0, color: 'rainbow', rarity: 'epic',      bpOnly: true },
+  { id: 'starfall',   name: 'Étoile Bleue',    price: 0, color: '#5cdaff', rarity: 'rare',      bpOnly: true },
+  { id: 'firestorm',  name: 'Tempête de Feu',  price: 0, color: '#ff7733', rarity: 'epic',      bpOnly: true },
+  { id: 'vortex',     name: 'Vortex Pourpre',  price: 0, color: '#a050ff', rarity: 'epic',      bpOnly: true },
+  { id: 'apocalypse', name: 'Apocalypse',      price: 0, color: '#FF1744', rarity: 'legendary', bpOnly: true },
 ];
 
 // ============================================================
@@ -1030,6 +1060,383 @@ const SKIN_RENDERERS = {
     ctx.beginPath(); ctx.arc(0,-h*.1,w*.11,0,Math.PI*2);
     ctx.fillStyle=`hsla(${(hue+180)%360},100%,80%,.5)`; ctx.fill();
   },
+
+  // ════════════════════════════════════════════════════════════════════
+  //  BATTLE PASS — Skins exclusifs (Saison 1)
+  // ════════════════════════════════════════════════════════════════════
+
+  // ── BP. Interceptor : fin argenté avec accents rouges ──
+  interceptor(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.18,-h*.05); ctx.lineTo(w*.4,h*.5);
+    ctx.lineTo(-w*.4,h*.5); ctx.lineTo(-w*.18,-h*.05); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#e8e8ec'); g.addColorStop(.5,'#9a9aa3'); g.addColorStop(1,'#525258');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#cccccc'; ctx.lineWidth=1.2; ctx.stroke();
+    // Accents rouges
+    ctx.beginPath(); ctx.moveTo(0,-h*.42); ctx.lineTo(0,h*.4);
+    ctx.strokeStyle='#FF1744'; ctx.lineWidth=1.4; ctx.shadowColor='#FF1744'; ctx.shadowBlur=6; ctx.stroke(); ctx.shadowBlur=0;
+    [1,-1].forEach(s=>{
+      ctx.beginPath();
+      ctx.moveTo(s*w*.18,-h*.05); ctx.lineTo(s*w*.36,h*.28);
+      ctx.strokeStyle='#FF1744'; ctx.lineWidth=1.2; ctx.stroke();
+    });
+    ctx.beginPath(); ctx.arc(0,-h*.18,w*.08,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,80,80,0.55)'; ctx.fill();
+  },
+
+  // ── BP. Raptor : forme de rapace gris/vert ──
+  raptor(ctx, w, h) {
+    // Corps
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5);
+    ctx.lineTo(w*.15,-h*.15); ctx.lineTo(w*.52,h*.45); ctx.lineTo(w*.22,h*.5);
+    ctx.lineTo(0,h*.32); ctx.lineTo(-w*.22,h*.5); ctx.lineTo(-w*.52,h*.45);
+    ctx.lineTo(-w*.15,-h*.15); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#5a8a4a'); g.addColorStop(.5,'#345530'); g.addColorStop(1,'#1f2c1c');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#7eb878'; ctx.lineWidth=1.3; ctx.stroke();
+    // Œil rouge
+    ctx.beginPath(); ctx.arc(0,-h*.28,w*.06,0,Math.PI*2);
+    ctx.fillStyle='#ff2200'; ctx.shadowColor='#ff2200'; ctx.shadowBlur=8; ctx.fill(); ctx.shadowBlur=0;
+    // Détails plumes
+    [[-1],[1]].forEach(([s])=>{
+      ctx.beginPath();
+      ctx.moveTo(s*w*.15,-h*.05); ctx.lineTo(s*w*.4,h*.2);
+      ctx.strokeStyle='rgba(126,184,120,0.5)'; ctx.lineWidth=1; ctx.stroke();
+    });
+  },
+
+  // ── BP. Eclipse : noir avec demi-lune lumineuse ──
+  eclipse(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.42,0); ctx.lineTo(w*.42,h*.4);
+    ctx.lineTo(0,h*.5); ctx.lineTo(-w*.42,h*.4); ctx.lineTo(-w*.42,0); ctx.closePath();
+    ctx.fillStyle='#0a0a14'; ctx.fill();
+    ctx.strokeStyle='#5566aa'; ctx.lineWidth=1.3; ctx.stroke();
+    // Demi-lune lumineuse
+    const t = Date.now()*0.002;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0,0,w*.22,0,Math.PI*2); ctx.clip();
+    ctx.fillStyle='#fffbe8';
+    ctx.shadowColor='#fff7c0'; ctx.shadowBlur=14;
+    ctx.beginPath(); ctx.arc(-w*.06,0,w*.22,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+    // Halo lunaire
+    ctx.beginPath(); ctx.arc(0,0,w*.24+1.5*Math.sin(t*2),0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,247,192,0.4)'; ctx.lineWidth=1; ctx.stroke();
+  },
+
+  // ── BP. Polaris : blanc arctique avec cristaux de glace ──
+  polaris(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.4,-h*.05); ctx.lineTo(w*.36,h*.5);
+    ctx.lineTo(-w*.36,h*.5); ctx.lineTo(-w*.4,-h*.05); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#ffffff'); g.addColorStop(.5,'#c8e8ff'); g.addColorStop(1,'#7baacc');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#aee2ff'; ctx.lineWidth=1.4; ctx.shadowColor='#aee2ff'; ctx.shadowBlur=8; ctx.stroke(); ctx.shadowBlur=0;
+    // Cristaux de glace
+    const t = Date.now()*0.001;
+    [[0,-h*.2,0.7],[-w*.18,h*.05,0.55],[w*.18,h*.05,0.55],[0,h*.28,0.6]].forEach(([cx,cy,sc])=>{
+      ctx.save(); ctx.translate(cx,cy); ctx.rotate(t*sc);
+      for(let i=0;i<3;i++){
+        ctx.beginPath();
+        ctx.moveTo(0,0); ctx.lineTo(0,-w*.1*sc);
+        ctx.strokeStyle='rgba(255,255,255,0.85)'; ctx.lineWidth=1.5; ctx.stroke();
+        ctx.rotate(Math.PI/3);
+      }
+      ctx.restore();
+    });
+  },
+
+  // ── BP. Sentinel : vaisseau doré classique imposant ──
+  sentinel(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.18,-h*.32); ctx.lineTo(w*.5,-h*.05);
+    ctx.lineTo(w*.46,h*.5); ctx.lineTo(-w*.46,h*.5); ctx.lineTo(-w*.5,-h*.05);
+    ctx.lineTo(-w*.18,-h*.32); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#fff3a0'); g.addColorStop(.5,'#d4a82a'); g.addColorStop(1,'#7a5410');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#ffd700'; ctx.lineWidth=2; ctx.shadowColor='#ffd700'; ctx.shadowBlur=14; ctx.stroke(); ctx.shadowBlur=0;
+    // Détails plaques
+    ctx.beginPath();
+    ctx.rect(-w*.28,-h*.18,w*.56,h*.42);
+    ctx.strokeStyle='rgba(255,250,200,0.6)'; ctx.lineWidth=1; ctx.stroke();
+    // Cockpit
+    ctx.beginPath(); ctx.ellipse(0,-h*.1,w*.13,h*.16,0,0,Math.PI*2);
+    ctx.fillStyle='rgba(180,140,40,0.85)'; ctx.fill();
+    ctx.strokeStyle='#fff8e0'; ctx.lineWidth=1; ctx.stroke();
+  },
+
+  // ── BP. Wraith : fantôme semi-transparent violet ──
+  wraith(ctx, w, h) {
+    const t = Date.now()*0.003;
+    ctx.save();
+    ctx.globalAlpha = 0.55 + 0.18*Math.sin(t);
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.3,-h*.1); ctx.lineTo(w*.46,h*.3);
+    ctx.lineTo(w*.18,h*.5); ctx.lineTo(-w*.18,h*.5); ctx.lineTo(-w*.46,h*.3);
+    ctx.lineTo(-w*.3,-h*.1); ctx.closePath();
+    const g = ctx.createRadialGradient(0,0,0,0,0,w*.5);
+    g.addColorStop(0,'rgba(200,140,255,0.85)'); g.addColorStop(1,'rgba(70,0,130,0.4)');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='rgba(220,180,255,0.85)'; ctx.lineWidth=1.4;
+    ctx.shadowColor='#aa66ff'; ctx.shadowBlur=12; ctx.stroke(); ctx.shadowBlur=0;
+    ctx.restore();
+    // Visage spectral
+    ctx.beginPath(); ctx.arc(-w*.1,-h*.1,w*.04,0,Math.PI*2); ctx.arc(w*.1,-h*.1,w*.04,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,200,255,0.9)'; ctx.fill();
+  },
+
+  // ── BP. Ironclad : blindé massif gris avec rivets lumineux ──
+  ironclad(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.42); ctx.lineTo(w*.32,-h*.34); ctx.lineTo(w*.5,h*.1);
+    ctx.lineTo(w*.46,h*.5); ctx.lineTo(-w*.46,h*.5); ctx.lineTo(-w*.5,h*.1);
+    ctx.lineTo(-w*.32,-h*.34); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#888a8c'); g.addColorStop(.5,'#5a5c5e'); g.addColorStop(1,'#2c2e30');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#cccccc'; ctx.lineWidth=1.8; ctx.stroke();
+    // Plaques de blindage
+    ctx.beginPath();
+    ctx.rect(-w*.34,-h*.15,w*.68,h*.45);
+    ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1; ctx.stroke();
+    // Rivets lumineux pulsants
+    const t = Date.now()*0.003;
+    const pulse = 0.6+0.4*Math.sin(t);
+    [[-w*.28,-h*.2],[w*.28,-h*.2],[-w*.32,h*.1],[w*.32,h*.1],
+     [-w*.32,h*.36],[w*.32,h*.36],[0,-h*.3]].forEach(([rx,ry])=>{
+      ctx.beginPath(); ctx.arc(rx,ry,2.4,0,Math.PI*2);
+      ctx.fillStyle=`rgba(0,200,255,${pulse})`;
+      ctx.shadowColor='#00ccff'; ctx.shadowBlur=8; ctx.fill(); ctx.shadowBlur=0;
+    });
+  },
+
+  // ── BP. Mirage : double image décalée bleue ──
+  mirage(ctx, w, h) {
+    const t = Date.now()*0.002;
+    const off = 3.5 + 1.5*Math.sin(t*1.7);
+    // Image fantôme bleue décalée
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.translate(off, 0);
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.42,h*.4); ctx.lineTo(0,h*.32);
+    ctx.lineTo(-w*.42,h*.4); ctx.closePath();
+    ctx.fillStyle='#00bbff'; ctx.shadowColor='#00bbff'; ctx.shadowBlur=14; ctx.fill();
+    ctx.restore();
+    // Image principale
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.42,h*.4); ctx.lineTo(0,h*.32);
+    ctx.lineTo(-w*.42,h*.4); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#ccf2ff'); g.addColorStop(1,'#1166aa');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#88ddff'; ctx.lineWidth=1.4; ctx.stroke();
+  },
+
+  // ── BP. Comet : vaisseau effilé avec noyau brillant ──
+  comet(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.22,h*.05); ctx.lineTo(w*.38,h*.5);
+    ctx.lineTo(-w*.38,h*.5); ctx.lineTo(-w*.22,h*.05); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#ffffff'); g.addColorStop(.5,'#88ccff'); g.addColorStop(1,'#3366aa');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#aaddff'; ctx.lineWidth=1.4; ctx.shadowColor='#aaddff'; ctx.shadowBlur=10; ctx.stroke(); ctx.shadowBlur=0;
+    // Noyau brillant
+    const t = Date.now()*0.004;
+    const cR = w*.1 + 1.4*Math.sin(t);
+    ctx.beginPath(); ctx.arc(0,-h*.12,cR,0,Math.PI*2);
+    ctx.fillStyle='#fffae0'; ctx.shadowColor='#fff8c0'; ctx.shadowBlur=14; ctx.fill(); ctx.shadowBlur=0;
+  },
+
+  // ── BP. Hydra : 3 têtes de canon vert sombre ──
+  hydra(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.4); ctx.lineTo(w*.4,-h*.15); ctx.lineTo(w*.5,h*.45);
+    ctx.lineTo(-w*.5,h*.45); ctx.lineTo(-w*.4,-h*.15); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#0e3a1a'); g.addColorStop(.5,'#1a5a30'); g.addColorStop(1,'#0a1f10');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#3aaa50'; ctx.lineWidth=1.4; ctx.stroke();
+    // Trois canons (têtes)
+    [-w*.28, 0, w*.28].forEach(cx=>{
+      ctx.beginPath();
+      ctx.rect(cx-w*.06,-h*.5,w*.12,h*.18);
+      const gc = ctx.createLinearGradient(0,-h*.5,0,-h*.32);
+      gc.addColorStop(0,'#2a8a40'); gc.addColorStop(1,'#0d3018');
+      ctx.fillStyle=gc; ctx.fill();
+      ctx.strokeStyle='#44dd66'; ctx.lineWidth=1; ctx.stroke();
+      // Œil vert sur chaque tête
+      ctx.beginPath(); ctx.arc(cx,-h*.42,2.2,0,Math.PI*2);
+      ctx.fillStyle='#44ff88'; ctx.shadowColor='#44ff88'; ctx.shadowBlur=6; ctx.fill(); ctx.shadowBlur=0;
+    });
+  },
+
+  // ── BP. Seraph : angélique blanc avec ailes déployées et halo ──
+  seraph(ctx, w, h) {
+    const t = Date.now()*0.002;
+    // Halo
+    ctx.beginPath(); ctx.arc(0,-h*.32,w*.18+1.5*Math.sin(t*2),0,Math.PI*2);
+    ctx.strokeStyle=`rgba(255,250,200,${0.7+0.2*Math.sin(t*2.5)})`;
+    ctx.lineWidth=2; ctx.shadowColor='#fff7c0'; ctx.shadowBlur=14; ctx.stroke(); ctx.shadowBlur=0;
+    // Ailes (4 segments)
+    [[-1],[1]].forEach(([s])=>{
+      for(let i=0;i<3;i++){
+        ctx.beginPath();
+        ctx.moveTo(s*w*.16,-h*.05+i*h*.12);
+        ctx.quadraticCurveTo(s*w*.55,-h*.12+i*h*.1, s*w*.42,h*.18+i*h*.1);
+        ctx.lineTo(s*w*.18,h*.1+i*h*.1); ctx.closePath();
+        ctx.fillStyle='rgba(255,255,255,0.65)'; ctx.fill();
+        ctx.strokeStyle='rgba(255,250,200,0.85)'; ctx.lineWidth=1; ctx.stroke();
+      }
+    });
+    // Corps
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5); ctx.lineTo(w*.16,-h*.05); ctx.lineTo(w*.22,h*.5);
+    ctx.lineTo(-w*.22,h*.5); ctx.lineTo(-w*.16,-h*.05); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#ffffff'); g.addColorStop(1,'#e2d8b8');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#ffd700'; ctx.lineWidth=1.3; ctx.stroke();
+  },
+
+  // ── BP. Dreadnought : massif acier 6 canons lumières rouges ──
+  dreadnought(ctx, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(-w*.5,-h*.32); ctx.lineTo(w*.5,-h*.32);
+    ctx.lineTo(w*.5,h*.5); ctx.lineTo(-w*.5,h*.5); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#5a5d62'); g.addColorStop(.5,'#3a3c40'); g.addColorStop(1,'#1f2125');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#888a8e'; ctx.lineWidth=1.6; ctx.stroke();
+    // 6 canons (3 par côté)
+    [-w*.36,-w*.18,0,w*.18,w*.36,w*.54].forEach((cx,i)=>{
+      if(i===5) return; // skip overflow
+    });
+    [-w*.34,-w*.12,w*.12,w*.34].forEach(cx=>{
+      ctx.beginPath(); ctx.rect(cx-2,-h*.5,4,h*.22);
+      ctx.fillStyle='#252628'; ctx.fill();
+      ctx.strokeStyle='#888'; ctx.lineWidth=0.8; ctx.stroke();
+    });
+    // 2 canons supplémentaires latéraux
+    ctx.beginPath(); ctx.rect(-w*.5,-h*.1,w*.1,4); ctx.rect(w*.4,-h*.1,w*.1,4);
+    ctx.fillStyle='#1a1b1d'; ctx.fill();
+    // Lumières rouges clignotantes
+    const t = Date.now()*0.005;
+    const blink = 0.5+0.5*Math.sin(t);
+    [[-w*.36,h*.0],[w*.36,h*.0],[-w*.36,h*.32],[w*.36,h*.32],[0,h*.16]].forEach(([rx,ry])=>{
+      ctx.beginPath(); ctx.arc(rx,ry,2.4,0,Math.PI*2);
+      ctx.fillStyle=`rgba(255,${Math.floor(20+30*blink)},${Math.floor(20+30*blink)},${0.6+0.4*blink})`;
+      ctx.shadowColor='#ff0033'; ctx.shadowBlur=8*blink; ctx.fill(); ctx.shadowBlur=0;
+    });
+  },
+
+  // ── BP. Sovereign : royal pourpre et or, cape énergie ──
+  sovereign(ctx, w, h) {
+    const t = Date.now()*0.0025;
+    // Couronne dorée
+    ctx.beginPath();
+    ctx.moveTo(-w*.18,-h*.42);
+    [0,0.2,0.4,0.6,0.8,1].forEach((u,i)=>{
+      const x = -w*.18 + u*w*.36;
+      const yo = (i%2===0) ? -h*.5 : -h*.42;
+      ctx.lineTo(x,yo);
+    });
+    ctx.lineTo(w*.18,-h*.42); ctx.closePath();
+    ctx.fillStyle='#FFD700'; ctx.shadowColor='#FFD700'; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
+    // Corps pourpre
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.42); ctx.lineTo(w*.24,-h*.2); ctx.lineTo(w*.44,h*.5);
+    ctx.lineTo(-w*.44,h*.5); ctx.lineTo(-w*.24,-h*.2); ctx.closePath();
+    const g = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    g.addColorStop(0,'#a050d0'); g.addColorStop(.5,'#5a1880'); g.addColorStop(1,'#220844');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#ffd700'; ctx.lineWidth=1.6;
+    ctx.shadowColor='#FFD700'; ctx.shadowBlur=10; ctx.stroke(); ctx.shadowBlur=0;
+    // Sceau royal
+    ctx.beginPath(); ctx.arc(0,h*.05,w*.08,0,Math.PI*2);
+    ctx.fillStyle='#ffd700'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0,h*.05,w*.05,0,Math.PI*2);
+    ctx.fillStyle='#5a1880'; ctx.fill();
+  },
+
+  // ── BP. GENESIS : ultime — coque translucide, cœur, ailes biomécaniques ──
+  genesis(ctx, w, h) {
+    const t = Date.now()*0.002;
+    const breathe = 1 + 0.04*Math.sin(t*1.6);
+    ctx.save();
+    ctx.scale(breathe, breathe);
+    // Halo iridescent extérieur
+    const hueBase = (t*30)%360;
+    ctx.beginPath(); ctx.arc(0,0,w*.55,0,Math.PI*2);
+    const halo = ctx.createRadialGradient(0,0,w*.32,0,0,w*.55);
+    halo.addColorStop(0,`hsla(${hueBase},100%,75%,0.5)`);
+    halo.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=halo; ctx.fill();
+    // Ailes biomécaniques (4 segments)
+    [[-1],[1]].forEach(([s])=>{
+      for(let i=0;i<3;i++){
+        const phase = t*2 + i*0.7;
+        const flap = Math.sin(phase)*0.12;
+        ctx.beginPath();
+        ctx.moveTo(s*w*.18,-h*.1+i*h*.16);
+        ctx.quadraticCurveTo(
+          s*w*(.62+flap),-h*.15+i*h*.14+flap*8,
+          s*w*.46,h*.18+i*h*.14
+        );
+        ctx.lineTo(s*w*.2,h*.06+i*h*.14); ctx.closePath();
+        const wg = ctx.createLinearGradient(s*w*.18,0,s*w*.5,0);
+        wg.addColorStop(0,`hsla(${(hueBase+i*40)%360},90%,75%,0.7)`);
+        wg.addColorStop(1,`hsla(${(hueBase+i*40+90)%360},90%,55%,0.4)`);
+        ctx.fillStyle=wg; ctx.fill();
+        ctx.strokeStyle=`hsla(${(hueBase+i*40)%360},100%,80%,0.7)`; ctx.lineWidth=1; ctx.stroke();
+      }
+    });
+    // Coque translucide
+    ctx.beginPath();
+    ctx.moveTo(0,-h*.5);
+    ctx.quadraticCurveTo(w*.18,-h*.4, w*.28,-h*.05);
+    ctx.quadraticCurveTo(w*.36,h*.25, w*.18,h*.5);
+    ctx.lineTo(-w*.18,h*.5);
+    ctx.quadraticCurveTo(-w*.36,h*.25, -w*.28,-h*.05);
+    ctx.quadraticCurveTo(-w*.18,-h*.4, 0,-h*.5);
+    ctx.closePath();
+    const shell = ctx.createLinearGradient(0,-h*.5,0,h*.5);
+    shell.addColorStop(0,`hsla(${hueBase},80%,90%,0.55)`);
+    shell.addColorStop(.5,`hsla(${(hueBase+180)%360},80%,80%,0.35)`);
+    shell.addColorStop(1,`hsla(${(hueBase+90)%360},80%,75%,0.55)`);
+    ctx.fillStyle=shell; ctx.fill();
+    ctx.strokeStyle=`hsl(${hueBase},100%,85%)`; ctx.lineWidth=1.4;
+    ctx.shadowColor=`hsl(${hueBase},100%,75%)`; ctx.shadowBlur=14; ctx.stroke(); ctx.shadowBlur=0;
+    // Cœur énergétique pulsant
+    const coreP = 0.7+0.3*Math.sin(t*4);
+    const cR = w*.11 * (0.85+0.18*Math.sin(t*5));
+    ctx.beginPath(); ctx.arc(0,0,cR*1.8,0,Math.PI*2);
+    const coreG = ctx.createRadialGradient(0,0,0,0,0,cR*1.8);
+    coreG.addColorStop(0,`hsla(${(hueBase+60)%360},100%,80%,${coreP})`);
+    coreG.addColorStop(.6,`hsla(${(hueBase+60)%360},100%,60%,${coreP*0.4})`);
+    coreG.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=coreG; ctx.fill();
+    ctx.beginPath(); ctx.arc(0,0,cR,0,Math.PI*2);
+    ctx.fillStyle=`hsla(${(hueBase+60)%360},100%,90%,${coreP})`; ctx.fill();
+    // Particules orbitales
+    for(let i=0;i<6;i++){
+      const a = t*2 + i*Math.PI/3;
+      const px = Math.cos(a)*w*.22, py = Math.sin(a)*h*.22;
+      ctx.beginPath(); ctx.arc(px,py,1.6,0,Math.PI*2);
+      ctx.fillStyle=`hsla(${(hueBase+i*60)%360},100%,85%,0.9)`;
+      ctx.shadowColor=`hsl(${(hueBase+i*60)%360},100%,80%)`; ctx.shadowBlur=6; ctx.fill(); ctx.shadowBlur=0;
+    }
+    ctx.restore();
+  },
+
 };
 
 // ============================================================
@@ -1184,6 +1591,35 @@ class Player {
           `hsl(${hue},100%,65%)`,
           rand(0.18, 0.4), rand(2, 4.5)
         ));
+      } else if (this.skin === 'comet') {
+        // Longue traînée bleu/blanc
+        for (let i = 0; i < 2; i++) {
+          this._thrustParticles.push(new Particle(
+            this.x + rand(-8, 8), this.y + this.h * 0.4,
+            rand(-12, 12), rand(120, 220),
+            Math.random() > 0.5 ? '#ffffff' : '#88ccff',
+            rand(0.35, 0.6), rand(2.5, 4.5)
+          ));
+        }
+      } else if (this.skin === 'sovereign') {
+        // Cape d'énergie pourpre & or
+        this._thrustParticles.push(new Particle(
+          this.x + rand(-18, 18), this.y + this.h * 0.42,
+          rand(-30, 30), rand(50, 110),
+          Math.random() > 0.6 ? '#FFD700' : '#aa44dd',
+          rand(0.32, 0.58), rand(3, 5.5)
+        ));
+      } else if (this.skin === 'genesis') {
+        // Énergie primordiale multicolore
+        for (let i = 0; i < 3; i++) {
+          const hue = (Date.now() / 20 + i * 70) % 360;
+          this._thrustParticles.push(new Particle(
+            this.x + rand(-16, 16), this.y + this.h * 0.4,
+            rand(-35, 35), rand(70, 160),
+            `hsl(${hue},100%,72%)`,
+            rand(0.3, 0.55), rand(2.5, 5)
+          ));
+        }
       }
     }
     this._thrustParticles = this._thrustParticles.filter(p => { p.update(dt); return !p.dead; });
@@ -1218,6 +1654,38 @@ class Player {
     // Corps selon le skin équipé
     const renderer = SKIN_RENDERERS[this.skin] || SKIN_RENDERERS.starter;
     renderer(ctx, this.w, this.h);
+
+    // Genesis : particules de lumière émanant de la coque + arcs électriques
+    if (this.skin === 'genesis') {
+      const tg = Date.now() * 0.004;
+      const hue = (tg * 10) % 360;
+      // Particules de lumière
+      for (let i = 0; i < 4; i++) {
+        const a = tg * 1.2 + i * Math.PI / 2;
+        const r = this.w * 0.34 + 2 * Math.sin(tg * 3 + i);
+        const px = Math.cos(a) * r, py = Math.sin(a) * r;
+        ctx.beginPath(); ctx.arc(px, py, 1.4, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${(hue + i * 80) % 360},100%,85%,0.85)`;
+        ctx.shadowColor = `hsl(${(hue + i * 80) % 360},100%,80%)`;
+        ctx.shadowBlur = 5; ctx.fill(); ctx.shadowBlur = 0;
+      }
+      // Arcs électriques à grande vitesse (détectée par dépassement de seuil)
+      if (this._lastY != null) {
+        const dy = Math.abs(this.y - this._lastY);
+        if (dy > 1.5) {
+          ctx.beginPath();
+          ctx.moveTo(-this.w * 0.4, -this.h * 0.1);
+          for (let s = -3; s <= 3; s++) {
+            ctx.lineTo(s * this.w * 0.12, -this.h * 0.1 + rand(-3, 3));
+          }
+          ctx.lineTo(this.w * 0.4, -this.h * 0.1);
+          ctx.strokeStyle = `hsla(${hue},100%,80%,0.85)`; ctx.lineWidth = 1.2;
+          ctx.shadowColor = `hsl(${hue},100%,75%)`; ctx.shadowBlur = 8;
+          ctx.stroke(); ctx.shadowBlur = 0;
+        }
+      }
+      this._lastY = this.y;
+    }
 
     // Void : distorsion spatiale animée
     if (this.skin === 'void') {
@@ -1278,17 +1746,95 @@ class Bullet {
   draw(ctx) {
     ctx.save();
     if (this.fromPlayer) {
-      // Laser coloré : corps + noyau blanc
-      const isPhantom = this.laserType === 'phantom';
-      const isSolar   = this.laserType === 'solar';
+      const lt = this.laserType;
+      const isPhantom = lt === 'phantom';
+      const isSolar   = lt === 'solar';
+      const isCrystal = lt === 'crystal';
+      const isMeteor  = lt === 'meteor';
+      const isCosmos  = lt === 'cosmos';
+      const isApoc    = lt === 'apocalypse';
+      const isDark    = lt === 'darksun';
+      const isMagma   = lt === 'magma';
+      const isLight   = lt === 'lightning';
+
       if (isPhantom) ctx.globalAlpha = 0.7;
-      ctx.shadowColor = this.color;
-      ctx.shadowBlur  = isSolar ? 18 : 10;
-      ctx.fillStyle   = this.color;
+
+      // Traînée allongée pour Étoile filante
+      if (isMeteor) {
+        const grad = ctx.createLinearGradient(this.x, this.y - this.h*3.5, this.x, this.y + this.h/2);
+        grad.addColorStop(0, 'rgba(220,235,255,0)');
+        grad.addColorStop(1, 'rgba(220,235,255,0.85)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(this.x - 1.5, this.y - this.h * 3.5, 3, this.h * 4);
+      }
+
+      // Corps principal
+      let bodyColor = this.color;
+      if (isCrystal) {
+        const hue = (Date.now() / 6 + this.y * 2) % 360;
+        bodyColor = `hsl(${hue},90%,85%)`;
+      } else if (isCosmos) {
+        const hue = (Date.now() / 8 + this.x * 3) % 360;
+        bodyColor = `hsl(${hue},100%,65%)`;
+      } else if (isDark) {
+        // Couronne dorée autour d'un noyau noir
+        ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 14;
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(this.x - this.w/2 - 1, this.y - this.h/2 - 1, this.w + 2, this.h + 2);
+        ctx.shadowBlur = 0;
+      }
+
+      ctx.shadowColor = isDark ? '#FFD700' : bodyColor;
+      ctx.shadowBlur  = isSolar ? 18 : isApoc ? 16 : 10;
+      ctx.fillStyle   = isDark ? '#0a0a0a' : bodyColor;
       ctx.fillRect(this.x - this.w/2, this.y - this.h/2, this.w, this.h);
       ctx.shadowBlur  = 0;
-      ctx.fillStyle   = isSolar ? 'rgba(255,255,220,0.85)' : 'rgba(255,255,255,0.65)';
+
+      // Coulée de lave (magma)
+      if (isMagma) {
+        const drip = (Date.now() / 30) % this.h;
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(this.x - 1, this.y - this.h/2 + drip, 2, 3);
+        ctx.fillStyle = '#FFAA00';
+        ctx.fillRect(this.x - 1, this.y - this.h/2 + (drip + this.h/2) % this.h, 2, 2);
+      }
+
+      // Arc électrique latéral (foudre)
+      if (isLight) {
+        ctx.beginPath();
+        const baseY = this.y - this.h/2;
+        ctx.moveTo(this.x, baseY);
+        for (let k = 1; k <= 4; k++) {
+          ctx.lineTo(this.x + (Math.random() - 0.5) * 8, baseY + k * (this.h / 4));
+        }
+        ctx.strokeStyle = 'rgba(255,255,160,0.9)';
+        ctx.lineWidth = 1.4;
+        ctx.shadowColor = '#FFEC3D'; ctx.shadowBlur = 8;
+        ctx.stroke(); ctx.shadowBlur = 0;
+      }
+
+      // Bulles abyssales
+      if (lt === 'abyssal') {
+        const tA = (Date.now() / 100) % 1;
+        ctx.beginPath(); ctx.arc(this.x - 2, this.y - this.h/2 + tA * this.h, 1.4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(120,200,255,0.85)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(this.x + 2, this.y - this.h/2 + ((tA + 0.5) % 1) * this.h, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Plasma rouge : distorsion de chaleur (anneau pulsant)
+      if (lt === 'redplasma') {
+        const tp = Date.now() * 0.01;
+        ctx.beginPath(); ctx.arc(this.x, this.y, 4 + Math.sin(tp) * 2, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,80,80,0.55)'; ctx.lineWidth = 1; ctx.stroke();
+      }
+
+      // Noyau brillant
+      ctx.fillStyle = isSolar ? 'rgba(255,255,220,0.85)'
+                    : isDark  ? 'rgba(255,215,0,0.9)'
+                              : 'rgba(255,255,255,0.65)';
       ctx.fillRect(this.x - 1, this.y - this.h/2, 2, this.h);
+
       if (isPhantom) ctx.globalAlpha = 1;
     } else {
       // Projectile ennemi : orbe rouge pulsant
@@ -1826,14 +2372,14 @@ class UIManager {
 
   // ── Écrans ───────────────────────────────────────────────
   showScreen(name) {
-    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory'].forEach(id => {
+    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.toggle('active', id === name);
     });
   }
 
   hideScreens() {
-    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory'].forEach(id => {
+    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.remove('active');
     });
@@ -2214,6 +2760,8 @@ class ShopManager {
 
     const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3 };
     let items = (this._tab === 'skins' ? SKIN_DATA : COLOR_DATA).slice();
+    // Cacher les exclusivités Battle Pass tant qu'elles ne sont pas possédées
+    items = items.filter(i => !i.bpOnly || this.owned.has(i.id));
     if (this._rarityFilter !== 'all') items = items.filter(i => i.rarity === this._rarityFilter);
     items.sort((a, b) => (RARITY_ORDER[a.rarity] ?? 0) - (RARITY_ORDER[b.rarity] ?? 0));
 
@@ -3324,6 +3872,28 @@ class Game {
     this.progression = new ProgressionManager();
     this.story       = new StoryManager();
     this.titleScene  = new TitleScene(this.W, this.H);
+    this.battlepass  = new BattlePass(this.shop);
+    this.battlepassUI = new BattlePassUI(
+      this.battlepass,
+      () => this.coins,
+      n => {
+        this.coins += n;
+        localStorage.setItem('starblast_coins', this.coins.toString());
+      },
+      () => {
+        this.ui.updateCoins(this.coins);
+        this.ui.updateStartCoins(this.coins);
+      }
+    );
+
+    // Détection du retour Stripe : ?battlepass=unlocked active le premium
+    const _bpParams = new URLSearchParams(window.location.search);
+    if (_bpParams.get('battlepass') === 'unlocked') {
+      this.battlepass.activatePremium();
+      _bpParams.delete('battlepass');
+      const q = _bpParams.toString();
+      window.history.replaceState({}, '', window.location.pathname + (q ? '?' + q : ''));
+    }
 
     this.player       = null;
     this.enemies      = [];
@@ -3455,6 +4025,17 @@ class Game {
       if (this.shop._shopAnimId) { cancelAnimationFrame(this.shop._shopAnimId); this.shop._shopAnimId = null; }
       this.ui.showScreen('start');
     });
+
+    // ── Battle Pass ───────────────────────────────────────
+    on('btn-open-battlepass', 'click', () => {
+      this.battlepassUI.render();
+      this.ui.showScreen('battlepass');
+    });
+    on('btn-bp-back', 'click', () => {
+      this.battlepassUI._stopAnims();
+      this.ui.showScreen('start');
+    });
+    on('btn-bp-buy', 'click', () => this.battlepassUI.launchStripeCheckout());
 
     // Onglets de la boutique
     document.querySelectorAll('.shop-tab').forEach(btn => {
@@ -3643,6 +4224,7 @@ class Game {
     XP_MULTIPLIER = 2;
     const rawXP = Math.floor(score / 5) + bonus.xp;
     const { xpAdded, levelsGained } = this.progression.addXP(rawXP, this.shop);
+    this.battlepass.addXP(rawXP * 2);
     XP_MULTIPLIER = 1;
 
     this.ui.updateXPLevel(this.progression.level);
@@ -3694,6 +4276,7 @@ class Game {
     // XP : score / 5 (mode Survie, multiplié par XP_MULTIPLIER)
     const rawXP = Math.floor(score / 5);
     const { xpAdded, levelsGained } = this.progression.addXP(rawXP, this.shop);
+    this.battlepass.addXP(rawXP);
 
     // Mise à jour barre XP + HUD niveau
     this.ui.updateXPLevel(this.progression.level);
@@ -3780,8 +4363,10 @@ class Game {
         const e = this.enemies[j];
         if (e.dying || !aabb(b.hitbox, e.hitbox)) continue;
         b.dead = true;
-        if (b.laserType === 'solar') spawnBoom(this.particles, b.x, b.y, 'basic', null);
-        else spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
+        if (b.laserType === 'solar')           spawnBoom(this.particles, b.x, b.y, 'basic', null);
+        else if (b.laserType === 'apocalypse') { spawnBoom(this.particles, b.x, b.y, 'medium', null); spawnExplosion(this.particles, b.x, b.y, '#FF1744', 14, true); }
+        else if (b.laserType === 'lightning')  spawnExplosion(this.particles, b.x, b.y, '#FFEC3D', 10);
+        else                                    spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
         if (e.hit()) {
           this.player.score += e.score;
           const tier = e instanceof BossTitan ? 'titan' : e.isBoss ? 'boss' : e.type;
@@ -3888,8 +4473,10 @@ class Game {
         if (!aabb(b.hitbox, e.hitbox)) continue;
 
         b.dead = true;
-        if (b.laserType === 'solar') spawnBoom(this.particles, b.x, b.y, 'basic', null);
-        else spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
+        if (b.laserType === 'solar')           spawnBoom(this.particles, b.x, b.y, 'basic', null);
+        else if (b.laserType === 'apocalypse') { spawnBoom(this.particles, b.x, b.y, 'medium', null); spawnExplosion(this.particles, b.x, b.y, '#FF1744', 14, true); }
+        else if (b.laserType === 'lightning')  spawnExplosion(this.particles, b.x, b.y, '#FFEC3D', 10);
+        else                                    spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
 
         if (e.hit()) {
           // Ennemi tué

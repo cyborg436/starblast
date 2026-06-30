@@ -107,9 +107,10 @@
         </div>
 
         <div class="start-buttons">
-          <button id="btn-start"      class="btn btn-primary btn-glow">▶ SURVIE</button>
-          <button id="btn-open-story" class="btn btn-story">📖 HISTOIRE</button>
-          <button id="btn-open-shop"  class="btn btn-shop">🏪 BOUTIQUE</button>
+          <button id="btn-start"           class="btn btn-primary btn-glow">▶ SURVIE</button>
+          <button id="btn-open-story"      class="btn btn-story">📖 HISTOIRE</button>
+          <button id="btn-open-shop"       class="btn btn-shop">🏪 BOUTIQUE</button>
+          <button id="btn-open-battlepass" class="btn btn-battlepass">🏆 BATTLE PASS <span id="bp-premium-badge" class="bp-premium-mini hidden">PREMIUM</span></button>
         </div>
 
         <div class="controls-card">
@@ -270,6 +271,49 @@
       </div>
     </div>
 
+    <!-- Écran Battle Pass -->
+    <div id="screen-battlepass" class="screen">
+      <div class="bp-wrap">
+        <header class="bp-header">
+          <button id="btn-bp-back" class="btn btn-secondary shop-back">← RETOUR</button>
+          <h2 class="bp-title">BATTLE PASS — SAISON 1</h2>
+          <div id="bp-days" class="bp-days">Fin de saison dans 60 jours</div>
+        </header>
+
+        <!-- Bandeau premium -->
+        <div id="bp-premium-banner" class="bp-premium-banner">
+          <div class="bp-premium-info">
+            <div class="bp-premium-title">⭐ DÉBLOQUER PREMIUM</div>
+            <ul class="bp-premium-list">
+              <li>✅ Accès aux 50 récompenses premium</li>
+              <li>✅ +20% XP en jeu en permanence</li>
+              <li>✅ Skin légendaire GENESIS au palier 50</li>
+            </ul>
+          </div>
+          <div class="bp-premium-cta">
+            <button id="btn-bp-buy" class="btn btn-stripe">💳 4,99 € — UNLOCK</button>
+            <div class="bp-owned-tag">PREMIUM ACTIF</div>
+          </div>
+        </div>
+
+        <!-- Barre XP -->
+        <div class="bp-xp-row">
+          <span id="bp-tier" class="bp-tier-label">Palier 1 / 50</span>
+          <div class="bp-xp-bar"><div id="bp-xp-fill" class="bp-xp-fill"></div></div>
+          <span id="bp-xp-text" class="bp-xp-text">0 / 1000 XP</span>
+        </div>
+
+        <!-- En-têtes de voies -->
+        <div class="bp-tracks-legend">
+          <div class="bp-legend bp-legend-premium">PREMIUM</div>
+          <div class="bp-legend bp-legend-free">GRATUIT</div>
+        </div>
+
+        <!-- Grille des paliers -->
+        <div id="bp-grid" class="bp-grid"></div>
+      </div>
+    </div>
+
     <!-- ================================================================
          MODALE : Supprimer les pubs (Stripe)
          ================================================================ -->
@@ -324,6 +368,7 @@
 </div><!-- /game-wrapper -->
 
 <script src="music.js"></script>
+<script src="battlepass.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
