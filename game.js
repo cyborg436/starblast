@@ -288,6 +288,11 @@ class AudioManager {
   powerup()    { [524, 660, 784, 1047].forEach((f, i) => this._osc(f, 'sine', 0.14, 0.18, i * 0.08)); }
   levelUp()    { [524, 660, 784, 1047, 1320].forEach((f, i) => this._osc(f, 'sine', 0.18, 0.22, i * 0.1)); }
   bomb()       { this._noise(0.9, 180, 0.75); this._noise(0.5, 400, 0.38, 0.2); }
+  /** Fanfare courte de déblocage de succès. */
+  achievement(){
+    [523, 659, 784, 1047, 1319].forEach((f, i) => this._osc(f, 'square', 0.13, 0.22, i * 0.07));
+    [1047].forEach(f => this._osc(f, 'sine', 0.35, 0.16, 0.45));
+  }
 
   bossAlert() {
     if (!this.ctx) return;
@@ -1648,9 +1653,9 @@ class Player {
     this._thrustParticles = this._thrustParticles.filter(p => { p.update(dt); return !p.dead; });
   }
 
-  /** Tire une ou deux balles selon le power-up actif. */
+  /** Tire une ou deux balles selon le power-up actif. Retourne le nombre de balles tirées. */
   fire(bullets, audio) {
-    if (this.fireCooldown > 0) return;
+    if (this.fireCooldown > 0) return 0;
     this.fireCooldown = CFG.PLAYER_FIRE_RATE;
     const c = this.bulletColor;
     const lt = this.laserType;
@@ -1659,10 +1664,11 @@ class Player {
       bullets.push(new Bullet(this.x - 12, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true, lt));
       bullets.push(new Bullet(this.x + 12, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true, lt));
       audio.shootDouble();
-    } else {
-      bullets.push(new Bullet(this.x, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true, lt));
-      audio.shoot();
+      return 2;
     }
+    bullets.push(new Bullet(this.x, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true, lt));
+    audio.shoot();
+    return 1;
   }
 
   draw(ctx) {
@@ -2765,14 +2771,14 @@ class UIManager {
 
   // ── Écrans ───────────────────────────────────────────────
   showScreen(name) {
-    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass'].forEach(id => {
+    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass','achievements'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.toggle('active', id === name);
     });
   }
 
   hideScreens() {
-    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass'].forEach(id => {
+    ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass','achievements'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.remove('active');
     });
@@ -4364,6 +4370,15 @@ class Game {
     this.meteors        = [];
     this.meteorSpawner  = new MeteorSpawner();
     this.ionicStorm     = new IonicStorm();
+    this.achievements   = new AchievementManager();
+    this.achievementsUI = new AchievementUI(this.achievements);
+    this.achievements.setRefs({ shop: this.shop, story: this.story, progression: this.progression, audio: this.audio });
+    this.achievements.setCoinsCallback(n => {
+      this.coins += n;
+      localStorage.setItem('starblast_coins', this.coins.toString());
+      this.ui.updateCoins(this.coins);
+      this.ui.updateStartCoins(this.coins);
+    });
     this.battlepass  = new BattlePass(this.shop);
     this.battlepassUI = new BattlePassUI(
       this.battlepass,
@@ -4420,6 +4435,7 @@ class Game {
     this.ui.updateLegendBadge(this.progression.level);
     this.ui.showScreen('start');
     this.titleScene.start();
+    this.achievementsUI.updateMenuBadge();
 
     // Auto start/stop titleScene quand l'écran d'accueil est affiché/masqué
     const _startEl = document.getElementById('screen-start');
@@ -4428,6 +4444,7 @@ class Game {
         if (_startEl.classList.contains('active')) {
           this.titleScene.start();
           musicManager.play('odyssey');
+          this.achievementsUI.updateMenuBadge();
         } else {
           this.titleScene.stop();
         }
@@ -4529,6 +4546,13 @@ class Game {
     });
     on('btn-bp-buy', 'click', () => this.battlepassUI.launchStripeCheckout());
 
+    // ── Succès ────────────────────────────────────────────
+    on('btn-open-achievements', 'click', () => {
+      this.achievementsUI.renderScreen();
+      this.ui.showScreen('achievements');
+    });
+    on('btn-ach-back', 'click', () => this.ui.showScreen('start'));
+
     // Onglets de la boutique
     document.querySelectorAll('.shop-tab').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -4555,6 +4579,7 @@ class Game {
       this.shop.refresh(this.coins);
       this.ui.updateCoins(this.coins);
       this.ui.updateStartCoins(this.coins);
+      this.achievements.onShopBuy();
     });
 
     // Touche Pause (P / Échap)
@@ -4635,6 +4660,9 @@ class Game {
     this.state     = 'playing';
     this.lastTime  = performance.now();
     this.combo.reset();
+    this.achievements.onRunStart();
+    this.achievements.onWaveReached(1);
+    this._prevLives = CFG.LIVES;
 
     musicManager.play('afterburn');
     this.ui.hideScreens();
@@ -4678,6 +4706,8 @@ class Game {
     this.state     = 'story-playing';
     this.lastTime  = performance.now();
     this.combo.reset();
+    this.achievements.onRunStart();
+    this._prevLives = CFG.LIVES;
 
     const _storyTrack = levelId <= 3 ? 'frontier' : levelId <= 6 ? 'tension' : 'assault';
     musicManager.play(_storyTrack);
@@ -4698,6 +4728,7 @@ class Game {
     const stars     = livesLost === 0 ? 3 : livesLost === 1 ? 2 : 1;
 
     this.story.completeLevel(this.storyLevelId, stars);
+    this.achievements.onStoryLevelComplete(this.storyLevelId, stars, this.story);
 
     if (score > this.highscore) {
       this.highscore = score;
@@ -4725,6 +4756,7 @@ class Game {
     XP_MULTIPLIER = 2;
     const rawXP = Math.floor(score / 5) + bonus.xp;
     const { xpAdded, levelsGained } = this.progression.addXP(rawXP, this.shop);
+    if (levelsGained && levelsGained.length > 0) this.achievements.onPlayerLevelUp();
     this.battlepass.addXP(rawXP * 2);
     XP_MULTIPLIER = 1;
 
@@ -4758,6 +4790,7 @@ class Game {
     this.combo.reset(); this.ui.updateCombo(this.combo);
     this.ui.setIonicWarning(false);
     this.ionicStorm.reset();
+    this.achievements.onSurvivalRunEnd();
     const score = this.player.score;
 
     // Meilleur score
@@ -4781,6 +4814,7 @@ class Game {
     // XP : score / 5 (mode Survie, multiplié par XP_MULTIPLIER)
     const rawXP = Math.floor(score / 5);
     const { xpAdded, levelsGained } = this.progression.addXP(rawXP, this.shop);
+    if (levelsGained && levelsGained.length > 0) this.achievements.onPlayerLevelUp();
     this.battlepass.addXP(rawXP);
 
     // Mise à jour barre XP + HUD niveau
@@ -4802,7 +4836,10 @@ class Game {
     this.player.laserType   = this.shop.equippedColor;
     this.player.update(dt, inp, this.W, this.H);
 
-    if (inp.fire) this.player.fire(this.playerBullets, this.audio);
+    if (inp.fire) {
+      const n = this.player.fire(this.playerBullets, this.audio);
+      for (let k = 0; k < n; k++) this.achievements.onShotFired();
+    }
     if (inp.bomb) {
       if (this.player.useBomb(this.enemies, this.particles, this.audio)) {
         this.ui.flash('#ff6b35', 0.5);
@@ -4834,6 +4871,8 @@ class Game {
       if (e.isBoss && e.dying && !e._rewardGiven) {
         e._rewardGiven = true;
         this.player.score += this.combo.addKill(e.score);
+        this.achievements.onKill();
+        this.achievements.onBossDefeated(e.bossName);
         spawnExplosion(this.particles, e.x, e.y, e.color, 28, true);
         if (e instanceof BossTitan) this.audio.titanDeath();
         else this.audio.explosion(true);
@@ -4876,8 +4915,10 @@ class Game {
         else if (b.laserType === 'apocalypse') { spawnBoom(this.particles, b.x, b.y, 'medium', null); spawnExplosion(this.particles, b.x, b.y, '#FF1744', 14, true); }
         else if (b.laserType === 'lightning')  spawnExplosion(this.particles, b.x, b.y, '#FFEC3D', 10);
         else                                    spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
+        this.achievements.onShotHit();
         if (e.hit()) {
           this.player.score += this.combo.addKill(e.score);
+          this.achievements.onKill();
           const tier = e instanceof BossTitan ? 'titan' : e.isBoss ? 'boss' : e.type;
           spawnBoom(this.particles, e.x, e.y, tier, (d, i) => this._triggerShake(d, i));
           this.audio.explosion(e.type === 'heavy' || e.isBoss);
@@ -4895,9 +4936,11 @@ class Game {
         const m = this.meteors[j];
         if (m.dead || !aabb(b.hitbox, m.hitbox)) continue;
         b.dead = true;
+        this.achievements.onShotHit();
         spawnExplosion(this.particles, b.x, b.y, '#bba070', 4);
         if (m.hit()) {
           this.player.score += this.combo.addKill(m.score);
+          this.achievements.onKill();
           spawnBoom(this.particles, m.x, m.y, METEOR_DEFS[m.size].boom, (d, i) => this._triggerShake(d, i));
           this.audio.explosion(m.size === 'large');
           if (m.size === 'large') MeteorSpawner.fragment(m, this.meteors);
@@ -4955,6 +4998,14 @@ class Game {
 
     // Combo
     this.combo.tick();
+    this.achievements.onComboChanged(this.combo.multiplier);
+    this.achievements.onComboTick(dt, this.combo.multiplier);
+
+    // Détection de perte de vie (1 hook centralisé pour tous les sites)
+    if (this._prevLives !== undefined && this.player.lives < this._prevLives) {
+      this.achievements.onLifeLost();
+    }
+    this._prevLives = this.player.lives;
 
     // HUD
     this.ui.updateHUD(this.player.score, this.storyCtrl.waveNum, this.player.lives, this.highscore);
@@ -4986,7 +5037,10 @@ class Game {
     this.player.update(dt, inp, this.W, this.H);
 
     // Tir (clavier ou tactile)
-    if (inp.fire) this.player.fire(this.playerBullets, this.audio);
+    if (inp.fire) {
+      const n = this.player.fire(this.playerBullets, this.audio);
+      for (let k = 0; k < n; k++) this.achievements.onShotFired();
+    }
 
     // Bombe clavier
     if (inp.bomb) {
@@ -5032,9 +5086,11 @@ class Game {
         else if (b.laserType === 'lightning')  spawnExplosion(this.particles, b.x, b.y, '#FFEC3D', 10);
         else                                    spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
 
+        this.achievements.onShotHit();
         if (e.hit()) {
           // Ennemi tué — score : base × niveau de vague × multiplicateur de combo
           this.player.score += this.combo.addKill(e.score * this.wave.level);
+          this.achievements.onKill();
           this.wave.enemyKilled();
           spawnBoom(this.particles, e.x, e.y, e.type, (d, i) => this._triggerShake(d, i));
           this.audio.explosion(e.type === 'heavy');
@@ -5055,9 +5111,11 @@ class Game {
         const m = this.meteors[j];
         if (m.dead || !aabb(b.hitbox, m.hitbox)) continue;
         b.dead = true;
+        this.achievements.onShotHit();
         spawnExplosion(this.particles, b.x, b.y, '#bba070', 4);
         if (m.hit()) {
           this.player.score += this.combo.addKill(m.score);
+          this.achievements.onKill();
           spawnBoom(this.particles, m.x, m.y, METEOR_DEFS[m.size].boom, (d, i) => this._triggerShake(d, i));
           this.audio.explosion(m.size === 'large');
           if (m.size === 'large') MeteorSpawner.fragment(m, this.meteors);
@@ -5122,10 +5180,19 @@ class Game {
     if (waveResult === 'next') {
       this.audio.levelUp();
       this.ui.showLevelNotif(this.wave.level);
+      this.achievements.onWaveReached(this.wave.level);
     }
 
     // ── Combo ───────────────────────────────────────────
     this.combo.tick();
+    this.achievements.onComboChanged(this.combo.multiplier);
+    this.achievements.onComboTick(dt, this.combo.multiplier);
+
+    // Détection de perte de vie (1 hook centralisé)
+    if (this._prevLives !== undefined && this.player.lives < this._prevLives) {
+      this.achievements.onLifeLost();
+    }
+    this._prevLives = this.player.lives;
 
     // ── HUD ──────────────────────────────────────────────
     this.ui.updateHUD(this.player.score, this.wave.level, this.player.lives, this.highscore);

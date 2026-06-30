@@ -90,6 +90,9 @@
     <!-- ── Avertissement tempête ionique ────────────────────────── -->
     <div id="ionic-warning" class="ionic-warning hidden">⚠ TEMPÊTE IONIQUE ⚠</div>
 
+    <!-- ── Toast host (notifications de succès) ─────────────────── -->
+    <div id="achievement-toast-host" class="ach-toast-host"></div>
+
     <!-- ── Barre XP (bas du canvas) ─────────────────────────────── -->
     <div id="xp-bar-wrap"><div id="xp-bar-fill"></div></div>
 
@@ -121,6 +124,7 @@
           <button id="btn-open-story"      class="btn btn-story">📖 HISTOIRE</button>
           <button id="btn-open-shop"       class="btn btn-shop">🏪 BOUTIQUE</button>
           <button id="btn-open-battlepass" class="btn btn-battlepass">🏆 BATTLE PASS <span id="bp-premium-badge" class="bp-premium-mini hidden">PREMIUM</span></button>
+          <button id="btn-open-achievements" class="btn btn-achievements">🎖 SUCCÈS<span id="btn-ach-badge" class="ach-menu-badge hidden">!</span></button>
         </div>
 
         <div class="controls-card">
@@ -281,6 +285,21 @@
       </div>
     </div>
 
+    <!-- Écran Succès -->
+    <div id="screen-achievements" class="screen">
+      <div class="ach-wrap">
+        <header class="ach-header">
+          <button id="btn-ach-back" class="btn btn-secondary shop-back">← RETOUR</button>
+          <h2 class="ach-title">SUCCÈS</h2>
+          <div class="ach-stats">
+            <div><span id="ach-count">0 / 20</span> débloqués</div>
+            <div class="ach-stats-coins"><span class="coin-star">★</span> <span id="ach-coins-total">0</span> gagnés</div>
+          </div>
+        </header>
+        <div id="ach-grid" class="ach-grid-wrap"></div>
+      </div>
+    </div>
+
     <!-- Écran Battle Pass -->
     <div id="screen-battlepass" class="screen">
       <div class="bp-wrap">
@@ -379,6 +398,7 @@
 
 <script src="music.js"></script>
 <script src="battlepass.js"></script>
+<script src="achievements.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

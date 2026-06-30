@@ -121,6 +121,226 @@ html, body {
   opacity: 0.25;
 }
 
+/* ════════════════════════════════════════════════════════════════
+   SUCCÈS (Achievements)
+   ════════════════════════════════════════════════════════════════ */
+
+.btn-achievements {
+  background: linear-gradient(135deg, #b97a2a 0%, #5a3010 100%);
+  color: #fff5dc;
+  border: 1px solid #d09a4c;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  box-shadow: 0 0 14px rgba(208, 154, 76, 0.28);
+  position: relative;
+}
+.btn-achievements:hover { box-shadow: 0 0 22px rgba(255, 200, 120, 0.55); transform: translateY(-1px); }
+
+.ach-menu-badge {
+  position: absolute;
+  top: -6px; right: -6px;
+  background: #ff3131;
+  color: #fff;
+  border-radius: 999px;
+  min-width: 16px; height: 16px;
+  font-size: 0.55rem;
+  font-weight: 900;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 0 10px rgba(255, 49, 49, 0.85);
+  animation: ach-badge-pulse 1s ease-in-out infinite;
+}
+.ach-menu-badge.hidden { display: none; }
+@keyframes ach-badge-pulse {
+  0%, 100% { transform: scale(1);    box-shadow: 0 0 8px rgba(255, 49, 49, 0.7); }
+  50%      { transform: scale(1.18); box-shadow: 0 0 14px rgba(255, 49, 49, 1); }
+}
+
+/* ── Écran principal ─────────────────────────────────────────── */
+#screen-achievements {
+  background: linear-gradient(180deg, #0a0815 0%, #1a1228 50%, #0a0815 100%);
+  overflow: hidden;
+}
+.ach-wrap {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  padding: 8px 10px;
+  box-sizing: border-box;
+}
+.ach-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 10px;
+}
+.ach-title {
+  margin: 0;
+  font-size: 0.85rem; letter-spacing: 0.18em;
+  font-weight: 900;
+  background: linear-gradient(90deg, #ffd700, #ff8c00);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.ach-stats {
+  font-size: 0.5rem;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.06em;
+  text-align: right;
+  line-height: 1.4;
+}
+.ach-stats-coins { color: #ffd700; }
+
+.ach-grid-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+  scrollbar-width: thin;
+}
+.ach-grid-wrap::-webkit-scrollbar { width: 6px; }
+.ach-grid-wrap::-webkit-scrollbar-thumb { background: rgba(255,200,0,0.3); border-radius: 3px; }
+
+.ach-section { margin-bottom: 10px; }
+.ach-section-title {
+  font-size: 0.5rem;
+  letter-spacing: 0.18em;
+  color: rgba(255, 215, 0, 0.7);
+  padding: 4px 6px;
+  border-left: 3px solid #ffd700;
+  margin-bottom: 6px;
+}
+
+.ach-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+}
+
+.ach-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 7px 8px;
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  min-height: 64px;
+  transition: all 0.18s;
+}
+.ach-card-icon {
+  font-size: 1.2rem;
+  width: 32px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  filter: grayscale(0.7) brightness(0.5);
+}
+.ach-card-unlocked .ach-card-icon { filter: none; }
+
+.ach-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ach-card-name {
+  font-size: 0.52rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ach-card-unlocked .ach-card-name { color: #fff8e0; }
+.ach-card-desc {
+  font-size: 0.42rem;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.3;
+}
+.ach-card-reward {
+  font-size: 0.45rem;
+  color: #ffd700;
+  letter-spacing: 0.04em;
+  margin-top: 1px;
+}
+.ach-card-locked .ach-card-reward { color: rgba(255, 215, 0, 0.45); }
+
+.ach-card-bar {
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 3px;
+}
+.ach-card-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff8c00, #ffd700);
+  transition: width 0.4s ease;
+}
+.ach-card-progress {
+  font-size: 0.4rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: right;
+}
+
+.ach-card-unlocked {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.08), rgba(255, 140, 0, 0.04));
+  border-color: rgba(255, 215, 0, 0.4);
+}
+.ach-card-unlocked.ach-cat-story    { border-color: rgba(0, 229, 255, 0.55); }
+.ach-card-unlocked.ach-cat-combo    { border-color: rgba(255, 100, 0, 0.55); }
+.ach-card-unlocked.ach-cat-survival { border-color: rgba(0, 255, 136, 0.55); }
+.ach-card-unlocked.ach-cat-collection { border-color: rgba(180, 110, 255, 0.55); }
+
+/* ── Toast in-game ───────────────────────────────────────────── */
+.ach-toast-host {
+  position: absolute;
+  bottom: 70px; left: 12px;
+  z-index: 9;
+  display: flex; flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+.ach-toast {
+  background: linear-gradient(135deg, rgba(20, 14, 32, 0.95), rgba(40, 28, 12, 0.95));
+  border: 1.5px solid #ffd700;
+  border-radius: 8px;
+  padding: 8px 12px 8px 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 200px;
+  box-shadow: 0 0 16px rgba(255, 215, 0, 0.45), 0 6px 18px rgba(0, 0, 0, 0.6);
+  transform: translateX(-120%);
+  animation: ach-toast-in 0.4s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+.ach-toast-out { animation: ach-toast-out 0.5s ease-in forwards; }
+
+@keyframes ach-toast-in {
+  from { transform: translateX(-120%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes ach-toast-out {
+  from { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(-120%); opacity: 0; }
+}
+
+.ach-toast-icon {
+  font-size: 1.3rem;
+  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
+}
+.ach-toast-body { display: flex; flex-direction: column; gap: 1px; }
+.ach-toast-title {
+  font-size: 0.4rem;
+  letter-spacing: 0.18em;
+  color: #ffd700;
+  font-weight: 900;
+}
+.ach-toast-name {
+  font-size: 0.55rem;
+  font-weight: 900;
+  color: #fff8e0;
+  letter-spacing: 0.04em;
+}
+.ach-toast-reward {
+  font-size: 0.5rem;
+  color: #ffd700;
+  letter-spacing: 0.04em;
+}
+
 /* ── Avertissement tempête ionique ───────────────────────────── */
 .ionic-warning {
   position: absolute;
