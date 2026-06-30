@@ -2330,8 +2330,9 @@ class Meteor {
       ctx.fillStyle = g;
     }
     ctx.fill();
-    ctx.strokeStyle = 'rgba(20,15,10,0.7)';
-    ctx.lineWidth = 1.2;
+    // Liseré clair pour le détourer sur le fond noir
+    ctx.strokeStyle = 'rgba(220,200,170,0.9)';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
 
     // Cratères
@@ -2364,10 +2365,11 @@ class Meteor {
 // Le délai diminue avec le niveau de vague (jusqu'à un plancher de ~1,5 s).
 class MeteorSpawner {
   constructor() {
-    this.cd = rand(4, 8);
+    // Premier spawn rapide pour que l'effet soit visible dès le début de partie
+    this.cd = rand(2, 4);
   }
 
-  reset() { this.cd = rand(4, 8); }
+  reset() { this.cd = rand(2, 4); }
 
   update(dt, waveLevel, meteors, W) {
     this.cd -= dt;
@@ -2386,7 +2388,12 @@ class MeteorSpawner {
 
     const def = METEOR_DEFS[size];
     const x = clamp(rand(def.px * 0.6, W - def.px * 0.6), def.px, W - def.px);
-    meteors.push(new Meteor(x, -def.px, size));
+    const m = new Meteor(x, -def.px, size);
+    meteors.push(m);
+    // DEBUG TEMPORAIRE — à retirer une fois le système confirmé fonctionnel
+    if (window.__METEOR_DEBUG !== false) {
+      console.log('Météorite spawned à x:', m.x, 'y:', m.y, 'size:', size);
+    }
   }
 
   /** Fragmente une grande météorite en 2-3 petites. */
@@ -5180,6 +5187,11 @@ class Game {
       this.enemies.forEach(e => e.draw(ctx));
 
       // Météorites (dangers environnementaux, dessinées après les ennemis)
+      // DEBUG TEMPORAIRE — log uniquement quand le nombre change pour éviter le spam
+      if (window.__METEOR_DEBUG !== false && this._lastMeteorCount !== this.meteors.length) {
+        console.log('Météorites actives:', this.meteors.length);
+        this._lastMeteorCount = this.meteors.length;
+      }
       this.meteors.forEach(m => m.draw(ctx));
 
       // Joueur
