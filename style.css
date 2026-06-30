@@ -548,6 +548,36 @@ html, body {
   transition: width 0.12s linear;
 }
 
+/* ── Teintes par type de power-up ──────────────────────────────── */
+#pi-surcharge { border-color: rgba(255, 68, 68, 0.55); box-shadow: 0 0 10px rgba(255,68,68,0.35); }
+#pi-surcharge .pi-timer-fill { background: linear-gradient(90deg, #ff2222, #ff7755); }
+#pi-mirror    { border-color: rgba(136, 187, 255, 0.55); box-shadow: 0 0 10px rgba(136,187,255,0.35); }
+#pi-mirror    .pi-timer-fill { background: linear-gradient(90deg, #3a8aff, #88bbff); }
+#pi-swarm     { border-color: rgba(255, 153, 51, 0.55); box-shadow: 0 0 10px rgba(255,153,51,0.35); }
+#pi-swarm     .pi-timer-fill { background: linear-gradient(90deg, #ff9933, #ffcc66); }
+#pi-magnet    { border-color: rgba(204, 85, 255, 0.55); box-shadow: 0 0 10px rgba(204,85,255,0.35); }
+#pi-magnet    .pi-timer-fill { background: linear-gradient(90deg, #cc55ff, #dd88ff); }
+#pi-frenzy {
+  border-color: #ff1133;
+  box-shadow: 0 0 16px rgba(255, 17, 51, 0.6);
+  animation: pi-frenzy-pulse 0.7s ease-in-out infinite;
+}
+#pi-frenzy .pi-timer-fill { background: linear-gradient(90deg, #ff1133, #ff6655, #000000); }
+@keyframes pi-frenzy-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 17, 51, 0.5); }
+  50%      { box-shadow: 0 0 20px rgba(255, 17, 51, 1); }
+}
+
+/* Flash de disparition quand un power-up se termine */
+.pi.pi-expiring {
+  animation: pi-expire-flash 0.2s ease-out;
+}
+@keyframes pi-expire-flash {
+  0%   { filter: brightness(1);   transform: scale(1); }
+  50%  { filter: brightness(2.5); transform: scale(1.15); }
+  100% { filter: brightness(0);   transform: scale(0.8); opacity: 0; }
+}
+
 .pi-count {
   font-weight: 700;
   font-size: 0.8rem;

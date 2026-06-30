@@ -21,7 +21,17 @@ const CFG = {
   ENEMY_BULLET_SPEED: 190,    // px/s balles ennemies
 
   // Power-ups
-  POWERUP_DURATION: 9,        // secondes d'effet
+  POWERUP_DURATION: 9,        // secondes d'effet (fallback)
+  PU_DURATIONS: {             // durées personnalisées par type
+    shield: 9, double: 9,
+    surcharge: 8, mirror: 10, freeze: 5,
+    swarm: 6, magnet: 8, frenzy: 12,
+  },
+  PU_WEIGHTS: {               // probabilités relatives de drop (somme normalisée)
+    shield: 0.05, double: 0.05, bomb: 0.05,
+    surcharge: 0.05, mirror: 0.04, freeze: 0.03, orbital: 0.03,
+    repair: 0.04, swarm: 0.05, magnet: 0.06, frenzy: 0.01,
+  },
   STAR_COUNT: 130,
 
   // Vies & invincibilité
@@ -1482,7 +1492,17 @@ class Player {
     this.shield      = false;
     this.doubleShot  = false;
     this.bombs       = 0;
-    this.puTimers    = { shield: 0, doubleShot: 0 };
+    this.surcharge   = false;
+    this.mirror      = false;
+    this.swarm       = false;
+    this.magnet      = false;
+    this.frenzy      = false;
+    this.puTimers    = {
+      shield: 0, doubleShot: 0,
+      surcharge: 0, mirror: 0, swarm: 0, magnet: 0, frenzy: 0,
+    };
+    this._drones     = [];     // mini-drones de l'essaim
+    this._frenzyExpiring = false;
 
     // Cosmétiques (définis par le jeu avant chaque partie)
     this.skin        = 'starter';
@@ -1537,9 +1557,36 @@ class Player {
   /** Active un power-up ramassé. */
   activatePowerup(type, audio) {
     audio.powerup();
-    if      (type === 'shield') { this.shield     = true; this.puTimers.shield    = CFG.POWERUP_DURATION; }
-    else if (type === 'double') { this.doubleShot = true; this.puTimers.doubleShot = CFG.POWERUP_DURATION; }
-    else if (type === 'bomb')   { this.bombs++;  }
+    const D = CFG.PU_DURATIONS;
+    if      (type === 'shield')    { this.shield     = true;  this.puTimers.shield    = D.shield; }
+    else if (type === 'double')    { this.doubleShot = true;  this.puTimers.doubleShot= D.double; }
+    else if (type === 'bomb')      { this.bombs++; }
+    else if (type === 'surcharge') { this.surcharge  = true;  this.puTimers.surcharge = D.surcharge; }
+    else if (type === 'mirror')    { this.mirror     = true;  this.puTimers.mirror    = D.mirror; }
+    else if (type === 'magnet')    { this.magnet     = true;  this.puTimers.magnet    = D.magnet; }
+    else if (type === 'swarm')     { this.activateSwarm(D.swarm); }
+    else if (type === 'frenzy')    { this.activateFrenzy(D.frenzy); }
+  }
+
+  activateSwarm(duration) {
+    this.swarm = true;
+    this.puTimers.swarm = duration;
+    if (this._drones.length === 0) {
+      for (let i = 0; i < 6; i++) {
+        this._drones.push(new Drone(i, 6, this));
+      }
+    }
+  }
+
+  activateFrenzy(duration) {
+    // Frénésie = surcharge + bouclier + essaim simultanés
+    this.frenzy = true;
+    this.puTimers.frenzy = duration;
+    this.surcharge = true;
+    this.puTimers.surcharge = Math.max(this.puTimers.surcharge, duration);
+    this.shield    = true;
+    this.puTimers.shield    = Math.max(this.puTimers.shield, duration);
+    this.activateSwarm(duration);
   }
 
   /** Utilise une bombe : inflige 25 dégâts fixes à chaque ennemi à l'écran. */
@@ -1582,6 +1629,29 @@ class Player {
     if (this.puTimers.doubleShot > 0) {
       this.puTimers.doubleShot -= dt;
       if (this.puTimers.doubleShot <= 0) this.doubleShot = false;
+    }
+    if (this.puTimers.surcharge > 0) {
+      this.puTimers.surcharge -= dt;
+      if (this.puTimers.surcharge <= 0) this.surcharge = false;
+    }
+    if (this.puTimers.mirror > 0) {
+      this.puTimers.mirror -= dt;
+      if (this.puTimers.mirror <= 0) this.mirror = false;
+    }
+    if (this.puTimers.swarm > 0) {
+      this.puTimers.swarm -= dt;
+      if (this.puTimers.swarm <= 0) { this.swarm = false; this._drones = []; }
+    }
+    if (this.puTimers.magnet > 0) {
+      this.puTimers.magnet -= dt;
+      if (this.puTimers.magnet <= 0) this.magnet = false;
+    }
+    if (this.puTimers.frenzy > 0) {
+      this.puTimers.frenzy -= dt;
+      if (this.puTimers.frenzy <= 0) {
+        this.frenzy = false;
+        this._frenzyExpiring = true;  // Game lit ce flag pour appliquer -1 vie
+      }
     }
 
     // Clignotement pendant l'invincibilité
@@ -1656,17 +1726,24 @@ class Player {
   /** Tire une ou deux balles selon le power-up actif. Retourne le nombre de balles tirées. */
   fire(bullets, audio) {
     if (this.fireCooldown > 0) return 0;
-    this.fireCooldown = CFG.PLAYER_FIRE_RATE;
-    const c = this.bulletColor;
+    // Surcharge : cadence ×3
+    this.fireCooldown = CFG.PLAYER_FIRE_RATE / (this.surcharge ? 3 : 1);
+    const c = this.surcharge ? '#ff3344' : this.bulletColor;
     const lt = this.laserType;
 
+    const mkBullet = (x, y) => {
+      const b = new Bullet(x, y, 0, -CFG.BULLET_SPEED, c, true, lt);
+      if (this.surcharge) { b.w *= 2.2; b.h *= 1.35; }
+      return b;
+    };
+
     if (this.doubleShot) {
-      bullets.push(new Bullet(this.x - 12, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true, lt));
-      bullets.push(new Bullet(this.x + 12, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true, lt));
+      bullets.push(mkBullet(this.x - 12, this.y - this.h * 0.46));
+      bullets.push(mkBullet(this.x + 12, this.y - this.h * 0.46));
       audio.shootDouble();
       return 2;
     }
-    bullets.push(new Bullet(this.x, this.y - this.h * 0.46, 0, -CFG.BULLET_SPEED, c, true, lt));
+    bullets.push(mkBullet(this.x, this.y - this.h * 0.46));
     audio.shoot();
     return 1;
   }
@@ -2086,10 +2163,31 @@ class Enemy {
 // ============================================================
 // SECTION 8 — POWER-UPS
 // ============================================================
+/** Sélectionne un type de power-up en fonction des poids de CFG.PU_WEIGHTS. */
+function _pickPowerupType() {
+  const weights = CFG.PU_WEIGHTS;
+  let total = 0;
+  for (const k in weights) total += weights[k];
+  let r = Math.random() * total;
+  for (const k in weights) {
+    r -= weights[k];
+    if (r <= 0) return k;
+  }
+  return 'shield';
+}
+
 const PU_DEFS = {
-  shield: { emoji: '🛡️', color: '#00ff88', glow: '#00ff88' },
-  double: { emoji: '⚡', color: '#ffcc00', glow: '#ffdd44' },
-  bomb:   { emoji: '💣', color: '#ff6b35', glow: '#ff6b35' },
+  shield:    { emoji: '🛡',  color: '#00ff88', glow: '#00ff88', name: 'BOUCLIER' },
+  double:    { emoji: '⚡',  color: '#ffcc00', glow: '#ffdd44', name: 'TIR DOUBLE' },
+  bomb:      { emoji: '💣',  color: '#ff6b35', glow: '#ff6b35', name: 'BOMBE' },
+  surcharge: { emoji: '⚡',  color: '#ff2222', glow: '#ff4444', name: 'SURCHARGE' },
+  mirror:    { emoji: '⬡',  color: '#3a8aff', glow: '#88bbff', name: 'BOUCLIER MIROIR' },
+  freeze:    { emoji: '❄',  color: '#88ddff', glow: '#aaeeff', name: 'TEMPS GELÉ' },
+  orbital:   { emoji: '🛰', color: '#ffdd55', glow: '#ffee99', name: 'FRAPPE ORBITALE' },
+  repair:    { emoji: '✚',  color: '#00ff66', glow: '#66ffaa', name: 'NANO-RÉPARATION' },
+  swarm:     { emoji: '🐝', color: '#ff9933', glow: '#ffcc66', name: 'ESSAIM' },
+  magnet:    { emoji: '🧲', color: '#cc55ff', glow: '#dd88ff', name: 'MAGNÉTISME' },
+  frenzy:    { emoji: '💀', color: '#ff1133', glow: '#ff4466', name: 'FRÉNÉSIE' },
 };
 
 class PowerUp {
@@ -2137,6 +2235,139 @@ class PowerUp {
 
     ctx.restore();
   }
+}
+
+// ============================================================
+// SECTION 8b — DRONES "ESSAIM"
+// ============================================================
+// 6 mini-drones orbitent autour du joueur et tirent automatiquement
+// sur l'ennemi le plus proche.
+class Drone {
+  constructor(index, total, player) {
+    this.idx        = index;
+    this.total      = total;
+    this.player     = player;
+    this.radius     = 56;
+    this.phase      = (index / total) * Math.PI * 2;
+    this.fireTimer  = 0.2 + (index / total) * 0.5;
+    this.x = player.x;
+    this.y = player.y;
+  }
+
+  update(dt) {
+    this.phase += dt * 1.8;
+    const r = this.radius + Math.sin(this.phase * 2) * 4;
+    this.x = this.player.x + Math.cos(this.phase) * r;
+    this.y = this.player.y + Math.sin(this.phase) * r;
+    if (this.fireTimer > 0) this.fireTimer -= dt;
+  }
+
+  /** Tire sur l'ennemi le plus proche (≤ 220 px) si le cooldown est écoulé. */
+  tryFire(enemies, bullets) {
+    if (this.fireTimer > 0) return false;
+    let best = null;
+    let bestD = 220 * 220;
+    for (const e of enemies) {
+      if (e.dead || e.dying) continue;
+      const dx = e.x - this.x, dy = e.y - this.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD) { bestD = d2; best = e; }
+    }
+    if (!best) return false;
+    const dx = best.x - this.x, dy = best.y - this.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const speed = 540;
+    const b = new Bullet(this.x, this.y, (dx / len) * speed, (dy / len) * speed, '#ffaa44', true, '');
+    b.w = 3; b.h = 8;
+    bullets.push(b);
+    this.fireTimer = 0.45;
+    return true;
+  }
+
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    // Corps
+    ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ff9933';
+    ctx.shadowColor = '#ffcc66'; ctx.shadowBlur = 10;
+    ctx.fill(); ctx.shadowBlur = 0;
+    // Anneau orbital
+    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 200, 100, 0.6)';
+    ctx.lineWidth = 1; ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ============================================================
+// SECTION 8c — FRAPPE ORBITALE (effet ponctuel)
+// ============================================================
+// 3 colonnes verticales de lumière qui balaient l'écran et infligent
+// d'énormes dégâts à tout ce qu'elles croisent.
+class OrbitalStrike {
+  constructor(W, H, enemies, particles, audio) {
+    this.W = W; this.H = H;
+    this.totalDuration = 0.9;
+    this.t  = this.totalDuration;
+    this.flashT = 0.2;          // flash blanc plein écran
+    this.columns = [];          // { x, w, lifeAccum, damaged: Set }
+    for (let i = 0; i < 3; i++) {
+      const x = (W * (0.18 + i * 0.32)) + (Math.random() - 0.5) * 60;
+      this.columns.push({
+        x: clamp(x, 50, W - 50),
+        w: 38 + Math.random() * 12,
+        damaged: new Set(),
+      });
+    }
+    audio.bomb();
+    this._enemies = enemies;
+    this._particles = particles;
+  }
+
+  update(dt) {
+    this.t -= dt;
+    if (this.flashT > 0) this.flashT -= dt;
+    // Inflige des dégâts en continu aux ennemis dans une colonne
+    for (const col of this.columns) {
+      for (const e of this._enemies) {
+        if (e.dead || e.dying) continue;
+        if (col.damaged.has(e)) continue;
+        if (Math.abs(e.x - col.x) > col.w / 2 + e.w * 0.32) continue;
+        col.damaged.add(e);
+        // 50 dégâts d'un coup
+        e.hp = Math.max(0, (e.hp ?? 1) - 50);
+        if (typeof e.flashTimer !== 'undefined') e.flashTimer = 0.1;
+        if (e.hp <= 0) {
+          if (e.isBoss) { e.dying = true; e.deathTimer = e.deathDuration; }
+          else          { e.dead  = true; spawnExplosion(this._particles, e.x, e.y, '#ffee99', 14, true); }
+        }
+      }
+    }
+  }
+
+  draw(ctx) {
+    // Flash blanc plein écran (début uniquement)
+    if (this.flashT > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${this.flashT / 0.2 * 0.55})`;
+      ctx.fillRect(0, 0, this.W, this.H);
+    }
+    // Colonnes verticales
+    const a = Math.max(0, this.t / this.totalDuration);
+    for (const col of this.columns) {
+      const grad = ctx.createLinearGradient(col.x - col.w / 2, 0, col.x + col.w / 2, 0);
+      grad.addColorStop(0,   'rgba(255,238,153,0)');
+      grad.addColorStop(0.5, `rgba(255,238,153,${0.95 * a})`);
+      grad.addColorStop(1,   'rgba(255,238,153,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(col.x - col.w / 2, 0, col.w, this.H);
+      // Noyau blanc
+      ctx.fillStyle = `rgba(255,255,255,${a})`;
+      ctx.fillRect(col.x - 1.5, 0, 3, this.H);
+    }
+  }
+
+  get done() { return this.t <= 0; }
 }
 
 // ============================================================
@@ -2752,8 +2983,13 @@ class UIManager {
   }
 
   updatePowerupBar(player) {
-    this._updatePI(this.$piShield, 'shield-fill', player.shield,     player.puTimers.shield);
-    this._updatePI(this.$piDouble, 'double-fill', player.doubleShot, player.puTimers.doubleShot);
+    this._updatePI('pi-shield',    player.shield,     player.puTimers.shield,     CFG.PU_DURATIONS.shield);
+    this._updatePI('pi-double',    player.doubleShot, player.puTimers.doubleShot, CFG.PU_DURATIONS.double);
+    this._updatePI('pi-surcharge', player.surcharge,  player.puTimers.surcharge,  CFG.PU_DURATIONS.surcharge);
+    this._updatePI('pi-mirror',    player.mirror,     player.puTimers.mirror,     CFG.PU_DURATIONS.mirror);
+    this._updatePI('pi-swarm',     player.swarm,      player.puTimers.swarm,      CFG.PU_DURATIONS.swarm);
+    this._updatePI('pi-magnet',    player.magnet,     player.puTimers.magnet,     CFG.PU_DURATIONS.magnet);
+    this._updatePI('pi-frenzy',    player.frenzy,     player.puTimers.frenzy,     CFG.PU_DURATIONS.frenzy);
     if (player.bombs > 0) {
       this.$piBombs.classList.remove('hidden');
       this.$bombCnt.textContent = player.bombs;
@@ -2762,11 +2998,20 @@ class UIManager {
     }
   }
 
-  _updatePI(el, fillId, active, timer) {
-    if (!active) { el.classList.add('hidden'); return; }
-    el.classList.remove('hidden');
+  _updatePI(id, active, timer, maxDuration) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!active) {
+      // Flash de disparition juste avant cacher (transition CSS)
+      if (!el.classList.contains('hidden') && !el.classList.contains('pi-expiring')) {
+        el.classList.add('pi-expiring');
+        setTimeout(() => { el.classList.add('hidden'); el.classList.remove('pi-expiring'); }, 200);
+      }
+      return;
+    }
+    el.classList.remove('hidden'); el.classList.remove('pi-expiring');
     const fill = el.querySelector('.pi-timer-fill');
-    if (fill) fill.style.width = `${(timer / CFG.POWERUP_DURATION) * 100}%`;
+    if (fill) fill.style.width = `${(timer / (maxDuration || CFG.POWERUP_DURATION)) * 100}%`;
   }
 
   // ── Écrans ───────────────────────────────────────────────
@@ -4370,6 +4615,9 @@ class Game {
     this.meteors        = [];
     this.meteorSpawner  = new MeteorSpawner();
     this.ionicStorm     = new IonicStorm();
+    this.freezeTimer    = 0;        // Temps gelé global (>0 → ennemis figés)
+    this.orbitalStrikes = [];       // Frappes orbitales actives
+    this.pickupFloats   = [];       // Textes flottants de ramassage
     this.achievements   = new AchievementManager();
     this.achievementsUI = new AchievementUI(this.achievements);
     this.achievements.setRefs({ shop: this.shop, story: this.story, progression: this.progression, audio: this.audio });
@@ -4648,6 +4896,9 @@ class Game {
     this.meteors       = [];
     this.meteorSpawner.reset();
     this.ionicStorm.reset();
+    this.freezeTimer   = 0;
+    this.orbitalStrikes = [];
+    this.pickupFloats  = [];
 
     this.player             = new Player(this.W / 2, this.H - 90);
     this.player.skin        = this.shop.equippedSkin;
@@ -4691,6 +4942,9 @@ class Game {
     this.meteors        = [];
     this.meteorSpawner.reset();
     this.ionicStorm.reset();   // pas de tempête en histoire mais on garde le contrôleur muet
+    this.freezeTimer    = 0;
+    this.orbitalStrikes = [];
+    this.pickupFloats   = [];
 
     this.player             = new Player(this.W / 2, this.H - 90);
     this.player.skin        = this.shop.equippedSkin;
@@ -4783,6 +5037,184 @@ class Game {
     this.ui.showStoryFailed(this.storyLevelId);
   }
 
+  // ── Ramassage d'un power-up : dispatch + animations ───────
+  _applyPickup(p) {
+    const def = PU_DEFS[p.type];
+    // Texte flottant au-dessus du vaisseau
+    this.pickupFloats.push({
+      x: this.player.x, y: this.player.y - 32,
+      text: def?.name || p.type.toUpperCase(),
+      color: def?.color || '#ffffff',
+      life: 1.1, vy: -42,
+    });
+    // Flash écran (intensité modérée, durée gérée par UIManager.flash ≈ 0.1 s)
+    this.ui.flash(def?.color || '#ffffff', 0.32);
+
+    // Effets globaux (game state)
+    switch (p.type) {
+      case 'freeze':
+        this.freezeTimer = CFG.PU_DURATIONS.freeze;
+        return this.audio.powerup();
+      case 'orbital':
+        this.orbitalStrikes.push(new OrbitalStrike(
+          this.W, this.H, this.enemies, this.particles, this.audio
+        ));
+        return;
+      case 'repair':
+        this.audio.powerup();
+        if (this.player.lives < CFG.LIVES) this.player.lives++;
+        else                                this.player.score += 500;
+        return;
+      default:
+        // Effets locaux au joueur
+        this.player.activatePowerup(p.type, this.audio);
+    }
+  }
+
+  // ── Overlay bleu + cristaux quand Temps Gelé actif ─────────
+  _drawFreezeOverlay(ctx) {
+    // Tint bleu sur les ennemis
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    this.enemies.forEach(e => {
+      if (e.dead || e.dying) return;
+      ctx.fillStyle = 'rgba(80,180,255,0.18)';
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.w * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+    // Petits cristaux de glace clignotants
+    const t = Date.now() * 0.005;
+    this.enemies.forEach(e => {
+      if (e.dead || e.dying) return;
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2 + t * (e.x % 5 ? 0.7 : -0.6);
+        const r = e.w * 0.5;
+        const x = e.x + Math.cos(a) * r;
+        const y = e.y + Math.sin(a) * r;
+        ctx.fillStyle = 'rgba(180,240,255,0.85)';
+        ctx.beginPath(); ctx.arc(x, y, 1.4, 0, Math.PI * 2); ctx.fill();
+      }
+    });
+  }
+
+  // ── Aura du Bouclier Miroir ─────────────────────────────────
+  _drawMirrorAura(ctx) {
+    const t = Date.now() * 0.005;
+    ctx.save();
+    ctx.translate(this.player.x, this.player.y);
+    ctx.rotate(t * 0.4);
+    ctx.strokeStyle = `rgba(120,180,255,${0.6 + 0.25 * Math.sin(t * 2)})`;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#88bbff';
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    const r = this.player.w * 0.85;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // ── Textes flottants de ramassage ───────────────────────────
+  _drawPickupFloats(ctx) {
+    if (this.pickupFloats.length === 0) return;
+    ctx.save();
+    this.pickupFloats.forEach(f => {
+      const a = Math.min(1, f.life / 0.4);   // fade-out sur les derniers 0.4 s
+      ctx.globalAlpha = a;
+      ctx.font = '700 13px Orbitron, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = f.color; ctx.shadowBlur = 10;
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.text, f.x, f.y);
+    });
+    ctx.restore();
+  }
+
+  // ── Bouclier Miroir : transforme une balle ennemie en balle joueur ──
+  _reflectBullet(b) {
+    // Retire de la liste ennemie et la repousse vers les ennemis
+    b.dead = true;
+    const speed = Math.hypot(b.vx, b.vy) || CFG.ENEMY_BULLET_SPEED;
+    // Cible le plus proche pour donner l'illusion d'un retour automatique
+    let target = null;
+    let bestD = Infinity;
+    for (const e of this.enemies) {
+      if (e.dead || e.dying) continue;
+      const dx = e.x - this.player.x, dy = e.y - this.player.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD) { bestD = d2; target = e; }
+    }
+    let vx, vy;
+    if (target) {
+      const dx = target.x - this.player.x, dy = target.y - this.player.y;
+      const len = Math.hypot(dx, dy) || 1;
+      vx = (dx / len) * speed;
+      vy = (dy / len) * speed;
+    } else {
+      vx = -b.vx;
+      vy = -Math.abs(b.vy);
+    }
+    const reflected = new Bullet(this.player.x, this.player.y - this.player.h * 0.46, vx, vy, '#88bbff', true, '');
+    reflected.w = 4; reflected.h = 14;
+    this.playerBullets.push(reflected);
+    spawnExplosion(this.particles, this.player.x, this.player.y, '#88bbff', 4);
+  }
+
+  // ── Tick par frame des effets de power-up ─────────────────
+  _tickPowerupExtras(dt) {
+    // Drones de l'essaim
+    if (this.player._drones.length > 0) {
+      this.player._drones.forEach(d => {
+        d.update(dt);
+        if (d.tryFire(this.enemies, this.playerBullets)) this.achievements.onShotFired();
+      });
+    }
+
+    // Magnétisme : attire les power-ups vers le joueur
+    if (this.player.magnet) {
+      const px = this.player.x, py = this.player.y;
+      this.powerups.forEach(p => {
+        const dx = px - p.x, dy = py - p.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const pull = 240;
+        p.x += (dx / len) * pull * dt;
+        p.y += (dy / len) * pull * dt;
+        p.vy = 0;   // override la chute pour qu'ils filent vers le joueur
+      });
+    }
+
+    // Frénésie expirée → -1 vie
+    if (this.player._frenzyExpiring) {
+      this.player._frenzyExpiring = false;
+      this.player.hit(this.particles, this.audio);
+      this.ui.flash('#ff0033', 0.5);
+    }
+
+    // Frappes orbitales
+    for (let i = this.orbitalStrikes.length - 1; i >= 0; i--) {
+      this.orbitalStrikes[i].update(dt);
+      if (this.orbitalStrikes[i].done) this.orbitalStrikes.splice(i, 1);
+    }
+
+    // Textes flottants de ramassage
+    for (let i = this.pickupFloats.length - 1; i >= 0; i--) {
+      const f = this.pickupFloats[i];
+      f.y    += f.vy * dt;
+      f.life -= dt;
+      if (f.life <= 0) this.pickupFloats.splice(i, 1);
+    }
+  }
+
   // ── Game Over ────────────────────────────────────────────
   _gameOver() {
     musicManager.stop();
@@ -4851,7 +5283,10 @@ class Game {
 
     this.playerBullets.forEach(b => b.update(dt, this.W, this.H));
     this.enemyBullets.forEach( b => b.update(dt, this.W, this.H));
-    this.enemies.forEach(      e => e.update(dt, this.W, this.H, this.enemyBullets, this.player, this.particles));
+    // Temps gelé : on saute la mise à jour des ennemis (mais les balles continuent)
+    if (this.freezeTimer > 0) this.freezeTimer -= dt;
+    else this.enemies.forEach(e => e.update(dt, this.W, this.H, this.enemyBullets, this.player, this.particles));
+    this._tickPowerupExtras(dt);
     this.powerups.forEach(     p => p.update(dt, this.H));
     this.particles.forEach(    p => p.update(dt));
     this.meteors.forEach(      m => m.update(dt, this.W, this.H));
@@ -4924,7 +5359,7 @@ class Game {
           this.audio.explosion(e.type === 'heavy' || e.isBoss);
           e.dead = true;
           if (Math.random() < e.dropChance) {
-            this.powerups.push(new PowerUp(e.x, e.y, ['shield','double','bomb'][randInt(0, 2)]));
+            this.powerups.push(new PowerUp(e.x, e.y, _pickPowerupType()));
           }
         }
         break;
@@ -4962,10 +5397,11 @@ class Game {
       }
     }
 
-    // Balles ennemies → joueur
+    // Balles ennemies → joueur (avec bouclier miroir éventuel)
     for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
       const b = this.enemyBullets[i];
       if (b.dead || !aabb(b.hitbox, this.player.hitbox)) continue;
+      if (this.player.mirror) { this._reflectBullet(b); continue; }
       b.dead = true;
       if (this.player.hit(this.particles, this.audio)) { this.ui.flash('#ff3355', 0.5); this.combo.reset(); }
     }
@@ -4980,7 +5416,7 @@ class Game {
     for (let i = this.powerups.length - 1; i >= 0; i--) {
       const p = this.powerups[i];
       if (!aabb(p.hitbox, this.player.hitbox)) continue;
-      this.player.activatePowerup(p.type, this.audio);
+      this._applyPickup(p);
       spawnExplosion(this.particles, p.x, p.y, p.color, 12);
       this.powerups.splice(i, 1);
     }
@@ -5055,7 +5491,10 @@ class Game {
     // ── Mise à jour des entités ──────────────────────────
     this.playerBullets.forEach(b => b.update(dt, this.W, this.H));
     this.enemyBullets.forEach( b => b.update(dt, this.W, this.H));
-    this.enemies.forEach(      e => e.update(dt, this.W, this.H, this.enemyBullets));
+    // Temps gelé : on saute la mise à jour des ennemis
+    if (this.freezeTimer > 0) this.freezeTimer -= dt;
+    else this.enemies.forEach(e => e.update(dt, this.W, this.H, this.enemyBullets));
+    this._tickPowerupExtras(dt);
     this.powerups.forEach(     p => p.update(dt, this.H));
     this.particles.forEach(    p => p.update(dt));
     this.meteors.forEach(      m => m.update(dt, this.W, this.H));
@@ -5096,10 +5535,9 @@ class Game {
           this.audio.explosion(e.type === 'heavy');
           e.dead = true;
 
-          // Drop power-up aléatoire
+          // Drop power-up aléatoire (pondéré par CFG.PU_WEIGHTS)
           if (Math.random() < e.dropChance) {
-            const types = ['shield','double','bomb'];
-            this.powerups.push(new PowerUp(e.x, e.y, types[randInt(0, 2)]));
+            this.powerups.push(new PowerUp(e.x, e.y, _pickPowerupType()));
           }
         }
         break;
@@ -5137,10 +5575,11 @@ class Game {
       }
     }
 
-    // Balles ennemies → Joueur
+    // Balles ennemies → Joueur (avec bouclier miroir éventuel)
     for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
       const b = this.enemyBullets[i];
       if (b.dead || !aabb(b.hitbox, this.player.hitbox)) continue;
+      if (this.player.mirror) { this._reflectBullet(b); continue; }
       b.dead = true;
       if (this.player.hit(this.particles, this.audio)) {
         this.ui.flash('#ff3355', 0.5);
@@ -5162,7 +5601,7 @@ class Game {
     for (let i = this.powerups.length - 1; i >= 0; i--) {
       const p = this.powerups[i];
       if (!aabb(p.hitbox, this.player.hitbox)) continue;
-      this.player.activatePowerup(p.type, this.audio);
+      this._applyPickup(p);
       spawnExplosion(this.particles, p.x, p.y, p.color, 12);
       this.powerups.splice(i, 1);
     }
@@ -5250,22 +5689,30 @@ class Game {
       // Balles ennemies
       this.enemyBullets.forEach(b => b.draw(ctx));
 
-      // Ennemis (y compris boss)
+      // Ennemis (y compris boss) — teinte bleue si Temps Gelé actif
       this.enemies.forEach(e => e.draw(ctx));
+      if (this.freezeTimer > 0) this._drawFreezeOverlay(ctx);
 
       // Météorites (dangers environnementaux, dessinées après les ennemis)
-      // DEBUG TEMPORAIRE — log uniquement quand le nombre change pour éviter le spam
-      if (window.__METEOR_DEBUG !== false && this._lastMeteorCount !== this.meteors.length) {
-        console.log('Météorites actives:', this.meteors.length);
-        this._lastMeteorCount = this.meteors.length;
-      }
       this.meteors.forEach(m => m.draw(ctx));
 
       // Joueur
       this.player.draw(ctx);
 
+      // Drones de l'essaim (au-dessus du joueur)
+      this.player._drones.forEach(d => d.draw(ctx));
+
+      // Bouclier miroir : aura hexagonale autour du joueur
+      if (this.player.mirror) this._drawMirrorAura(ctx);
+
       // Tempête ionique (zones rouges + éclairs au-dessus du joueur)
       this.ionicStorm.draw(ctx, this.W, this.H);
+
+      // Frappes orbitales (par-dessus)
+      this.orbitalStrikes.forEach(s => s.draw(ctx));
+
+      // Textes flottants de ramassage
+      this._drawPickupFloats(ctx);
 
       // Particules (par-dessus tout le reste)
       this.particles.forEach(p => p.draw(ctx));
