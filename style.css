@@ -121,6 +121,34 @@ html, body {
   opacity: 0.25;
 }
 
+/* ── Avertissement tempête ionique ───────────────────────────── */
+.ionic-warning {
+  position: absolute;
+  top: 110px; left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font);
+  font-weight: 900;
+  font-size: 1rem;
+  letter-spacing: 0.18em;
+  color: #ff3131;
+  text-shadow:
+    0 0 16px rgba(255, 50, 50, 1),
+    0 0 32px rgba(255, 50, 50, 0.7);
+  padding: 8px 22px;
+  border: 2px solid #ff3131;
+  border-radius: 6px;
+  background: rgba(40, 0, 0, 0.55);
+  z-index: 9;
+  pointer-events: none;
+  animation: ionic-blink 0.35s steps(2, end) infinite;
+}
+.ionic-warning.hidden { display: none; }
+
+@keyframes ionic-blink {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0.15; }
+}
+
 /* ════════════════════════════════════════════════════════════════
    COMBO MULTIPLIER (haut centre)
    ════════════════════════════════════════════════════════════════ */

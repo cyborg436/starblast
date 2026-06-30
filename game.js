@@ -524,11 +524,13 @@ const _BOOM_COLORS = {
   heavy:  ['#ff3300','#ff7700','#ffcc00','#ffffff','#ff9944','#ffeeaa'],
   boss:   ['#ff3300','#ff8800','#ffcc00','#ffffff','#00ffdd','#ff88ff','#ffaaaa'],
   titan:  ['#FFD700','#ff8800','#ffffff','#ff3300','#00bbff','#ffee00','#aaffff'],
+  meteor: ['#9a8470','#6b5a48','#3d342a','#c3a988','#bbb3a8','#5e4d3a'],
 };
 
 function spawnBoom(pool, x, y, tier, shakeCb) {
   if (pool.length > 290) return;
-  const cols = _BOOM_COLORS[tier] || _BOOM_COLORS.basic;
+  const colKey = tier.startsWith('meteor') ? 'meteor' : tier;
+  const cols = _BOOM_COLORS[colKey] || _BOOM_COLORS.basic;
 
   const addFX = (vspd, life, size, friction=3, keepSize=false, shape='circle') => {
     const p = _acquireFX();
@@ -579,6 +581,27 @@ function spawnBoom(pool, x, y, tier, shakeCb) {
         pool.push(new ShockWave(x, y, r, 'rgba(255,215,0,0.9)', 0.52 + i * 0.13))
       );
       if (shakeCb) shakeCb(2.0, 16);
+      break;
+
+    case 'meteor-small':
+      for (let i = 0; i < 7; i++) {
+        addFX(140, 0.55, rand(2, 4), 4.2, false, Math.random() < 0.5 ? 'rect' : 'circle');
+      }
+      break;
+
+    case 'meteor-medium':
+      for (let i = 0; i < 14; i++) {
+        addFX(210, 0.8, rand(3, 6), 3.6, false, Math.random() < 0.5 ? 'rect' : 'circle');
+      }
+      pool.push(new ShockWave(x, y, 42, 'rgba(170,140,110,0.65)', 0.32));
+      break;
+
+    case 'meteor-large':
+      for (let i = 0; i < 26; i++) {
+        addFX(290, 1.0, rand(4, 8), 2.9, false, Math.random() < 0.55 ? 'rect' : 'circle');
+      }
+      pool.push(new ShockWave(x, y, 78, 'rgba(190,150,110,0.8)', 0.4));
+      if (shakeCb) shakeCb(0.25, 6);
       break;
   }
 }
@@ -2207,6 +2230,321 @@ class WaveManager {
 }
 
 // ============================================================
+// SECTION 9b — DANGERS ENVIRONNEMENTAUX
+// ============================================================
+// Météorites : polygones rocheux qui traversent l'écran de haut en bas.
+// — Petite  (20 px, 1 HP, 10 pts)
+// — Moyenne (45 px, 3 HP, 25 pts)
+// — Grande  (80 px, 8 HP, 50 pts) → se fragmente en 2-3 petites
+// Tuent le joueur au contact. Ne collisionnent pas avec les ennemis.
+
+const METEOR_DEFS = {
+  small:  { px: 20, hp: 1, score: 10, boom: 'meteor-small',  speedY: [140, 210], drift: 35 },
+  medium: { px: 45, hp: 3, score: 25, boom: 'meteor-medium', speedY:  [95, 165], drift: 28 },
+  large:  { px: 80, hp: 8, score: 50, boom: 'meteor-large',  speedY:  [62, 115], drift: 22 },
+};
+
+class Meteor {
+  constructor(x, y, size /* 'small'|'medium'|'large' */) {
+    const def = METEOR_DEFS[size];
+    this.size  = size;
+    this.x     = x;
+    this.y     = y;
+    this.w     = def.px;
+    this.h     = def.px;
+    this.hp    = def.hp;
+    this.maxHp = def.hp;
+    this.score = def.score;
+    this.vy    = rand(def.speedY[0], def.speedY[1]);
+    this.vx    = rand(-def.drift, def.drift);
+    this.rot   = Math.random() * Math.PI * 2;
+    this.rotV  = (Math.random() - 0.5) * 1.4;
+    this.dead  = false;
+    this.flashTimer = 0;
+    // Polygone irrégulier (8-12 sommets)
+    const n = 8 + (Math.random() * 5 | 0);
+    this.verts = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const r = (def.px * 0.5) * (0.72 + Math.random() * 0.32);
+      this.verts.push([Math.cos(a) * r, Math.sin(a) * r]);
+    }
+    // Cratères / taches (positions relatives [-0.4..0.4])
+    const cn = 2 + (Math.random() * 3 | 0);
+    this.craters = [];
+    for (let i = 0; i < cn; i++) {
+      this.craters.push({
+        x: (Math.random() - 0.5) * def.px * 0.55,
+        y: (Math.random() - 0.5) * def.px * 0.55,
+        r: def.px * (0.06 + Math.random() * 0.09),
+      });
+    }
+    // Teinte gris/brun aléatoire
+    const tint = Math.random();
+    this.col = tint < 0.5
+      ? `rgb(${110 + (Math.random() * 30 | 0)}, ${88 + (Math.random() * 24 | 0)}, ${66 + (Math.random() * 20 | 0)})`   // brun
+      : `rgb(${100 + (Math.random() * 35 | 0)}, ${100 + (Math.random() * 30 | 0)}, ${100 + (Math.random() * 30 | 0)})`; // gris
+    this.dark = 'rgba(30,22,16,0.55)';
+  }
+
+  get hitbox() {
+    const r = this.w * 0.42;
+    return { x: this.x - r, y: this.y - r, w: r * 2, h: r * 2 };
+  }
+
+  update(dt, W, H) {
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.rot += this.rotV * dt;
+    // Rebond doux sur les bords latéraux pour éviter qu'une météorite sorte par le côté en haut
+    if (this.x < this.w * 0.4)            { this.x = this.w * 0.4;       this.vx = Math.abs(this.vx) * 0.85; }
+    else if (this.x > W - this.w * 0.4)   { this.x = W - this.w * 0.4;   this.vx = -Math.abs(this.vx) * 0.85; }
+    if (this.flashTimer > 0) this.flashTimer -= dt;
+    if (this.y > H + this.h) this.dead = true;
+  }
+
+  /** Inflige 1 point de dégât. Retourne true si la météorite est détruite. */
+  hit() {
+    this.hp--;
+    this.flashTimer = 0.06;
+    return this.hp <= 0;
+  }
+
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rot);
+
+    // Polygone principal
+    ctx.beginPath();
+    ctx.moveTo(this.verts[0][0], this.verts[0][1]);
+    for (let i = 1; i < this.verts.length; i++) ctx.lineTo(this.verts[i][0], this.verts[i][1]);
+    ctx.closePath();
+
+    if (this.flashTimer > 0) {
+      ctx.fillStyle = '#ffffff';
+    } else {
+      const g = ctx.createRadialGradient(-this.w * 0.18, -this.h * 0.18, 0, 0, 0, this.w * 0.55);
+      g.addColorStop(0, this.col);
+      g.addColorStop(1, this.dark);
+      ctx.fillStyle = g;
+    }
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(20,15,10,0.7)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // Cratères
+    this.craters.forEach(c => {
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(40,30,20,0.5)';
+      ctx.fill();
+    });
+
+    ctx.restore();
+
+    // Barre de vie (uniquement moyenne et grande)
+    if (this.maxHp > 1 && this.hp < this.maxHp) {
+      const bw = this.w * 0.7;
+      const bh = 3;
+      const bx = this.x - bw / 2;
+      const by = this.y - this.h / 2 - 8;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(bx, by, bw, bh);
+      const ratio = this.hp / this.maxHp;
+      ctx.fillStyle = ratio > 0.5 ? '#bba070' : ratio > 0.25 ? '#dd8844' : '#ff5533';
+      ctx.fillRect(bx, by, bw * ratio, bh);
+    }
+  }
+}
+
+// ── Spawner ────────────────────────────────────────────────────────
+// Fréquence de base : 1 météorite toutes les 4 à 8 secondes.
+// Le délai diminue avec le niveau de vague (jusqu'à un plancher de ~1,5 s).
+class MeteorSpawner {
+  constructor() {
+    this.cd = rand(4, 8);
+  }
+
+  reset() { this.cd = rand(4, 8); }
+
+  update(dt, waveLevel, meteors, W) {
+    this.cd -= dt;
+    if (this.cd > 0) return;
+    // Facteur de fréquence : +7 % par vague, plafonné à ×2.4 (donc cd minimum ≈ 1,7 s)
+    const lvlFactor = Math.min(2.4, 1 + (Math.max(1, waveLevel) - 1) * 0.07);
+    this.cd = rand(4, 8) / lvlFactor;
+
+    // Distribution des tailles — large devient plus fréquent en fin de partie
+    const r = Math.random();
+    const largeP  = Math.min(0.32, 0.10 + waveLevel * 0.012);
+    const mediumP = 0.40;
+    let size = 'small';
+    if (r < largeP)               size = 'large';
+    else if (r < largeP + mediumP) size = 'medium';
+
+    const def = METEOR_DEFS[size];
+    const x = clamp(rand(def.px * 0.6, W - def.px * 0.6), def.px, W - def.px);
+    meteors.push(new Meteor(x, -def.px, size));
+  }
+
+  /** Fragmente une grande météorite en 2-3 petites. */
+  static fragment(meteor, meteors) {
+    if (meteor.size !== 'large') return;
+    const n = 2 + (Math.random() < 0.5 ? 1 : 0);
+    for (let i = 0; i < n; i++) {
+      const angle = (i / n) * Math.PI * 2 + Math.random() * 0.6;
+      const sx = meteor.x + Math.cos(angle) * 18;
+      const sy = meteor.y + Math.sin(angle) * 12 - 6;
+      const frag = new Meteor(sx, sy, 'small');
+      // Donner aux fragments une impulsion d'éclatement
+      frag.vx = Math.cos(angle) * 80 + meteor.vx * 0.4;
+      frag.vy = Math.max(60, Math.sin(angle) * 60 + meteor.vy * 0.7);
+      frag.rotV = (Math.random() - 0.5) * 3.2;
+      meteors.push(frag);
+    }
+  }
+}
+
+// ── Tempête ionique ─────────────────────────────────────────────────
+// Survie uniquement.
+// Cycle : idle → warning (3 s) → active (10 s) → idle (cd 180 s)
+// Pendant active : éclairs verticaux spawn toutes ~0,6 s, précédés
+// d'une zone rouge 1 s avant l'éclair (couloir vertical).
+class IonicStorm {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.state      = 'idle';        // 'idle' | 'warning' | 'active'
+    this.cd         = 180;            // 3 minutes avant la prochaine tempête
+    this.warnT      = 0;
+    this.activeT    = 0;
+    this.zones      = [];             // zones d'impact en attente { x, w, fuse }
+    this.bolts      = [];             // éclairs visuels { x, w, life }
+    this.zoneSpawnCd = 0;
+  }
+
+  /** L'écran d'avertissement clignote-t-il ? */
+  get warningActive() { return this.state === 'warning'; }
+  get isActive()      { return this.state === 'active' || this.state === 'warning'; }
+
+  update(dt, W, H, player, hitCallback) {
+    if (this.state === 'idle') {
+      this.cd -= dt;
+      if (this.cd <= 0) { this.state = 'warning'; this.warnT = 3.0; }
+      return;
+    }
+    if (this.state === 'warning') {
+      this.warnT -= dt;
+      if (this.warnT <= 0) {
+        this.state    = 'active';
+        this.activeT  = 10.0;
+        this.zoneSpawnCd = 0.05;
+      }
+      return;
+    }
+    // active
+    this.activeT -= dt;
+    this.zoneSpawnCd -= dt;
+    if (this.zoneSpawnCd <= 0 && this.activeT > 1.0) {
+      // Nouveau couloir d'impact (largeur 20-44 px) — préavis 1 s
+      const w = rand(20, 44);
+      const x = clamp(rand(w, W - w), w, W - w);
+      this.zones.push({ x, w, fuse: 1.0 });
+      this.zoneSpawnCd = rand(0.45, 0.85);
+    }
+
+    // Faire mûrir les zones — déclenche les éclairs et inflige les dégâts
+    for (let i = this.zones.length - 1; i >= 0; i--) {
+      const z = this.zones[i];
+      z.fuse -= dt;
+      if (z.fuse <= 0) {
+        // Éclair instantané
+        this.bolts.push({ x: z.x, w: z.w, life: 0.28, segs: this._genSegments(z.x, W, H) });
+        // Hit-test joueur
+        if (player && Math.abs(player.x - z.x) < (z.w / 2 + player.w * 0.32)) {
+          hitCallback();
+        }
+        this.zones.splice(i, 1);
+      }
+    }
+    // Faire mourir les éclairs
+    for (let i = this.bolts.length - 1; i >= 0; i--) {
+      this.bolts[i].life -= dt;
+      if (this.bolts[i].life <= 0) this.bolts.splice(i, 1);
+    }
+
+    if (this.activeT <= 0 && this.zones.length === 0 && this.bolts.length === 0) {
+      this.state = 'idle';
+      this.cd    = 180;
+    }
+  }
+
+  /** Pré-calcule les segments zigzag d'un éclair. */
+  _genSegments(x, W, H) {
+    const segs = [];
+    let cy = -10;
+    let cx = x;
+    while (cy < H + 10) {
+      const ny = cy + rand(14, 26);
+      const nx = clamp(x + (Math.random() - 0.5) * 22, 6, W - 6);
+      segs.push([cx, cy, nx, ny]);
+      cx = nx;
+      cy = ny;
+    }
+    return segs;
+  }
+
+  draw(ctx, W, H) {
+    if (this.state === 'idle') return;
+
+    // Zones d'impact rouges (avertissement avant éclair)
+    this.zones.forEach(z => {
+      const alpha = 0.16 + 0.34 * (1 - z.fuse);
+      const g = ctx.createLinearGradient(z.x, 0, z.x, H);
+      g.addColorStop(0,   `rgba(255, 40, 40, 0)`);
+      g.addColorStop(0.5, `rgba(255, 40, 40, ${alpha})`);
+      g.addColorStop(1,   `rgba(255, 40, 40, 0)`);
+      ctx.fillStyle = g;
+      ctx.fillRect(z.x - z.w / 2, 0, z.w, H);
+      // Bordures pulsantes
+      ctx.strokeStyle = `rgba(255,80,80,${0.5 + 0.5 * Math.sin(Date.now() * 0.025)})`;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(z.x - z.w / 2, 0); ctx.lineTo(z.x - z.w / 2, H);
+      ctx.moveTo(z.x + z.w / 2, 0); ctx.lineTo(z.x + z.w / 2, H);
+      ctx.stroke();
+    });
+
+    // Éclairs (lignes zigzag bleu/blanc)
+    this.bolts.forEach(b => {
+      const a = Math.min(1, b.life / 0.28);
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = '#e6f4ff';
+      ctx.lineWidth = 3.2;
+      ctx.shadowColor = '#88bfff';
+      ctx.shadowBlur = 22;
+      ctx.beginPath();
+      b.segs.forEach(([x1, y1, x2, y2], i) => {
+        if (i === 0) ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+      });
+      ctx.stroke();
+      // Halo bleu plus large
+      ctx.strokeStyle = 'rgba(120,180,255,0.85)';
+      ctx.lineWidth = 7;
+      ctx.shadowBlur = 30;
+      ctx.stroke();
+      ctx.restore();
+    });
+  }
+}
+
+// ============================================================
 // SECTION 10 — GESTION DES ENTRÉES (clavier + joystick tactile)
 // ============================================================
 class InputManager {
@@ -2337,6 +2675,7 @@ class UIManager {
     this.$comboBox   = document.getElementById('hud-combo-box');
     this.$comboMult  = document.getElementById('hud-combo-mult');
     this.$comboBar   = document.getElementById('hud-combo-bar');
+    this.$ionicWarn  = document.getElementById('ionic-warning');
     this._coinAnimId = null;   // RAF id de l'animation de comptage
   }
 
@@ -2391,6 +2730,12 @@ class UIManager {
     el.textContent = `+COMBO ×${tier}`;
     host.appendChild(el);
     setTimeout(() => el.remove(), 1100);
+  }
+
+  /** Affiche ou masque le bandeau "TEMPÊTE IONIQUE". */
+  setIonicWarning(visible) {
+    if (!this.$ionicWarn) return;
+    this.$ionicWarn.classList.toggle('hidden', !visible);
   }
 
   updatePowerupBar(player) {
@@ -4009,6 +4354,9 @@ class Game {
     this.story       = new StoryManager();
     this.titleScene  = new TitleScene(this.W, this.H);
     this.combo       = new ComboManager();
+    this.meteors        = [];
+    this.meteorSpawner  = new MeteorSpawner();
+    this.ionicStorm     = new IonicStorm();
     this.battlepass  = new BattlePass(this.shop);
     this.battlepassUI = new BattlePassUI(
       this.battlepass,
@@ -4265,6 +4613,9 @@ class Game {
     this.enemyBullets  = [];
     this.particles     = [];
     this.powerups      = [];
+    this.meteors       = [];
+    this.meteorSpawner.reset();
+    this.ionicStorm.reset();
 
     this.player             = new Player(this.W / 2, this.H - 90);
     this.player.skin        = this.shop.equippedSkin;
@@ -4302,6 +4653,9 @@ class Game {
     this.enemyBullets   = [];
     this.particles      = [];
     this.powerups       = [];
+    this.meteors        = [];
+    this.meteorSpawner.reset();
+    this.ionicStorm.reset();   // pas de tempête en histoire mais on garde le contrôleur muet
 
     this.player             = new Player(this.W / 2, this.H - 90);
     this.player.skin        = this.shop.equippedSkin;
@@ -4395,6 +4749,8 @@ class Game {
     musicManager.stop();
     this.state = 'gameover';
     this.combo.reset(); this.ui.updateCombo(this.combo);
+    this.ui.setIonicWarning(false);
+    this.ionicStorm.reset();
     const score = this.player.score;
 
     // Meilleur score
@@ -4454,6 +4810,10 @@ class Game {
     this.enemies.forEach(      e => e.update(dt, this.W, this.H, this.enemyBullets, this.player, this.particles));
     this.powerups.forEach(     p => p.update(dt, this.H));
     this.particles.forEach(    p => p.update(dt));
+    this.meteors.forEach(      m => m.update(dt, this.W, this.H));
+
+    // Spawn de météorites (histoire — utilise le numéro de vague)
+    this.meteorSpawner.update(dt, this.storyCtrl?.waveNum || 1, this.meteors, this.W);
 
     // Déclenchement alerte boss (son)
     if (this.storyCtrl.needsBossAlert) {
@@ -4521,6 +4881,35 @@ class Game {
         }
         break;
       }
+      if (b.dead) continue;
+
+      // Balles joueur → météorites
+      for (let j = this.meteors.length - 1; j >= 0; j--) {
+        const m = this.meteors[j];
+        if (m.dead || !aabb(b.hitbox, m.hitbox)) continue;
+        b.dead = true;
+        spawnExplosion(this.particles, b.x, b.y, '#bba070', 4);
+        if (m.hit()) {
+          this.player.score += this.combo.addKill(m.score);
+          spawnBoom(this.particles, m.x, m.y, METEOR_DEFS[m.size].boom, (d, i) => this._triggerShake(d, i));
+          this.audio.explosion(m.size === 'large');
+          if (m.size === 'large') MeteorSpawner.fragment(m, this.meteors);
+          m.dead = true;
+        }
+        break;
+      }
+    }
+
+    // Joueur → météorites
+    for (const m of this.meteors) {
+      if (m.dead || !aabb(m.hitbox, this.player.hitbox)) continue;
+      if (this.player.hit(this.particles, this.audio)) {
+        this.ui.flash('#bba070', 0.55);
+        this.combo.reset();
+        spawnBoom(this.particles, m.x, m.y, METEOR_DEFS[m.size].boom, (d, i) => this._triggerShake(d, i));
+        if (m.size === 'large') MeteorSpawner.fragment(m, this.meteors);
+        m.dead = true;
+      }
     }
 
     // Balles ennemies → joueur
@@ -4551,6 +4940,7 @@ class Game {
     this.enemyBullets  = this.enemyBullets.filter( b => !b.dead);
     this.enemies       = this.enemies.filter(      e => !e.dead);
     this.powerups      = this.powerups.filter(     p => !p.dead);
+    this.meteors       = this.meteors.filter(      m => !m.dead);
     cleanParticles(this.particles);
 
     // Contrôleur de vagues histoire
@@ -4607,6 +4997,17 @@ class Game {
     this.enemies.forEach(      e => e.update(dt, this.W, this.H, this.enemyBullets));
     this.powerups.forEach(     p => p.update(dt, this.H));
     this.particles.forEach(    p => p.update(dt));
+    this.meteors.forEach(      m => m.update(dt, this.W, this.H));
+
+    // ── Dangers environnementaux (Survie) ────────────────
+    this.meteorSpawner.update(dt, this.wave.level, this.meteors, this.W);
+    this.ionicStorm.update(dt, this.W, this.H, this.player, () => {
+      if (this.player.hit(this.particles, this.audio)) {
+        this.ui.flash('#88bfff', 0.6);
+        this.combo.reset();
+      }
+    });
+    this.ui.setIonicWarning(this.ionicStorm.warningActive);
 
     // ── Détection de collisions ──────────────────────────
 
@@ -4639,6 +5040,35 @@ class Game {
           }
         }
         break;
+      }
+      if (b.dead) continue;
+
+      // Balles joueur → météorites
+      for (let j = this.meteors.length - 1; j >= 0; j--) {
+        const m = this.meteors[j];
+        if (m.dead || !aabb(b.hitbox, m.hitbox)) continue;
+        b.dead = true;
+        spawnExplosion(this.particles, b.x, b.y, '#bba070', 4);
+        if (m.hit()) {
+          this.player.score += this.combo.addKill(m.score);
+          spawnBoom(this.particles, m.x, m.y, METEOR_DEFS[m.size].boom, (d, i) => this._triggerShake(d, i));
+          this.audio.explosion(m.size === 'large');
+          if (m.size === 'large') MeteorSpawner.fragment(m, this.meteors);
+          m.dead = true;
+        }
+        break;
+      }
+    }
+
+    // Joueur → météorites (mort au contact)
+    for (const m of this.meteors) {
+      if (m.dead || !aabb(m.hitbox, this.player.hitbox)) continue;
+      if (this.player.hit(this.particles, this.audio)) {
+        this.ui.flash('#bba070', 0.55);
+        this.combo.reset();
+        spawnBoom(this.particles, m.x, m.y, METEOR_DEFS[m.size].boom, (d, i) => this._triggerShake(d, i));
+        if (m.size === 'large') MeteorSpawner.fragment(m, this.meteors);
+        m.dead = true;
       }
     }
 
@@ -4677,6 +5107,7 @@ class Game {
     this.enemyBullets  = this.enemyBullets.filter( b => !b.dead);
     this.enemies       = this.enemies.filter(      e => !e.dead);
     this.powerups      = this.powerups.filter(     p => !p.dead);
+    this.meteors       = this.meteors.filter(      m => !m.dead);
     cleanParticles(this.particles);
 
     // ── Gestion des vagues ───────────────────────────────
@@ -4748,8 +5179,14 @@ class Game {
       // Ennemis (y compris boss)
       this.enemies.forEach(e => e.draw(ctx));
 
+      // Météorites (dangers environnementaux, dessinées après les ennemis)
+      this.meteors.forEach(m => m.draw(ctx));
+
       // Joueur
       this.player.draw(ctx);
+
+      // Tempête ionique (zones rouges + éclairs au-dessus du joueur)
+      this.ionicStorm.draw(ctx, this.W, this.H);
 
       // Particules (par-dessus tout le reste)
       this.particles.forEach(p => p.draw(ctx));
