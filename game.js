@@ -360,6 +360,16 @@ const aabb = (a, b) =>
 // ============================================================
 // SECTION 3 — FOND ÉTOILÉ EN PARALLAXE
 // ============================================================
+// ── Palettes de fond par contexte ─────────────────────────────
+// Utilisé par StarField pour teinter la nébuleuse selon le niveau Histoire.
+const BG_PALETTES = {
+  default: { neb1: [30, 20, 90],   neb2: [12, 25, 60],   accent: [60, 60, 130], starTint: '#ffffff' },
+  cold:    { neb1: [15, 30, 95],   neb2: [8, 20, 55],    accent: [40, 80, 160], starTint: '#eaf2ff' },  // niv 1-3
+  hot:     { neb1: [140, 30, 20],  neb2: [80, 20, 15],   accent: [180, 60, 30], starTint: '#ffe0cc' },  // niv 4-6
+  wreck:   { neb1: [20, 15, 25],   neb2: [10, 8, 15],    accent: [90, 80, 70],  starTint: '#dddddd' },  // niv 7-9
+  inferno: { neb1: [180, 40, 15],  neb2: [110, 20, 8],   accent: [230, 100, 30],starTint: '#ffcc88' },  // niv 10
+};
+
 class StarField {
   constructor(w, h) {
     // 3 couches : lente (fond), moyenne, rapide (avant-plan)
@@ -374,6 +384,61 @@ class StarField {
       for (let i = 0; i < n; i++)
         l.stars.push({ x: rand(0, w), y: rand(0, h), tw: rand(0, Math.PI * 2) });
     });
+
+    // ── Nébuleuse (blobs qui dérivent lentement) ──
+    this.palette = BG_PALETTES.default;
+    this.nebulas = [];
+    for (let i = 0; i < 4; i++) {
+      this.nebulas.push({
+        x: rand(0, w), y: rand(-h * 0.2, h * 1.2),
+        r: rand(120, 220),
+        vy: rand(4, 12),
+        vx: rand(-3, 3),
+        phase: rand(0, Math.PI * 2),
+      });
+    }
+
+    // ── Débris spatiaux (petits fragments décoratifs) ──
+    this.debris = [];
+    for (let i = 0; i < 14; i++) this.debris.push(this._newDebris(true));
+
+    // ── Éclair distant (flash très bref toutes les 30-60 s) ──
+    this._lightningTimer = rand(20, 40);   // premier flash rapide
+    this._lightningFlash = 0;
+
+    // Offscreen canvas pour la nébuleuse (redraw seulement quand nécessaire)
+    this._nebCanvas = null; this._nebDirty = true;
+  }
+
+  _newDebris(anywhere) {
+    return {
+      x: rand(0, this.w),
+      y: anywhere ? rand(-this.h * 0.2, this.h) : rand(-this.h * 0.15, -8),
+      vy: rand(14, 32),
+      vx: rand(-4, 4),
+      rot: rand(0, Math.PI * 2),
+      rotV: rand(-0.4, 0.4),
+      size: rand(1.8, 4.5),
+      color: Math.random() < 0.7 ? '#7a6a55' : '#95a0aa',
+      verts: (() => {
+        const n = 3 + (Math.random() * 3 | 0);
+        const arr = [];
+        for (let k = 0; k < n; k++) {
+          const a = (k / n) * Math.PI * 2;
+          const rr = 0.6 + Math.random() * 0.5;
+          arr.push([Math.cos(a) * rr, Math.sin(a) * rr]);
+        }
+        return arr;
+      })(),
+    };
+  }
+
+  /** Applique une palette de fond (par ex. selon le niveau Histoire). */
+  setPalette(name) {
+    const p = BG_PALETTES[name] || BG_PALETTES.default;
+    if (p === this.palette) return;
+    this.palette = p;
+    this._nebDirty = true;
   }
 
   update(dt) {
@@ -384,19 +449,92 @@ class StarField {
         if (s.y > this.h + 2) { s.y = -2; s.x = rand(0, this.w); }
       });
     });
+    // Nébuleuse : dérive très lente
+    this.nebulas.forEach(n => {
+      n.y += n.vy * dt;
+      n.x += n.vx * dt;
+      n.phase += dt * 0.4;
+      if (n.y - n.r > this.h) { n.y = -n.r * 1.1; n.x = rand(0, this.w); }
+      if (n.x < -n.r) n.x = this.w + n.r;
+      if (n.x > this.w + n.r) n.x = -n.r;
+    });
+    // Débris
+    for (let i = this.debris.length - 1; i >= 0; i--) {
+      const d = this.debris[i];
+      d.y += d.vy * dt; d.x += d.vx * dt; d.rot += d.rotV * dt;
+      if (d.y > this.h + 20) { this.debris[i] = this._newDebris(false); }
+    }
+    // Éclair distant
+    if (this._lightningFlash > 0) this._lightningFlash -= dt;
+    this._lightningTimer -= dt;
+    if (this._lightningTimer <= 0) {
+      this._lightningTimer = rand(30, 60);
+      this._lightningFlash = 0.28;
+    }
   }
 
+  /** Dessine le fond (nébuleuse + débris + étoiles). */
   draw(ctx) {
+    // Nébuleuse dérivante (couche 0, très lente)
+    const p = this.palette;
+    this.nebulas.forEach(n => {
+      const alpha = 0.10 + 0.05 * Math.sin(n.phase);
+      const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
+      g.addColorStop(0, `rgba(${p.neb1[0]},${p.neb1[1]},${p.neb1[2]},${alpha * 1.6})`);
+      g.addColorStop(0.55, `rgba(${p.neb2[0]},${p.neb2[1]},${p.neb2[2]},${alpha * 0.85})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.fill();
+    });
+    // Débris (dessous les étoiles)
+    this.debris.forEach(d => {
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      ctx.rotate(d.rot);
+      ctx.fillStyle = d.color;
+      ctx.globalAlpha = 0.6;
+      ctx.beginPath();
+      d.verts.forEach(([vx, vy], i) => {
+        const x = vx * d.size, y = vy * d.size;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    });
+    // Étoiles (couches parallaxe)
     this.layers.forEach(l => {
       l.stars.forEach(s => {
-        // Légère pulsation alpha
         const a = l.alpha * (0.7 + 0.3 * Math.sin(s.tw));
-        ctx.fillStyle = `rgba(255,255,255,${a})`;
+        ctx.fillStyle = `${p.starTint === '#ffffff' ? 'rgba(255,255,255,'+a+')' : p.starTint}`;
+        if (p.starTint !== '#ffffff') ctx.globalAlpha = a;
         ctx.beginPath();
         ctx.arc(s.x, s.y, l.r, 0, Math.PI * 2);
         ctx.fill();
+        if (p.starTint !== '#ffffff') ctx.globalAlpha = 1;
       });
     });
+    // Éclair distant (flash blanc très bref)
+    if (this._lightningFlash > 0) {
+      const flash = this._lightningFlash;
+      const alpha = flash > 0.24 ? 0.30 : flash > 0.20 ? 0.55 : flash * 1.5;
+      ctx.fillStyle = `rgba(200,230,255,${alpha})`;
+      ctx.fillRect(0, 0, this.w, this.h);
+      // Décharge ramifiée
+      if (flash > 0.18) {
+        ctx.strokeStyle = `rgba(240,255,255,0.85)`;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        let x = rand(this.w * 0.1, this.w * 0.9);
+        let y = 0;
+        ctx.moveTo(x, y);
+        while (y < this.h * 0.6) {
+          x += rand(-14, 14); y += rand(8, 20);
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    }
   }
 }
 
@@ -1527,6 +1665,12 @@ class Player {
     // Traînée moteur
     this._thrustParticles = [];
     this._thrustCd = 0;
+
+    // Effets visuels (VFX)
+    this._prevX = x; this._prevY = y;
+    this._moveMag = 0;                // magnitude de déplacement (0..1)
+    this._trailBuffer = [];           // positions récentes pour motion trail
+    this._smokeCd = 0;                // spawn cooldown fumée basse vie
   }
 
   // Hitbox réduite (plus fair pour le joueur)
@@ -1668,6 +1812,38 @@ class Player {
       if (this.invTimer <= 0) { this.invincible = false; this.visible = true; }
     }
 
+    // Calcul de la magnitude de déplacement pour VFX
+    const dxMove = this.x - this._prevX, dyMove = this.y - this._prevY;
+    const speed = Math.hypot(dxMove, dyMove) / Math.max(0.001, dt);
+    // Normalise 0..1 (vitesse max théorique ≈ 850 px/s en X + 290 en Y)
+    this._moveMag = Math.min(1, speed / 800);
+    this._prevX = this.x; this._prevY = this.y;
+
+    // Motion trail : garde la position à chaque frame (max 6 échantillons)
+    if (this._moveMag > 0.3) {
+      this._trailBuffer.push({ x: this.x, y: this.y, life: 0.28 });
+      if (this._trailBuffer.length > 6) this._trailBuffer.shift();
+    }
+    for (let i = this._trailBuffer.length - 1; i >= 0; i--) {
+      this._trailBuffer[i].life -= dt;
+      if (this._trailBuffer[i].life <= 0) this._trailBuffer.splice(i, 1);
+    }
+
+    // Fumée quand 1 vie restante — particules grises continues
+    if (this.lives <= 1) {
+      this._smokeCd -= dt;
+      if (this._smokeCd <= 0) {
+        this._smokeCd = 0.10;
+        this._thrustParticles.push(new Particle(
+          this.x + rand(-8, 8),
+          this.y - this.h * 0.1,
+          rand(-15, 15), rand(-30, -60),
+          `rgba(${140 + (Math.random()*40|0)},${140 + (Math.random()*40|0)},${140 + (Math.random()*40|0)},0.7)`,
+          rand(0.5, 1.2), rand(2, 4)
+        ));
+      }
+    }
+
     // Particules traînée moteur
     this._thrustCd -= dt;
     if (this._thrustCd <= 0) {
@@ -1765,10 +1941,57 @@ class Player {
     // Traînée moteur
     this._thrustParticles.forEach(p => p.draw(ctx));
 
+    // Motion trail : fantômes semi-transparents à la position récente
+    if (this._trailBuffer && this._trailBuffer.length > 0 && this._moveMag > 0.35) {
+      const renderer = SKIN_RENDERERS[this.skin] || SKIN_RENDERERS.starter;
+      this._trailBuffer.forEach(t => {
+        const alpha = Math.max(0, t.life / 0.28) * 0.35;
+        if (alpha <= 0.02) return;
+        ctx.save();
+        ctx.translate(t.x, t.y);
+        ctx.globalAlpha = alpha;
+        renderer(ctx, this.w, this.h);
+        ctx.restore();
+      });
+    }
+
     if (!this.visible) return;
 
     ctx.save();
     ctx.translate(this.x, this.y);
+
+    // Flammes réacteur — s'allongent avec le mouvement
+    const flameLen = this.h * (0.28 + this._moveMag * 0.55);
+    const flameW   = this.w * 0.20;
+    const t = Date.now() * 0.02;
+    const flick = 0.85 + 0.15 * Math.sin(t * 8);
+    ctx.save();
+    ctx.translate(0, this.h * 0.42);
+    // Flamme externe (orange, plus large)
+    const gFlame = ctx.createLinearGradient(0, 0, 0, flameLen);
+    gFlame.addColorStop(0, `rgba(255,180,80,${0.85 * flick})`);
+    gFlame.addColorStop(0.6, `rgba(255,100,40,${0.5 * flick})`);
+    gFlame.addColorStop(1, 'rgba(255,60,20,0)');
+    ctx.fillStyle = gFlame;
+    ctx.beginPath();
+    ctx.moveTo(-flameW, 0);
+    ctx.quadraticCurveTo(0, flameLen * 1.15, flameW, 0);
+    ctx.closePath();
+    ctx.shadowColor = '#ff7722'; ctx.shadowBlur = 12;
+    ctx.fill();
+    // Cœur bleu-blanc (plus court)
+    ctx.shadowBlur = 0;
+    const gCore = ctx.createLinearGradient(0, 0, 0, flameLen * 0.7);
+    gCore.addColorStop(0, `rgba(255,255,255,${0.9 * flick})`);
+    gCore.addColorStop(0.5, `rgba(180,230,255,${0.7 * flick})`);
+    gCore.addColorStop(1, 'rgba(80,180,255,0)');
+    ctx.fillStyle = gCore;
+    ctx.beginPath();
+    ctx.moveTo(-flameW * 0.5, 0);
+    ctx.quadraticCurveTo(0, flameLen * 0.75, flameW * 0.5, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
 
     // Corps selon le skin équipé
     const renderer = SKIN_RENDERERS[this.skin] || SKIN_RENDERERS.starter;
@@ -1864,6 +2087,40 @@ class Bullet {
 
   draw(ctx) {
     ctx.save();
+    // ── Traînée lumineuse générique (derrière le projectile) ──
+    // Ne s'active pas pour les projectiles à traînée custom (meteor, missile, plasma)
+    if (this.fromPlayer && this.laserType !== 'meteor' && !this.isMissile && !this.isPlasma) {
+      const dir = Math.atan2(this.vy, this.vx);
+      const tailLen = this.h * 2.2;
+      const tx1 = this.x - Math.cos(dir) * tailLen;
+      const ty1 = this.y - Math.sin(dir) * tailLen;
+      const grad = ctx.createLinearGradient(tx1, ty1, this.x, this.y);
+      grad.addColorStop(0, 'rgba(255,255,255,0)');
+      grad.addColorStop(1, this.color && this.color.startsWith('#') ? this.color + 'aa' : this.color || 'rgba(255,255,255,0.7)');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = Math.max(1, this.w * 0.75);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(tx1, ty1);
+      ctx.lineTo(this.x, this.y);
+      ctx.stroke();
+    } else if (!this.fromPlayer) {
+      // Traînée courte pour balles ennemies
+      const tailLen = this.h * 1.8;
+      const dir = Math.atan2(this.vy, this.vx);
+      const tx1 = this.x - Math.cos(dir) * tailLen;
+      const ty1 = this.y - Math.sin(dir) * tailLen;
+      const grad = ctx.createLinearGradient(tx1, ty1, this.x, this.y);
+      grad.addColorStop(0, 'rgba(255,80,80,0)');
+      grad.addColorStop(1, this.color || 'rgba(255,80,80,0.7)');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = Math.max(1.5, this.w * 0.6);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(tx1, ty1);
+      ctx.lineTo(this.x, this.y);
+      ctx.stroke();
+    }
     if (this.fromPlayer) {
       const lt = this.laserType;
       const isPhantom = lt === 'phantom';
@@ -2999,6 +3256,14 @@ class UIManager {
 
   // ── HUD ──────────────────────────────────────────────────
   updateHUD(score, level, lives, hs) {
+    const prevScore = this._prevScore ?? 0;
+    if (score > prevScore) {
+      // Bump animation via classe CSS
+      this.$score.classList.remove('score-bump');
+      void this.$score.offsetWidth;   // force reflow
+      this.$score.classList.add('score-bump');
+    }
+    this._prevScore = score;
     this.$score.textContent = score.toLocaleString('fr-FR');
     this.$level.textContent = level;
     this.$hs.textContent    = hs.toLocaleString('fr-FR');
@@ -3104,6 +3369,12 @@ class UIManager {
 
   // ── Écrans ───────────────────────────────────────────────
   showScreen(name) {
+    // Fondu noir 0.3 s à chaque transition
+    const fade = document.getElementById('screen-fade');
+    if (fade) {
+      fade.classList.add('active');
+      setTimeout(() => fade.classList.remove('active'), 300);
+    }
     ['start','gameover','pause','shop','story-select','story-victory','story-failed','final-victory','battlepass','achievements','leaderboard','bossrush-victory','bossrush-failed'].forEach(id => {
       const el = document.getElementById(`screen-${id}`);
       if (el) el.classList.toggle('active', id === name);
@@ -3196,10 +3467,10 @@ class UIManager {
   // ── Notifications ────────────────────────────────────────
   showLevelNotif(level) {
     if (!this.$notif) return;
-    this.$notif.textContent = `NIVEAU ${level}`;
-    this.$notif.classList.remove('show');
+    this.$notif.textContent = `VAGUE ${level}`;
+    this.$notif.classList.remove('show', 'wave-zoom');
     void this.$notif.offsetWidth; // force reflow pour relancer l'animation CSS
-    this.$notif.classList.add('show');
+    this.$notif.classList.add('show', 'wave-zoom');
   }
 
   flash(color = 'white', opacity = 0.45) {
@@ -5103,8 +5374,11 @@ class Game {
     if (this.dangerZones)    this.dangerZones.reset();
     if (this.survivalEvents) this.survivalEvents.reset();
     this._nextFormationOn = 5;   // formations à partir de la vague 5
+    this._deathPending    = false;
+    this._slowMoTimer     = 0;
 
     musicManager.play('afterburn');
+    this.stars.setPalette('default');
     this.ui.hideScreens();
     this.ui.showLevelNotif(1);
     this.ui.updateHUD(0, 1, CFG.LIVES, this.highscore);
@@ -5154,9 +5428,13 @@ class Game {
     this._prevLives = CFG.LIVES;
     this.weapons.rechargeAll();
     this._survivalMode = false;
+    this._deathPending = false; this._slowMoTimer = 0;
 
     const _storyTrack = levelId <= 3 ? 'frontier' : levelId <= 6 ? 'tension' : 'assault';
     musicManager.play(_storyTrack);
+    // Palette de fond selon le niveau
+    const pal = levelId <= 3 ? 'cold' : levelId <= 6 ? 'hot' : levelId === 10 ? 'inferno' : 'wreck';
+    this.stars.setPalette(pal);
     this.ui.hideScreens();
     this.ui.showLevelNotif(levelId);
     this.ui.updateHUD(0, 1, CFG.LIVES, this.highscore);
@@ -5260,6 +5538,7 @@ class Game {
     this._playMode = 'bossrush';
     this.state     = 'bossrush-playing';
     this._survivalMode = false;
+    this._deathPending = false; this._slowMoTimer = 0;
     this.lastTime  = performance.now();
     this.combo.reset();
     this.achievements.onRunStart();
@@ -5934,7 +6213,11 @@ class Game {
 
     // Conditions de fin
     if (this.storyCtrl.done)        this._storyVictory();
-    else if (this.player.lives <= 0) this._storyFailed();
+    else if (this.player.lives <= 0 && !this._deathPending) {
+      this._deathPending = true; this._slowMoTimer = 1.0;
+      this.ui.flash('#ff2244', 0.7);
+      setTimeout(() => { this._deathPending = false; this._slowMoTimer = 0; this._storyFailed(); }, 1050);
+    }
   }
 
   // ============================================================
@@ -6037,8 +6320,20 @@ class Game {
     if (fortressBoss && fortressBoss.shieldActive > 0) {
       this.playerBullets.forEach(b => {
         const dx = b.x - fortressBoss.x, dy = b.y - fortressBoss.y;
-        if (Math.hypot(dx, dy) < fortressBoss.w * 0.65 && Math.hypot(dx, dy) > fortressBoss.w * 0.5) {
-          if (!b._fortressBlocked) { b._fortressBlocked = true; b.dead = true; }
+        const d = Math.hypot(dx, dy);
+        if (d < fortressBoss.w * 0.65 && d > fortressBoss.w * 0.5) {
+          if (!b._fortressBlocked) {
+            b._fortressBlocked = true; b.dead = true;
+            // Étincelles bleues à l'impact du bouclier
+            for (let s = 0; s < 6; s++) {
+              const ang = Math.atan2(dy, dx) + rand(-0.4, 0.4);
+              this.particles.push(new Particle(b.x, b.y,
+                Math.cos(ang) * rand(80, 140),
+                Math.sin(ang) * rand(80, 140),
+                '#88ddff', rand(0.25, 0.45), rand(1.5, 3)
+              ));
+            }
+          }
         }
       });
     }
@@ -6160,7 +6455,11 @@ class Game {
     this.ui.updatePowerupBar(this.player);
     this.ui.updateAdrenaline(null);
 
-    if (this.player.lives <= 0) this._bossRushFailed();
+    if (this.player.lives <= 0 && !this._deathPending) {
+      this._deathPending = true; this._slowMoTimer = 1.0;
+      this.ui.flash('#ff2244', 0.7);
+      setTimeout(() => { this._deathPending = false; this._slowMoTimer = 0; this._bossRushFailed(); }, 1050);
+    }
   }
 
   /** Injecte des ennemis spéciaux dans la file de la prochaine vague. */
@@ -6578,8 +6877,17 @@ class Game {
     this.ui.updatePowerupBar(this.player);
     this.ui.updateAdrenaline(this.adrenaline);
 
-    // ── Fin de partie ────────────────────────────────────
-    if (this.player.lives <= 0) this._gameOver();
+    // ── Fin de partie : déclenche ralenti d'agonie 1 s avant _gameOver ──
+    if (this.player.lives <= 0 && !this._deathPending) {
+      this._deathPending = true;
+      this._slowMoTimer = 1.0;
+      this.ui.flash('#ff2244', 0.7);
+      setTimeout(() => {
+        this._deathPending = false;
+        this._slowMoTimer = 0;
+        this._gameOver();
+      }, 1050);
+    }
   }
 
   // ============================================================
@@ -6880,8 +7188,15 @@ class Game {
   // BOUCLE PRINCIPALE (requestAnimationFrame)
   // ============================================================
   _loop(timestamp) {
-    const dt = this.lastTime ? Math.min((timestamp - this.lastTime) / 1000, 0.05) : 0;
+    let dt = this.lastTime ? Math.min((timestamp - this.lastTime) / 1000, 0.05) : 0;
     this.lastTime = timestamp;
+
+    // Ralenti d'agonie (avant Game Over) : 20 % de vitesse pendant 1 s
+    if (this._slowMoTimer && this._slowMoTimer > 0) {
+      const factor = 0.20;
+      this._slowMoTimer -= dt;
+      dt = dt * factor;
+    }
 
     // Les étoiles s'animent en dehors des états "en jeu actif"
     if (this.state !== 'playing' && this.state !== 'story-playing' && this.state !== 'bossrush-playing') this.stars.update(dt);

@@ -2327,3 +2327,49 @@ body.is-mobile #mobile-ui { display: flex; }
   background: linear-gradient(90deg, #FFD700, #ff2244 60%, #ff0044);
 }
 
+/* ============================================================
+   EFFETS VISUELS — Fondu noir + score bump + wave zoom
+   ============================================================ */
+
+/* Fondu noir entre écrans */
+.screen-fade {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 9999;
+  transition: opacity 0.15s ease-out;
+}
+.screen-fade.active {
+  opacity: 1;
+  transition: opacity 0.15s ease-in;
+}
+
+/* Score bump — les chiffres grossissent brièvement */
+#hud-score {
+  transition: transform 0.14s ease-out, text-shadow 0.14s ease-out;
+  transform-origin: left center;
+  display: inline-block;
+}
+#hud-score.score-bump {
+  animation: score-bump 0.28s ease-out;
+}
+@keyframes score-bump {
+  0%   { transform: scale(1);    text-shadow: 0 0 0 rgba(255,215,0,0); }
+  40%  { transform: scale(1.28); text-shadow: 0 0 14px rgba(255,215,0,0.9); }
+  100% { transform: scale(1);    text-shadow: 0 0 0 rgba(255,215,0,0); }
+}
+
+/* Wave zoom — texte "VAGUE X" qui zoom depuis le centre */
+/* Utilise !important pour battre l'ancienne règle #level-notif.show */
+#level-notif.wave-zoom.show {
+  animation: wave-zoom 1.5s ease-out forwards !important;
+}
+@keyframes wave-zoom {
+  0%   { transform: translate(-50%, -50%) scale(0.15); opacity: 0; letter-spacing: 0.5em; }
+  20%  { transform: translate(-50%, -50%) scale(1.15); opacity: 1; letter-spacing: 0.15em; }
+  70%  { transform: translate(-50%, -50%) scale(1.0);  opacity: 1; letter-spacing: 0.15em; }
+  100% { transform: translate(-50%, -50%) scale(1.4);  opacity: 0; letter-spacing: 0.35em; }
+}
+
