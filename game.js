@@ -5157,6 +5157,11 @@ class Game {
     this.bomberBombs    = [];
     this._survivalMode  = false;      // vrai si mode Survie actif
     this._nextFormationOn = 0;        // niveau minimum pour spawn en formation
+
+    // ── Mode développeur ──
+    // Non persisté volontairement : nécessite une réactivation à chaque session.
+    this._devMode      = false;
+    this._devKeyBuffer = '';           // buffer d'entrée pour la séquence secrète
     this.achievements.setRefs({ shop: this.shop, story: this.story, progression: this.progression, audio: this.audio });
     this.achievements.setCoinsCallback(n => {
       this.coins += n;
@@ -5411,6 +5416,19 @@ class Game {
 
     // Clavier global : Pause + Armes (QWERTY/AZERTY/pavé numérique)
     window.addEventListener('keydown', e => {
+      // ── Séquence secrète du mode dev : IDKFA ──
+      // Actif seulement en dehors des états de jeu (menu, pause, écrans post-partie)
+      if (!this._devMode && this.state !== 'playing' && this.state !== 'story-playing' && this.state !== 'bossrush-playing') {
+        const k = (e.key || '').toUpperCase();
+        if (/^[A-Z]$/.test(k)) {
+          this._devKeyBuffer = (this._devKeyBuffer + k).slice(-8);
+          if (this._devKeyBuffer.endsWith('IDKFA')) {
+            this._activateDevMode(true);
+            this._devKeyBuffer = '';
+          }
+        }
+      }
+
       if (e.code === 'KeyP' || e.code === 'Escape') {
         if (this.state === 'playing' || this.state === 'paused' || this.state === 'story-playing' || this.state === 'bossrush-playing') {
           this._togglePause();
@@ -5515,6 +5533,75 @@ class Game {
   _showModal() { document.getElementById('modal-overlay')?.classList.remove('hidden'); }
   _hideModal() { document.getElementById('modal-overlay')?.classList.add('hidden'); }
 
+  // ─────────────────────────────────────────────────────────────
+  //  MODE DÉVELOPPEUR
+  //  Non persistant — se réactive à chaque session (URL ou séquence secrète)
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Active le mode dev. Débloque toutes les armes, tous les niveaux Histoire,
+   * affiche le badge et permet l'invincibilité + munitions max.
+   * @param {boolean} playSfx  jouer un son de confirmation
+   */
+  _activateDevMode(playSfx = false) {
+    if (this._devMode) return;
+    this._devMode = true;
+    // Débloque toutes les armes tactiques
+    WEAPON_DEFS.forEach(w => this.weapons.unlocked.add(w.id));
+    // Ajoute toutes les armes boutique à la collection possédée (non persisté)
+    PREMIUM_WEAPONS.forEach(w => this.weapons.ownedPremium.add(w.id));
+    this.weapons.rechargeAll();
+    // Débloque tous les niveaux Histoire (session courante — non persisté)
+    if (this.story) this.story.unlocked = STORY_LEVELS.length;
+    // Débloque la section ARMES de la boutique
+    window.__STARBLAST_STORY_LVL10 = true;
+    const shopBadge = document.getElementById('shop-weapons-badge');
+    if (shopBadge) shopBadge.classList.remove('hidden');
+    // Rafraîchit l'écran de sélection Histoire s'il est ouvert
+    if (this.ui && this.state === 'story-select') this.ui.refreshStorySelect(this.story);
+    // Affiche le badge DEV MODE
+    const badge = document.getElementById('dev-mode-badge');
+    if (badge) badge.classList.remove('hidden');
+    if (playSfx && this.audio) this.audio.levelUp();
+    // Applique les overrides si une partie est en cours
+    this._applyDevOverridesToRun();
+    console.info('[Dev Mode] Activated');
+  }
+
+  /**
+   * Applique les overrides dev à une partie en cours (si player existe).
+   * Appelé aussi après chaque _startGame/_startStoryLevel/_startBossRush.
+   */
+  _applyDevOverridesToRun() {
+    if (!this._devMode || !this.player) return;
+    this.player.lives = 9;
+    this.player.bombs = 9;
+    this.weapons.rechargeAll();
+    // Invincibilité permanente (Player.hit renvoie false)
+    if (!this.player._devHitPatched) {
+      this.player._devHitPatched = true;
+      this.player.hit = function() { return false; };
+    }
+  }
+
+  /**
+   * Vérifie l'URL au démarrage pour activer le mode dev + niveau optionnel.
+   * Appelé par le bootstrap DOMContentLoaded.
+   */
+  _handleDevUrlParams() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('dev') === 'true' || params.get('dev') === '1') {
+        this._activateDevMode(false);
+        const lvl = parseInt(params.get('level') || '0', 10);
+        if (lvl >= 1 && lvl <= STORY_LEVELS.length) {
+          // Lance directement le niveau demandé
+          setTimeout(() => this._startStoryLevel(lvl), 120);
+        }
+      }
+    } catch (e) { console.warn('[Dev Mode] URL parse error:', e?.message); }
+  }
+
   _triggerShake(duration, intensity) {
     if (duration > this._shakeTimer) {
       this._shakeTimer     = duration;
@@ -5593,6 +5680,7 @@ class Game {
     this.ui.updateHUD(0, 1, CFG.LIVES, this.highscore);
     this.ui.updateXPLevel(this.progression.level);
     this.ui.updateXPBar(this.progression.level, this.progression.progressRatio);
+    this._applyDevOverridesToRun();
   }
 
   // ── Mode Histoire : ouvrir la sélection ──────────────────
@@ -5650,6 +5738,7 @@ class Game {
     this.ui.updateHUD(0, 1, CFG.LIVES, this.highscore);
     this.ui.updateXPLevel(this.progression.level);
     this.ui.updateXPBar(this.progression.level, this.progression.progressRatio);
+    this._applyDevOverridesToRun();
   }
 
   // ── Mode Histoire : victoire ──────────────────────────────
@@ -5661,10 +5750,10 @@ class Game {
     const livesLost = CFG.LIVES - this.player.lives;
     const stars     = livesLost === 0 ? 3 : livesLost === 1 ? 2 : 1;
 
-    this.story.completeLevel(this.storyLevelId, stars);
-    this.achievements.onStoryLevelComplete(this.storyLevelId, stars, this.story);
+    if (!this._devMode) this.story.completeLevel(this.storyLevelId, stars);
+    if (!this._devMode) this.achievements.onStoryLevelComplete(this.storyLevelId, stars, this.story);
 
-    if (score > this.highscore) {
+    if (!this._devMode && score > this.highscore) {
       this.highscore = score;
       localStorage.setItem('starblast_hs', score.toString());
     }
@@ -5770,6 +5859,7 @@ class Game {
     musicManager.play('bossrush');
     this.ui.hideScreens();
     this.ui.updateHUD(0, 1, this.player.lives, this.highscore);
+    this._applyDevOverridesToRun();
   }
 
   // ── Mode Boss Rush : victoire finale ──────────────────────
@@ -5779,7 +5869,7 @@ class Game {
     this.combo.reset(); this.ui.updateCombo(this.combo);
 
     const score = this.player.score;
-    if (score > this.highscore) {
+    if (!this._devMode && score > this.highscore) {
       this.highscore = score;
       localStorage.setItem('starblast_hs', score.toString());
     }
@@ -5821,7 +5911,7 @@ class Game {
     const earned  = Math.floor(score / 10);
     this.coins   += earned;
     localStorage.setItem('starblast_coins', this.coins.toString());
-    if (score > this.highscore) {
+    if (!this._devMode && score > this.highscore) {
       this.highscore = score;
       localStorage.setItem('starblast_hs', score.toString());
     }
@@ -6629,7 +6719,7 @@ class Game {
     const score = this.player.score;
 
     // Meilleur score
-    if (score > this.highscore) {
+    if (!this._devMode && score > this.highscore) {
       this.highscore = score;
       localStorage.setItem('starblast_hs', score.toString());
     }
@@ -6664,6 +6754,7 @@ class Game {
 
   /** Si le score se qualifie pour le top 100, affiche la modale et soumet. */
   async _maybeSubmitToLeaderboard(score, wave, mode) {
+    if (this._devMode) return;   // Ne soumet pas les scores dev
     if (!this.leaderboard.ready || score <= 0) return;
     const playtime = Math.max(1, Math.floor((Date.now() - (this._runStartTime || Date.now())) / 1000));
     try {
@@ -8137,4 +8228,6 @@ window.addEventListener('DOMContentLoaded', () => {
       badge.classList.remove('hidden');
     }
   }
+  // Mode dev via paramètre URL (?dev=true[&level=N])
+  window.game._handleDevUrlParams();
 });
