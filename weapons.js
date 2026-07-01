@@ -9,22 +9,35 @@
 ───────────────────────────────────────────────────────────────────────── */
 
 // ═════════════════════════════════════════════════════════════════════
-// ARMES BOUTIQUE (PREMIUM) — débloquées via la boutique + Story lvl 10
-// Slots 7-12 (indices 6-11 dans le tableau global des armes).
+// ARMES BOUTIQUE (PREMIUM) — 6 mécaniques radicales + Void conservé
+// Slots 7-13 (indices 6-12 dans le tableau global des armes).
+// Chaque arme est définie dans son propre fichier weapons/<id>.js
+// et s'enregistre dans PREMIUM_WEAPON_HOOKS via registerPremiumWeapon().
 // ═════════════════════════════════════════════════════════════════════
+
+// Registre des mécaniques (rempli par les modules weapons/*.js)
+window.PREMIUM_WEAPON_HOOKS = window.PREMIUM_WEAPON_HOOKS || {};
+
+/** API pour un module weapons/*.js — enregistre les hooks d'une arme. */
+window.registerPremiumWeapon = function(id, hooks) {
+  window.PREMIUM_WEAPON_HOOKS[id] = hooks;
+};
+
 const PREMIUM_WEAPONS = [
-  { id:'photon',   name:'PHOTON LANCE',        icon:'🌟', price:50000,  rarity:'rare',
-    desc:'Rayon doré permanent — 15 dps, détruit les balles ennemies', isBeam:true, damagePerSec:15 },
-  { id:'quantum',  name:'QUANTUM SPLITTER',    icon:'💠', price:80000,  rarity:'rare',
-    desc:'Se divise en 2 à chaque impact (2 splits max)', fireRate:0.21, damage:3 },
-  { id:'gravity',  name:'GRAVITY CANNON',      icon:'🌀', price:120000, rarity:'epic',
-    desc:'Crée des zones gravitationnelles à l\'impact', fireRate:0.8, damage:5 },
-  { id:'chain',    name:'CHAIN LIGHTNING',     icon:'⚡', price:180000, rarity:'epic',
-    desc:'Arcs électriques qui rebondissent sur 6 ennemis', fireRate:0.4, damage:8 },
-  { id:'void',     name:'VOID RIPPER',         icon:'🌑', price:350000, rarity:'legendary',
+  { id:'parasite',   name:'PARASITE',           icon:'🦠', price:50000,  rarity:'rare',
+    desc:'Infecte les ennemis — chaînes de contagion illimitées', fireRate:0.35, damage:0, custom:true },
+  { id:'mirror-time',name:'MIROIR TEMPOREL',    icon:'⏳', price:80000,  rarity:'rare',
+    desc:'Alt = replay 6s de tirs en 2s (déluge doré)', fireRate:0.21, damage:1, custom:true },
+  { id:'architect',  name:'ARCHITECTE',         icon:'🔷', price:120000, rarity:'epic',
+    desc:'Pose des tourelles autonomes (6 max, 8s de durée)', fireRate:0.35, damage:0, custom:true },
+  { id:'singularity',name:'SINGULARITÉ NOIRE',  icon:'⚫', price:180000, rarity:'epic',
+    desc:'Micro trous noirs qui aspirent tout puis explosent', fireRate:0.5, damage:0, custom:true },
+  { id:'void',       name:'VOID RIPPER',        icon:'🌑', price:350000, rarity:'legendary',
     desc:'Ignore boucliers/blindages + déchirure spatiale', fireRate:0.35, damage:12 },
-  { id:'solar',    name:'SOLAR FLARE CANNON',  icon:'☀',  price:999999, rarity:'legendary',
-    desc:'Alt = mode CORONA (nova nettoyeuse d\'écran)', fireRate:0.12, damage:4, hasCorona:true },
+  { id:'echo',       name:'ÉCHO QUANTIQUE',     icon:'👥', price:350000, rarity:'legendary',
+    desc:'Alt = fantôme quantique qui rejoue vos actions (2 max)', fireRate:0.21, damage:1, custom:true },
+  { id:'wargod',     name:'DIEU DE LA GUERRE',  icon:'🔱', price:999999, rarity:'legendary',
+    desc:'Alt (100 IRE) = transformation divine 10s (invincible + 8-way)', fireRate:0.15, damage:1.5, custom:true },
 ];
 
 const WEAPON_DEFS = [
@@ -425,63 +438,27 @@ class WeaponManager {
         return 0;
       }
 
-      // ── ARMES BOUTIQUE ──────────────────────────────────────
-      case 'photon': {
-        // Rayon permanent — rendu et dégâts par beam, pas de projectile
-        return 0;
-      }
-      case 'quantum': {
-        // Projectile qui se divise en 2 sur impact (récursif × 2)
-        const b = makeBullet(px, py, 0, -CFG.BULLET_SPEED * 1.15, color, lt, damage, player.surcharge);
-        b.w *= 1.8; b.h *= 1.2;
-        b.isQuantum = true;
-        b.quantumSplitsLeft = 2;    // 2 divisions max = 4 fragments finaux
-        b.color = '#33ddff';
-        bullets.push(b);
-        audio.shoot();
-        return 1;
-      }
-      case 'gravity': {
-        const b = makeBullet(px, py, 0, -CFG.BULLET_SPEED * 0.8, color, lt, damage, false);
-        b.w *= 2.4; b.h *= 1.6;
-        b.isGravity = true;
-        b.color = '#8844cc';
-        bullets.push(b);
-        audio.shoot();
-        return 1;
-      }
-      case 'chain': {
-        const b = makeBullet(px, py, 0, -CFG.BULLET_SPEED, color, lt, damage, false);
-        b.w *= 1.4;
-        b.isChain = true;
-        b.chainBouncesLeft = 3;    // 1 primaire + 3 rebonds = 4 hits (mais avec 3 nearest par rebond = up to 6)
-        b.color = '#ffee66';
-        bullets.push(b);
-        audio.shoot();
-        return 1;
-      }
+      // ── VOID RIPPER (conservé tel quel) ─────────────────────
       case 'void': {
         const b = makeBullet(px, py, 0, -CFG.BULLET_SPEED * 1.3, color, lt, damage, false);
         b.w *= 1.6; b.h *= 1.8;
         b.isVoid = true;
         b.pierce = true;
         b._hitSet = new Set();
-        b._voidTrail = [];        // positions successives pour la déchirure
+        b._voidTrail = [];
         b.color = '#0a0014';
         bullets.push(b);
         audio.shoot();
         return 1;
       }
-      case 'solar': {
-        // Mode Pulse : tir rapide avec petite AoE 40px à l'impact
-        if (this._solarMode !== 'pulse') return 0;
-        const b = makeBullet(px, py, 0, -CFG.BULLET_SPEED * 1.2, '#ffee88', lt, damage, false);
-        b.w *= 1.4;
-        b.isSolar = true;
-        b.solarBlastRadius = 40;
-        bullets.push(b);
-        audio.shoot();
-        return 1;
+
+      // ── ARMES BOUTIQUE À MÉCANIQUE (délèguent aux modules weapons/*.js) ──
+      default: {
+        const hooks = window.PREMIUM_WEAPON_HOOKS && window.PREMIUM_WEAPON_HOOKS[d.id];
+        if (hooks && hooks.onFire) {
+          return hooks.onFire(this, player, bullets, audio, window.game) || 0;
+        }
+        return 0;
       }
     }
     return 0;

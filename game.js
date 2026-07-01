@@ -5560,15 +5560,17 @@ class Game {
       //   Pavé numérique : Numpad1–Numpad9, Numpad0
       //   AZERTY caractères (couvre les caractères FR pour rangée du haut)
       if (this.state === 'playing' || this.state === 'story-playing' || this.state === 'bossrush-playing') {
-        // Alt : bascule mode Pulse/Corona pour Solar Flare (si équipée)
+        // Alt : action spéciale de l'arme équipée (replay, ghost, wargod transform…)
         if (e.code === 'AltLeft' || e.code === 'AltRight') {
-          if (this.weapons.toggleSolarMode()) {
-            e.preventDefault();
+          e.preventDefault();
+          if (this._premiumOnAlt()) {
             this.audio.powerup();
-            const mode = this.weapons.solarMode();
-            this.ui.flash(mode === 'corona' ? '#ffcc00' : '#ffee66', 0.4);
           }
         }
+        // Modificateurs de tourelle Architecte
+        if (e.shiftKey)      this._archInputMod = 'shield';
+        else if (e.ctrlKey)  this._archInputMod = 'repair';
+        else                 this._archInputMod = 'laser';
         const AZERTY_MAP = {
           '&': 0, 'é': 1, '"': 2, "'": 3, '(': 4, '-': 5,
           'è': 6, '_': 7, 'ç': 8, 'à': 9, ')': 10, '=': 11,
@@ -5580,6 +5582,7 @@ class Game {
         else if (e.code === 'Digit0' || e.code === 'Numpad0') idx = 9;
         else if (e.code === 'Minus') idx = 10;
         else if (e.code === 'Equal') idx = 11;
+        else if (e.code === 'Backspace') idx = 12;   // 13e slot (Wargod ou dernier premium)
         else if (e.key in AZERTY_MAP) idx = AZERTY_MAP[e.key];
         if (idx >= 0 && idx < totalWeaponSlots()) {
           e.preventDefault();
@@ -6309,7 +6312,7 @@ class Game {
     ctx.save();
     ctx.font = '700 9px Orbitron, monospace';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const keyLabels = ['1','2','3','4','5','6','7','8','9','0','-','='];
+    const keyLabels = ['1','2','3','4','5','6','7','8','9','0','-','=','⌫'];
     slots.forEach((slot, slotPos) => {
       const d = slot.def;
       const idx = slot.idx;
@@ -6350,6 +6353,15 @@ class Game {
         } else {
           ctx.fillText(`V.${d.wave}`, cx + cellW / 2, y0 + cellH - 7);
         }
+      } else if (isPremium && isCurrent && d.custom
+              && window.PREMIUM_WEAPON_HOOKS && window.PREMIUM_WEAPON_HOOKS[d.id]
+              && window.PREMIUM_WEAPON_HOOKS[d.id].getHUDInfo) {
+        // Armes boutique (nouvelles) : état dynamique via getHUDInfo
+        const info = window.PREMIUM_WEAPON_HOOKS[d.id].getHUDInfo(wm, this);
+        if (info) {
+          ctx.fillStyle = info.color || '#ffffff';
+          ctx.fillText(info.text, cx + cellW / 2, y0 + cellH - 7);
+        }
       } else if (d.hasCorona && isCurrent) {
         // Solar Flare : affiche mode + charges Corona
         const mode = wm.solarMode();
@@ -6385,8 +6397,20 @@ class Game {
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
         ctx.fillText('∞', cx + cellW / 2, y0 + cellH - 7);
       }
+      // Barre d'état pour les armes boutique (nouvelles) : ratio de getHUDInfo
+      if (isUnlocked && isPremium && isCurrent && d.custom
+       && window.PREMIUM_WEAPON_HOOKS && window.PREMIUM_WEAPON_HOOKS[d.id]
+       && window.PREMIUM_WEAPON_HOOKS[d.id].getHUDInfo) {
+        const info = window.PREMIUM_WEAPON_HOOKS[d.id].getHUDInfo(wm, this);
+        if (info && typeof info.ratio === 'number') {
+          ctx.fillStyle = 'rgba(255,255,255,0.1)';
+          ctx.fillRect(cx + 3, y0 + cellH - 3, cellW - 6, 2);
+          ctx.fillStyle = info.color || '#FFD700';
+          ctx.fillRect(cx + 3, y0 + cellH - 3, (cellW - 6) * Math.max(0, Math.min(1, info.ratio)), 2);
+        }
+      }
       // Barre de rechargement (armes à munitions) OU barre de chaleur (Devastator) OU charge (Solar)
-      if (isUnlocked && d.hasCorona && isCurrent && wm.solarMode() === 'corona') {
+      else if (isUnlocked && d.hasCorona && isCurrent && wm.solarMode() === 'corona') {
         // Solar Flare Corona : barre de charge (1.5s)
         const r = wm.chargeProgress();
         ctx.fillStyle = 'rgba(255,255,255,0.1)';
@@ -6537,11 +6561,11 @@ class Game {
    * Retourne true si la balle doit poursuivre (pierce/void), false sinon.
    */
   _premiumBulletOnHit(b, e) {
+    // Anciennes armes (Void encore actif, autres retirées mais code laissé pour compat)
     if (b.isQuantum && b.quantumSplitsLeft > 0) {
-      // Se divise en 2 fragments à ±45° de sa direction actuelle
       const cur = Math.atan2(b.vy, b.vx);
       const spd = Math.hypot(b.vx, b.vy);
-      const nextDmg = b.damage * 0.5;   // 3 → 1.5 → 0.75
+      const nextDmg = b.damage * 0.5;
       for (const off of [-Math.PI / 4, Math.PI / 4]) {
         const na = cur + off;
         const nb = new Bullet(b.x, b.y, Math.cos(na) * spd, Math.sin(na) * spd, b.color, true, '');
@@ -6553,20 +6577,54 @@ class Game {
       }
     }
     if (b.isGravity) {
-      // Crée une zone gravitationnelle temporaire
-      this.gravityZones.push({
-        x: b.x, y: b.y, r: 80, life: 2.0, maxLife: 2.0, dmgAccum: 0,
-      });
+      this.gravityZones.push({ x: b.x, y: b.y, r: 80, life: 2.0, maxLife: 2.0, dmgAccum: 0 });
     }
     if (b.isChain && b.chainBouncesLeft > 0) {
-      // Chaîne : trouve 3 ennemis les plus proches et applique dégâts réduits
       this._chainLightningBounce(e, b, b.damage * 0.7);
     }
     if (b.isSolar) {
-      // AoE 40 px à l'impact
       this._solarBlast(b.x, b.y, b.solarBlastRadius || 40, b.damage);
     }
-    return !!b.isVoid;   // Void continue à traverser
+
+    // ── Nouvelles armes boutique via registre : PARASITE, SINGULARITÉ ──
+    if (b.isParasite) {
+      const hooks = window.PREMIUM_WEAPON_HOOKS && window.PREMIUM_WEAPON_HOOKS.parasite;
+      if (hooks && hooks.onHit) hooks.onHit(b, e, this);
+    }
+    if (b.isBlackHoleBullet) {
+      const hooks = window.PREMIUM_WEAPON_HOOKS && window.PREMIUM_WEAPON_HOOKS.singularity;
+      if (hooks && hooks.onHit) hooks.onHit(b, e, this);
+    }
+
+    return !!b.isVoid;
+  }
+
+  /** Tick de toutes les armes boutique : appelé chaque frame Survie/Story/BossRush. */
+  _tickPremiumWeapons(dt) {
+    if (!window.PREMIUM_WEAPON_HOOKS) return;
+    for (const id in window.PREMIUM_WEAPON_HOOKS) {
+      const hooks = window.PREMIUM_WEAPON_HOOKS[id];
+      if (hooks && hooks.tick) hooks.tick(dt, this);
+    }
+  }
+
+  /** Draw de toutes les armes boutique : appelé chaque frame. */
+  _drawPremiumWeapons(ctx) {
+    if (!window.PREMIUM_WEAPON_HOOKS) return;
+    for (const id in window.PREMIUM_WEAPON_HOOKS) {
+      const hooks = window.PREMIUM_WEAPON_HOOKS[id];
+      if (hooks && hooks.draw) hooks.draw(ctx, this);
+    }
+  }
+
+  /** Alt sur l'arme équipée (ou par défaut sur wargod si équipée). */
+  _premiumOnAlt() {
+    if (!this.weapons) return false;
+    const def = this.weapons.def();
+    if (!def) return false;
+    const hooks = window.PREMIUM_WEAPON_HOOKS && window.PREMIUM_WEAPON_HOOKS[def.id];
+    if (hooks && hooks.onAlt) return hooks.onAlt(this.weapons, this);
+    return false;
   }
 
   /** Chaîne éclair : hit `origin`, puis trouve 3 ennemis les plus proches, damage -30% par rebond. */
@@ -7184,6 +7242,8 @@ class Game {
     this._photonDestroyEnemyBullets();
     if (this._novaFlash > 0) this._novaFlash -= dt;
     for (const b of this.playerBullets) { if (b.isVoid && !b.dead) this._extendVoidTrail(b); }
+    // Registre des modules d'armes boutique
+    this._tickPremiumWeapons(dt);
 
     // Contrôleur de vagues histoire
     this.storyCtrl.update(dt, this.enemies);
@@ -7270,6 +7330,7 @@ class Game {
     this._photonDestroyEnemyBullets();
     if (this._novaFlash > 0) this._novaFlash -= dt;
     for (const b of this.playerBullets) { if (b.isVoid && !b.dead) this._extendVoidTrail(b); }
+    this._tickPremiumWeapons(dt);
 
     // Update entités
     this.playerBullets.forEach(b => b.update(dt, this.W, this.H, this.enemies, this.particles));
@@ -7812,6 +7873,23 @@ class Game {
     if (this._invulnFlash && this._invulnFlash > 0) this._invulnFlash -= dt;
     // Trace des balles Void en vol
     for (const b of this.playerBullets) { if (b.isVoid && !b.dead) this._extendVoidTrail(b); }
+    // Registre des modules d'armes boutique (nouvelles armes)
+    this._tickPremiumWeapons(dt);
+    // Contagion PARASITE : les tirs des infectés qui touchent d'autres ennemis les infectent
+    for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+      const eb = this.enemyBullets[i];
+      if (!eb._parasiteShot || eb.dead) continue;
+      for (const en of this.enemies) {
+        if (en.dead || en.dying || en._infected || en === eb._infectSource) continue;
+        if (aabb(eb.hitbox, en.hitbox)) {
+          eb.dead = true;
+          window.handleParasiteInfectionChain && window.handleParasiteInfectionChain(eb, en, this);
+          const killed = en.hit && en.hit(1);
+          if (killed && !en.isBoss && !en.dead) en.dead = true;
+          break;
+        }
+      }
+    }
 
     // ── Détection de collisions ──────────────────────────
 
@@ -7895,6 +7973,8 @@ class Game {
 
           // Drop power-up : Survie utilise le système progressif par vague
           this._maybeSurvivalDrop(e.x, e.y);
+          // Wargod : accumule de l'IRE si équipée
+          window.wargodOnKill && window.wargodOnKill(this, e);
         }
         // Effets on-hit des armes boutique (Quantum split, Gravity zone, Chain, Solar blast)
         this._premiumBulletOnHit(b, e);
@@ -8146,7 +8226,11 @@ class Game {
       this.enemyBullets.forEach(b => b.draw(ctx));
 
       // Ennemis (y compris boss) — teinte bleue si Temps Gelé actif
-      this.enemies.forEach(e => e.draw(ctx));
+      this.enemies.forEach(e => {
+        e.draw(ctx);
+        // Overlay PARASITE : veines rouges sur les ennemis infectés
+        if (e._infected && window.drawInfectedOverlay) window.drawInfectedOverlay(ctx, e);
+      });
       if (this.freezeTimer > 0) this._drawFreezeOverlay(ctx);
 
       // Météorites (dangers environnementaux, dessinées après les ennemis)
@@ -8180,6 +8264,8 @@ class Game {
       this._drawGravityZones(ctx);
       this._drawVoidTears(ctx);
       this._drawChainArcs(ctx, 0.016);
+      // Nouvelles armes boutique (modules) : tourelles, trous noirs, fantômes, dieu de la guerre
+      this._drawPremiumWeapons(ctx);
 
       // Overlay flash nova Solar Flare (en dernier — au-dessus de tout)
       this._drawNovaFlash(ctx);
