@@ -1916,8 +1916,8 @@ class Player {
 
     const def = this.weapons.def();
     if (!this.weapons.hasAmmo()) return 0;
-    // Armes à charge (Plasma) : pilotées par WeaponManager.tick — pas d'auto-fire ici
-    if (def.chargeTime) return 0;
+    // Armes à burst (Storm Blaster) et beam (Devastator) : pilotées par WeaponManager.tick
+    if (def.chargeTime || def.burstCount || def.isBeam) return 0;
 
     // Cadence : × surcharge (3) × def.fireRate
     const baseRate = def.fireRate || CFG.PLAYER_FIRE_RATE;
@@ -2393,8 +2393,11 @@ class Enemy {
       ctx.globalAlpha = 0.18 + 0.38 * Math.abs(Math.sin(Date.now() * 0.0034 + this.t));
     }
 
-    // Flash blanc à l'impact
-    if (this.flashTimer > 0) ctx.filter = 'brightness(3.5) saturate(0)';
+    // Flash blanc à l'impact / Teinte rouge sous rayon Devastator
+    if (this._beamTint > 0) {
+      ctx.filter = 'brightness(1.6) hue-rotate(-40deg) saturate(2)';
+      this._beamTint -= 0.016;
+    } else if (this.flashTimer > 0) ctx.filter = 'brightness(3.5) saturate(0)';
     this._render(ctx, this.w, this.h, this.t);
     ctx.filter = 'none';
 
@@ -5802,11 +5805,29 @@ class Game {
       ctx.fillStyle = '#ffffff';
       ctx.fillText(d.icon, cx + cellW / 2, y0 + 14);
       ctx.globalAlpha = 1;
-      // Munitions ou seuil vague
+      // Munitions ou seuil vague ou état spécial
       ctx.font = '700 7.5px Orbitron, monospace';
       if (!isUnlocked) {
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
         ctx.fillText(`V.${d.wave}`, cx + cellW / 2, y0 + cellH - 7);
+      } else if (d.isBeam) {
+        // Devastator : indicateur de surchauffe
+        if (isCurrent && wm.isOverheated()) {
+          ctx.fillStyle = '#ff2244';
+          ctx.fillText('SURCHAUFFE', cx + cellW / 2, y0 + cellH - 7);
+        } else {
+          ctx.fillStyle = 'rgba(255,255,255,0.55)';
+          ctx.fillText('∞', cx + cellW / 2, y0 + cellH - 7);
+        }
+      } else if (d.burstCount) {
+        // Storm Blaster : indicateur de burst en cours
+        if (isCurrent && wm._burstPauseT > 0) {
+          ctx.fillStyle = '#66aaff';
+          ctx.fillText('RECHARGE', cx + cellW / 2, y0 + cellH - 7);
+        } else {
+          ctx.fillStyle = 'rgba(255,255,255,0.55)';
+          ctx.fillText('∞', cx + cellW / 2, y0 + cellH - 7);
+        }
       } else if (isFinite(d.maxAmmo)) {
         ctx.fillStyle = wm.ammo[d.id] > 0 ? '#ffd700' : '#ff5566';
         ctx.fillText(`${wm.ammo[d.id]}/${d.maxAmmo}`, cx + cellW / 2, y0 + cellH - 7);
@@ -5814,8 +5835,23 @@ class Game {
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
         ctx.fillText('∞', cx + cellW / 2, y0 + cellH - 7);
       }
-      // Barre de rechargement
-      if (isUnlocked && isFinite(d.maxAmmo) && d.ammoReload && wm.ammo[d.id] < d.maxAmmo) {
+      // Barre de rechargement (armes à munitions) OU barre de chaleur (Devastator)
+      if (isUnlocked && d.isBeam && isCurrent) {
+        const heatRatio = wm.heatRatio();
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.fillRect(cx + 3, y0 + cellH - 3, cellW - 6, 2);
+        ctx.fillStyle = wm.isOverheated() ? '#ff2244'
+                     : heatRatio > 0.7 ? '#ff8844'
+                     : '#ffcc44';
+        ctx.fillRect(cx + 3, y0 + cellH - 3, (cellW - 6) * heatRatio, 2);
+      } else if (isUnlocked && d.burstCount && isCurrent && wm._burstPauseT > 0) {
+        // Barre de pause du burst
+        const ratio = 1 - (wm._burstPauseT / d.burstPause);
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.fillRect(cx + 3, y0 + cellH - 3, cellW - 6, 2);
+        ctx.fillStyle = '#66aaff';
+        ctx.fillRect(cx + 3, y0 + cellH - 3, (cellW - 6) * ratio, 2);
+      } else if (isUnlocked && isFinite(d.maxAmmo) && d.ammoReload && wm.ammo[d.id] < d.maxAmmo) {
         const reloadRatio = (wm.reloadCd[d.id] || 0) / d.ammoReload;
         ctx.fillStyle = 'rgba(255,255,255,0.1)';
         ctx.fillRect(cx + 3, y0 + cellH - 3, cellW - 6, 2);
@@ -5824,6 +5860,92 @@ class Game {
       }
     });
     ctx.restore();
+  }
+
+  // ── Devastator : applique les dégâts du rayon aux ennemis ──
+  /**
+   * Rayon vertical passant par player.x, du bas de l'écran jusqu'au haut.
+   * Traverse tous les ennemis dont x est dans la colonne [player.x ± 13].
+   * Applique damagePerSec × dt à chaque ennemi touché.
+   * Retourne l'ordonnée du sommet du rayon (utile pour le rendu du "premier impact").
+   */
+  _processDevastatorBeam(dt, enemies, meteors, onKill) {
+    const wm = this.weapons;
+    const beam = wm.getBeamState(this.player, !!this.input?.fire);
+    if (!beam || !beam.active) return null;
+    const halfW = 13;
+    const px = beam.x;
+    // Applique dégâts aux ennemis dans la colonne
+    for (const e of enemies) {
+      if (e.dead || e.dying) continue;
+      const dxE = Math.abs(e.x - px);
+      const hw = (e.w || 30) * 0.42;
+      if (dxE > halfW + hw) continue;
+      // Ennemi touché : dégâts continus
+      const dmg = beam.damagePerSec * dt;
+      // Effet visuel : teinte rouge (utilise flashTimer si dispo)
+      if (typeof e.flashTimer !== 'undefined') e.flashTimer = Math.max(e.flashTimer, 0.03);
+      e._beamTint = 0.15;  // durée de la teinte rouge post-frame
+      const wasDying = e.dying;
+      if (e.hit(dmg)) {
+        if (typeof e.dead !== 'undefined') e.dead = true;
+        if (onKill) onKill(e);
+      } else if (!wasDying && e.dying && onKill) {
+        // Boss qui passe en dying : callback aussi
+        onKill(e);
+      }
+    }
+    // Applique dégâts aux météorites également (Survie)
+    if (meteors) {
+      for (const m of meteors) {
+        if (m.dead) continue;
+        const dxM = Math.abs(m.x - px);
+        const hw = (m.w || 30) * 0.42;
+        if (dxM > halfW + hw) continue;
+        const dmg = beam.damagePerSec * dt;
+        if (m.hit(dmg)) m.dead = true;
+      }
+    }
+    return beam;
+  }
+
+  /** Dessine le rayon Devastator. Retourne true si dessiné. */
+  _drawDevastatorBeam(ctx) {
+    const wm = this.weapons;
+    const beam = wm.getBeamState(this.player, !!this.input?.fire);
+    if (!beam || !beam.active) return false;
+    const px = beam.x;
+    const y0 = beam.yStart;
+    const t = Date.now() * 0.02;
+    ctx.save();
+    // Halo externe (chaleur)
+    const grad1 = ctx.createLinearGradient(px - 40, 0, px + 40, 0);
+    grad1.addColorStop(0,    'rgba(255,60,60,0)');
+    grad1.addColorStop(0.35, 'rgba(255,120,60,0.35)');
+    grad1.addColorStop(0.5,  'rgba(255,255,255,0.75)');
+    grad1.addColorStop(0.65, 'rgba(255,120,60,0.35)');
+    grad1.addColorStop(1,    'rgba(255,60,60,0)');
+    ctx.fillStyle = grad1;
+    ctx.fillRect(px - 40, 0, 80, y0);
+    // Cœur brillant
+    const coreW = 8 + Math.sin(t * 3) * 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.shadowColor = '#ff5522'; ctx.shadowBlur = 24;
+    ctx.fillRect(px - coreW/2, 0, coreW, y0);
+    ctx.shadowBlur = 0;
+    // Aura pulsante en base
+    const pulse = 6 + Math.sin(t * 6) * 2;
+    ctx.fillStyle = 'rgba(255,180,80,0.5)';
+    ctx.beginPath(); ctx.arc(px, y0, pulse * 2, 0, Math.PI * 2); ctx.fill();
+    // Micro-particules ascendantes
+    for (let s = 0; s < 4; s++) {
+      const sy = (Date.now() * 0.5 + s * 90) % y0;
+      const sx = px + Math.sin(sy * 0.1 + s) * 4;
+      ctx.fillStyle = `rgba(255,${180 + s * 20},80,0.8)`;
+      ctx.beginPath(); ctx.arc(sx, y0 - sy, 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    return true;
   }
 
   // ── Toast "nouvelle arme" ───────────────────────────────────
@@ -6100,6 +6222,8 @@ class Game {
         if (e.dying || !aabb(b.hitbox, e.hitbox)) continue;
         if (b.pierce) { if (b._hitSet && b._hitSet.has(e)) continue; b._hitSet && b._hitSet.add(e); }
         else            b.dead = true;
+        // Storm Blaster : ne traverse que les ennemis à 1 PV
+        if (b.pierceWeakOnly && (e.maxHp || 1) >= 2) b.dead = true;
         if (b.laserType === 'solar')           spawnBoom(this.particles, b.x, b.y, 'basic', null);
         else if (b.laserType === 'apocalypse') { spawnBoom(this.particles, b.x, b.y, 'medium', null); spawnExplosion(this.particles, b.x, b.y, '#FF1744', 14, true); }
         else if (b.laserType === 'lightning')  spawnExplosion(this.particles, b.x, b.y, '#FFEC3D', 10);
@@ -6116,7 +6240,7 @@ class Game {
             this.powerups.push(new PowerUp(e.x, e.y, _pickPowerupType()));
           }
         }
-        if (!b.pierce) break;
+        if (!b.pierce || b.dead) break;
       }
       if (b.dead) continue;
 
@@ -6136,7 +6260,7 @@ class Game {
           if (m.size === 'large') MeteorSpawner.fragment(m, this.meteors);
           m.dead = true;
         }
-        if (!b.pierce) break;
+        if (!b.pierce || b.dead) break;
       }
     }
 
@@ -6186,6 +6310,15 @@ class Game {
 
     // Contrôleur de vagues histoire
     this.storyCtrl.update(dt, this.enemies);
+
+    // ── Devastator : dégâts continus du rayon ──────────────
+    this._processDevastatorBeam(dt, this.enemies, null, (killed) => {
+      this.player.score += this.combo.addKill(killed.score || 0);
+      this.achievements.onKill();
+      const tier = killed instanceof BossTitan ? 'titan' : killed.isBoss ? 'boss' : killed.type || 'basic';
+      spawnBoom(this.particles, killed.x, killed.y, tier, (d, i) => this._triggerShake(d, i));
+      this.audio.explosion(killed.type === 'heavy' || killed.isBoss);
+    });
 
     // Tick weapons (recharge + charge plasma)
     const fireReq = this.weapons.tick(dt, !!this.input.fire);
@@ -6299,6 +6432,8 @@ class Game {
         } else {
           b.dead = true;
         }
+        // Storm Blaster : les boss ont maxHp >> 2, donc stoppe systématiquement
+        if (b.pierceWeakOnly && (e.maxHp || 1) >= 2) b.dead = true;
         spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
         this.achievements.onShotHit();
         const dmg = b.damage || 1;
@@ -6311,7 +6446,7 @@ class Game {
           e._brKilled = true;
           this._onBossRushKill(e);
         }
-        if (!b.pierce) break;
+        if (!b.pierce || b.dead) break;
       }
     }
 
@@ -6409,6 +6544,16 @@ class Game {
       this._applyPickup(p);
       spawnExplosion(this.particles, p.x, p.y, p.color, 12);
       this.powerups.splice(i, 1);
+    }
+
+    // ── Devastator : dégâts continus du rayon (boss uniquement, empBlocking annule) ──
+    if (!empBlocking) {
+      this._processDevastatorBeam(dt, this.enemies, null, (killed) => {
+        if (killed.isBoss && !killed._brKilled) {
+          killed._brKilled = true;
+          this._onBossRushKill(killed);
+        }
+      });
     }
 
     // ── Nettoyage ──────────────────────────────────────────
@@ -6701,6 +6846,8 @@ class Game {
         } else {
           b.dead = true;
         }
+        // Storm Blaster : ne traverse que les ennemis à 1 PV
+        if (b.pierceWeakOnly && (e.maxHp || 1) >= 2) b.dead = true;
         if (b.laserType === 'solar')           spawnBoom(this.particles, b.x, b.y, 'basic', null);
         else if (b.laserType === 'apocalypse') { spawnBoom(this.particles, b.x, b.y, 'medium', null); spawnExplosion(this.particles, b.x, b.y, '#FF1744', 14, true); }
         else if (b.laserType === 'lightning')  spawnExplosion(this.particles, b.x, b.y, '#FFEC3D', 10);
@@ -6737,8 +6884,8 @@ class Game {
             this.powerups.push(new PowerUp(e.x, e.y, _pickPowerupType()));
           }
         }
-        // Railgun/pierce : continue à traverser ; sinon stoppe au premier hit
-        if (!b.pierce) break;
+        // Pierce : continue à traverser ; sinon (ou pierceStopped) stoppe
+        if (!b.pierce || b.dead) break;
       }
       if (b.dead) continue;
 
@@ -6758,7 +6905,7 @@ class Game {
           if (m.size === 'large') MeteorSpawner.fragment(m, this.meteors);
           m.dead = true;
         }
-        if (!b.pierce) break;
+        if (!b.pierce || b.dead) break;
       }
     }
 
@@ -6816,6 +6963,33 @@ class Game {
     this.powerups      = this.powerups.filter(     p => !p.dead);
     this.meteors       = this.meteors.filter(      m => !m.dead);
     cleanParticles(this.particles);
+
+    // ── Devastator : dégâts continus du rayon ──────────────
+    this._processDevastatorBeam(dt, this.enemies, this.meteors, (killed) => {
+      const scoreMul = this.survivalEvents?.scoreMult() || 1;
+      this.player.score += this.combo.addKill((killed.score || 0) * this.wave.level * scoreMul);
+      this.achievements.onKill();
+      this.wave.enemyKilled();
+      if (this.adrenaline) this.adrenaline.onKill();
+      const coinMul = this.wave?._eliteBonus ? 2 : 1;
+      if (coinMul > 1) {
+        const bonus = Math.floor((killed.score || 0) / 20);
+        if (bonus > 0) {
+          this.coins += bonus;
+          localStorage.setItem('starblast_coins', this.coins.toString());
+          this.ui.updateCoins(this.coins);
+          this.ui.updateStartCoins(this.coins);
+        }
+      }
+      const boomTier = (killed.type === 'heavy' || killed.type === 'armored') ? 'heavy'
+                     : (killed.type === 'medium' || killed.type === 'healer' || killed.type === 'bomber') ? 'medium'
+                     : 'basic';
+      spawnBoom(this.particles, killed.x, killed.y, boomTier, (d, i) => this._triggerShake(d, i));
+      this.audio.explosion(boomTier === 'heavy');
+      if (Math.random() < (killed.dropChance || 0)) {
+        this.powerups.push(new PowerUp(killed.x, killed.y, _pickPowerupType()));
+      }
+    });
 
     // ── Gestion des vagues ───────────────────────────────
     const waveResult = this.wave.update(dt, this.enemies, this.W);
@@ -6978,8 +7152,11 @@ class Game {
       // Textes flottants de ramassage
       this._drawPickupFloats(ctx);
 
-      // Anneau de charge Plasma autour du joueur
+      // Anneau de charge Plasma (obsolète — Devastator n'utilise plus de charge)
       this._drawPlasmaCharge(ctx);
+
+      // Rayon Devastator (vertical, au-dessus du joueur)
+      this._drawDevastatorBeam(ctx);
 
       // Zones de danger (Survie) — dessinées derrière les particules mais devant les entités
       if (this._survivalMode && this.dangerZones && (this.state === 'playing' || this.state === 'paused')) {

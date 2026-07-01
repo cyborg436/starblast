@@ -1,35 +1,53 @@
 'use strict';
 /* ─────────────────────────────────────────────────────────────────────────
    weapons.js  —  Système d'armes évolutif StarBlast (6 armes)
-   - Blaster (départ), Twin Cannon, Spread Shot, Railgun, Missile Swarm, Plasma Cannon
+   Slots 1-3 : Blaster, Twin Cannon, Spread Shot
+   Slots 4-6 : Storm Blaster (burst), Nova Spread (5-way), Devastator (beam)
    - Persistance localStorage (armes déverrouillées + arme sélectionnée)
-   - La couleur de laser équipée s'applique à tous les types de tirs.
+   - La couleur de laser équipée s'applique à toutes les armes sauf Devastator
+     (qui garde son rouge caractéristique).
 ───────────────────────────────────────────────────────────────────────── */
 
 const WEAPON_DEFS = [
-  { id:'blaster', name:'BLASTER',       icon:'🔫', wave:0,  maxAmmo:Infinity,
-    fireRate:0.21, damage:1, chargeTime:0 },
-  { id:'twin',    name:'TWIN CANNON',   icon:'⚔', wave:5,  maxAmmo:Infinity,
+  { id:'blaster', name:'BLASTER',        icon:'🔫', wave:0,  maxAmmo:Infinity,
     fireRate:0.21, damage:1 },
-  { id:'spread',  name:'SPREAD SHOT',   icon:'🔱', wave:10, maxAmmo:Infinity,
+  { id:'twin',    name:'TWIN CANNON',    icon:'⚔',  wave:5,  maxAmmo:Infinity,
+    fireRate:0.21, damage:1 },
+  { id:'spread',  name:'SPREAD SHOT',    icon:'🔱', wave:10, maxAmmo:Infinity,
     fireRate:0.30, damage:1 },
-  { id:'railgun', name:'RAILGUN',       icon:'⚡', wave:15, maxAmmo:3,
-    fireRate:1.5,  damage:5, ammoReload:8.0, ammoPerReload:1 },
-  { id:'missile', name:'MISSILE SWARM', icon:'🚀', wave:20, maxAmmo:6,
-    fireRate:0.6,  damage:3, ammoReload:10.0, ammoPerReload:2, perShotAmmo:2 },
-  { id:'plasma',  name:'PLASMA CANNON', icon:'💚', wave:25, maxAmmo:3,
-    fireRate:0.4,  damage:15, ammoReload:12.0, ammoPerReload:1, chargeTime:0.8, explosionRadius:80 },
+  // ── Storm Blaster : burst 8 tirs en 0.5s + pause 0.8s ──
+  { id:'railgun', name:'STORM BLASTER',  icon:'⚡', wave:15, maxAmmo:Infinity,
+    fireRate:0.0625,                        // temps entre tirs d'un burst (0.5s / 8)
+    damage:2,
+    burstCount:8, burstPause:0.8 },
+  // ── Nova Spread : tir en éventail 5 directions ──
+  { id:'missile', name:'NOVA SPREAD',    icon:'🚀', wave:20, maxAmmo:Infinity,
+    fireRate:0.21, damage:1.5 },
+  // ── Devastator : rayon laser continu avec surchauffe ──
+  { id:'plasma',  name:'DEVASTATOR',     icon:'💥', wave:25, maxAmmo:Infinity,
+    isBeam:true, damagePerSec:8,
+    heatMax:3.0, heatCooldown:1.5 },
 ];
 
 // ── WeaponManager ────────────────────────────────────────────────────
 class WeaponManager {
   constructor() {
-    this.current   = 0;                              // index dans WEAPON_DEFS
-    this.unlocked  = new Set(['blaster']);           // toujours débloqué
-    this.ammo     = {};                              // par id → munitions restantes
-    this.reloadCd = {};                              // par id → cooldown rechargement
-    this.charge   = 0;                               // charge plasma 0..chargeTime
+    this.current   = 0;
+    this.unlocked  = new Set(['blaster']);
+    this.ammo     = {};
+    this.reloadCd = {};
     this._wasFiring = false;
+
+    // Burst state (Storm Blaster)
+    this._burstShotsLeft = 0;         // tirs restants dans le burst en cours
+    this._burstTimer     = 0;         // temps avant le prochain tir du burst
+    this._burstPauseT    = 0;         // pause après un burst complet
+
+    // Beam state (Devastator)
+    this._beamHeat       = 0;         // 0..heatMax
+    this._beamOverheated = false;     // vrai pendant heatCooldown
+    this._beamOverheatT  = 0;         // temps restant en surchauffe
+
     for (const d of WEAPON_DEFS) {
       this.ammo[d.id]     = isFinite(d.maxAmmo) ? d.maxAmmo : 0;
       this.reloadCd[d.id] = 0;
@@ -47,9 +65,7 @@ class WeaponManager {
   _load() {
     const raw = JSON.parse(localStorage.getItem('starblast_weapons') || 'null');
     if (!raw) return;
-    if (Array.isArray(raw.unlocked)) {
-      raw.unlocked.forEach(id => this.unlocked.add(id));
-    }
+    if (Array.isArray(raw.unlocked)) raw.unlocked.forEach(id => this.unlocked.add(id));
     if (raw.selected) {
       const idx = WEAPON_DEFS.findIndex(w => w.id === raw.selected);
       if (idx >= 0 && this.unlocked.has(raw.selected)) this.current = idx;
@@ -64,13 +80,19 @@ class WeaponManager {
     if (!isFinite(d.maxAmmo)) return true;
     return this.ammo[d.id] > 0;
   }
-  chargeProgress() {
-    const d = this.def();
-    if (!d.chargeTime) return 0;
-    return Math.min(1, this.charge / d.chargeTime);
-  }
+  /** Ratio de charge (obsolète — armes rapides). Conservé pour compat HUD. */
+  chargeProgress() { return 0; }
 
-  /** Recharge complète (power-up RECHARGEMENT). */
+  /** Devastator : ratio de surchauffe 0..1. */
+  heatRatio() {
+    const d = this.def();
+    if (!d.isBeam) return 0;
+    return Math.min(1, this._beamHeat / d.heatMax);
+  }
+  /** Vrai si Devastator actuellement en surchauffe. */
+  isOverheated() { return this._beamOverheated; }
+
+  /** Recharge complète — reset des états spéciaux. */
   rechargeAll() {
     for (const d of WEAPON_DEFS) {
       if (isFinite(d.maxAmmo)) {
@@ -78,9 +100,11 @@ class WeaponManager {
         this.reloadCd[d.id] = 0;
       }
     }
+    this._burstShotsLeft = 0; this._burstTimer = 0; this._burstPauseT = 0;
+    this._beamHeat = 0; this._beamOverheated = false; this._beamOverheatT = 0;
   }
 
-  /** Déverrouille les armes selon la vague atteinte. Retourne les nouvelles armes déverrouillées. */
+  /** Déverrouille les armes selon la vague atteinte. */
   unlockUpToWave(waveLevel) {
     const newly = [];
     for (const d of WEAPON_DEFS) {
@@ -93,14 +117,13 @@ class WeaponManager {
     return newly;
   }
 
-  /** Switch d'arme par index, par delta (molette), ou par id. */
   select(idx) {
-    const id = WEAPON_DEFS[idx]?.id;
-    console.log(`[WeaponManager] select(${idx}) id=${id} unlocked=${this.unlocked.has(id)} current=${this.current}`);
     if (idx < 0 || idx >= WEAPON_DEFS.length) return false;
-    if (!this.unlocked.has(id)) return false;
-    this.current  = idx;
-    this.charge   = 0;
+    if (!this.unlocked.has(WEAPON_DEFS[idx].id)) return false;
+    this.current = idx;
+    // Reset des états spécifiques
+    this._burstShotsLeft = 0; this._burstTimer = 0; this._burstPauseT = 0;
+    this._beamHeat = 0; this._beamOverheated = false; this._beamOverheatT = 0;
     this._wasFiring = false;
     this._save();
     return true;
@@ -115,48 +138,91 @@ class WeaponManager {
     return false;
   }
 
-  // ── Update : recharge ammo + tick charge ──────────────────────
+  // ── Update : gestion du burst Storm Blaster + surchauffe Devastator ──
   /**
    * @param dt        delta-time
    * @param isFiring  bouton de tir maintenu
    * @returns 'fire' si un tir doit être déclenché ce frame, sinon null
+   *
+   * Pour Devastator, le rendu et les dégâts du rayon sont gérés directement
+   * par le Game via getBeamState() — ce tick renvoie null.
    */
   tick(dt, isFiring) {
-    // Recharge automatique des armes à munitions
-    for (const d of WEAPON_DEFS) {
-      if (!isFinite(d.maxAmmo) || !d.ammoReload) continue;
-      if (this.ammo[d.id] >= d.maxAmmo) { this.reloadCd[d.id] = 0; continue; }
-      this.reloadCd[d.id] += dt;
-      if (this.reloadCd[d.id] >= d.ammoReload) {
-        this.reloadCd[d.id] -= d.ammoReload;
-        this.ammo[d.id] = Math.min(d.maxAmmo, this.ammo[d.id] + (d.ammoPerReload || 1));
-      }
-    }
+    const d = this.def();
 
-    // Gestion de la charge (Plasma)
-    const def = this.def();
-    if (def.chargeTime) {
-      if (isFiring && this.hasAmmo()) {
-        this.charge += dt;
-        if (this.charge >= def.chargeTime) {
-          this.charge = 0;
-          this._wasFiring = isFiring;
-          return 'fire';   // déclenche le tir une fois la charge complète
+    // Devastator (beam) : gestion chaleur / surchauffe
+    if (d.isBeam) {
+      if (this._beamOverheated) {
+        this._beamOverheatT -= dt;
+        if (this._beamOverheatT <= 0) {
+          this._beamOverheated = false;
+          this._beamHeat = 0;
+        }
+      } else if (isFiring) {
+        this._beamHeat += dt;
+        if (this._beamHeat >= d.heatMax) {
+          this._beamOverheated = true;
+          this._beamOverheatT  = d.heatCooldown;
+          this._beamHeat       = d.heatMax;
         }
       } else {
-        // relâche → reset
-        this.charge = 0;
+        // Refroidit à ~2× la vitesse quand on ne tire pas
+        this._beamHeat = Math.max(0, this._beamHeat - dt * 1.6);
+      }
+      this._wasFiring = isFiring;
+      return null;   // pas de projectile
+    }
+
+    // Storm Blaster : burst automatique
+    if (d.burstCount) {
+      if (this._burstPauseT > 0) {
+        this._burstPauseT -= dt;
+        this._wasFiring = isFiring;
+        return null;
+      }
+      // Décrémente le timer entre tirs du burst
+      if (this._burstShotsLeft > 0) {
+        this._burstTimer -= dt;
+        if (this._burstTimer <= 0) {
+          this._burstShotsLeft--;
+          this._burstTimer = d.fireRate;
+          if (this._burstShotsLeft === 0) {
+            this._burstPauseT = d.burstPause;
+          }
+          this._wasFiring = isFiring;
+          return 'fire';
+        }
+      } else if (isFiring) {
+        // Démarre un nouveau burst
+        this._burstShotsLeft = d.burstCount - 1;
+        this._burstTimer     = d.fireRate;
+        this._wasFiring = isFiring;
+        return 'fire';   // 1er tir immédiat
       }
       this._wasFiring = isFiring;
       return null;
     }
 
-    // Autres armes : gérée par Player.fire via cooldown classique
+    // Autres armes : gérées via Player.fire (cooldown classique)
     this._wasFiring = isFiring;
     return null;
   }
 
-  /** Consomme 1 munition (ou perShotAmmo) pour l'arme courante. Retourne false si vide. */
+  /** Beam state pour le Game. Retourne null si l'arme actuelle n'est pas Devastator. */
+  getBeamState(player, isFiring) {
+    const d = this.def();
+    if (!d.isBeam) return null;
+    const active = isFiring && !this._beamOverheated;
+    return {
+      active,
+      overheated:  this._beamOverheated,
+      heatRatio:   this.heatRatio(),
+      damagePerSec: d.damagePerSec,
+      x:      player ? player.x : 0,
+      yStart: player ? player.y - player.h * 0.46 : 0,
+    };
+  }
+
   consumeAmmo() {
     const d = this.def();
     if (!isFinite(d.maxAmmo)) return true;
@@ -167,7 +233,7 @@ class WeaponManager {
   }
 
   /**
-   * Tire avec l'arme courante. Pousse les bullets/missiles dans `bullets`.
+   * Tire avec l'arme courante. Pousse les projectiles dans `bullets`.
    * @returns nombre de projectiles tirés (0 si rien)
    */
   fire(player, bullets, audio) {
@@ -192,39 +258,44 @@ class WeaponManager {
       }
       case 'spread': {
         const s = CFG.BULLET_SPEED;
-        // Éventail : -15°, 0°, +15°
         [-0.26, 0, 0.26].forEach(a => {
           const b = makeBullet(px, py, Math.sin(a) * s, -Math.cos(a) * s, color, lt, damage, player.surcharge);
-          b.w *= 1.5;                                            // projectiles plus épais
+          b.w *= 1.5;
           bullets.push(b);
         });
         audio.shoot(); audio.shoot();
         return 3;
       }
       case 'railgun': {
-        if (!this.consumeAmmo()) return 0;
-        const b = makeBullet(px, py, 0, -CFG.BULLET_SPEED * 2.2, color, lt, damage, false);
-        b.pierce    = true;
-        b.isRailgun = true;
-        b._hitSet   = new Set();
-        b.w = 8; b.h = 36;
+        // Storm Blaster : projectile bleu épais rapide qui traverse les faibles ennemis
+        const s = CFG.BULLET_SPEED * 1.6;
+        const b = makeBullet(px, py, 0, -s, '#66ccff', lt, damage, player.surcharge);
+        b.w *= 3.0; b.h *= 1.4;
+        b.pierce = true;
+        b.pierceWeakOnly = true;   // stoppe sur ennemis de 2 PV+
+        b._hitSet = new Set();
+        b.isStorm = true;
         bullets.push(b);
-        audio.bossAlert();                                        // bruit de décharge énergétique
+        // Son de mitrailleuse (shoot rapide)
+        audio.shoot();
         return 1;
       }
       case 'missile': {
-        if (!this.consumeAmmo()) return 0;
-        // Spawn 2 missiles (perShotAmmo = 2)
-        bullets.push(new Missile(px - 8, py, color, damage, /* targetSide */ -1));
-        bullets.push(new Missile(px + 8, py, color, damage, +1));
-        audio.shoot();
-        return 2;
+        // Nova Spread : 5 projectiles en éventail (0, ±30°, ±60°)
+        const s = CFG.BULLET_SPEED;
+        const angles = [-Math.PI/3, -Math.PI/6, 0, Math.PI/6, Math.PI/3];
+        angles.forEach(a => {
+          const b = makeBullet(px, py, Math.sin(a) * s, -Math.cos(a) * s, color, lt, damage, player.surcharge);
+          b.w *= 1.8;
+          b.isNova = true;
+          bullets.push(b);
+        });
+        audio.shootDouble();
+        return 5;
       }
       case 'plasma': {
-        if (!this.consumeAmmo()) return 0;
-        bullets.push(new PlasmaBall(px, py, color, damage, d.explosionRadius));
-        audio.bomb();
-        return 1;
+        // Devastator : rendu par beam, pas de projectile
+        return 0;
       }
     }
     return 0;
@@ -239,170 +310,5 @@ function makeBullet(x, y, vx, vy, color, laserType, damage, surcharge) {
   return b;
 }
 
-// ── Missile : projectile à tête chercheuse + AoE à l'impact ─────────
-class Missile extends Bullet {
-  constructor(x, y, color, damage, sideHint) {
-    super(x, y, sideHint * 60, -260, color, true, '');
-    this.damage = damage;
-    this.w = 4; this.h = 12;
-    this.isMissile = true;
-    this.explosionRadius = 36;
-    this.maxSpeed = 360;
-    this.turnRate = 4.5;        // rad/s
-    this.target   = null;
-    this._smokeCd = 0;
-    this.life     = 4.0;        // durée maximum
-  }
-
-  /** Recherche d'une cible parmi les ennemis vivants. */
-  _findTarget(enemies) {
-    let best = null, bestD2 = Infinity;
-    for (const e of enemies) {
-      if (e.dead || e.dying) continue;
-      const dx = e.x - this.x, dy = e.y - this.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < bestD2) { bestD2 = d2; best = e; }
-    }
-    return best;
-  }
-
-  update(dt, W, H, enemies, particles) {
-    this.life -= dt;
-    if (this.life <= 0) { this.dead = true; return; }
-
-    // Cible si encore vivante
-    if (!this.target || this.target.dead || this.target.dying) {
-      this.target = enemies ? this._findTarget(enemies) : null;
-    }
-
-    if (this.target) {
-      const dx = this.target.x - this.x, dy = this.target.y - this.y;
-      const desired = Math.atan2(dy, dx);
-      const cur = Math.atan2(this.vy, this.vx);
-      let diff = desired - cur;
-      while (diff >  Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      const step = clamp(diff, -this.turnRate * dt, this.turnRate * dt);
-      const newAngle = cur + step;
-      // Accélère jusqu'à maxSpeed
-      const curSpeed = Math.hypot(this.vx, this.vy);
-      const newSpeed = Math.min(this.maxSpeed, curSpeed + 280 * dt);
-      this.vx = Math.cos(newAngle) * newSpeed;
-      this.vy = Math.sin(newAngle) * newSpeed;
-    }
-
-    this.x += this.vx * dt;
-    this.y += this.vy * dt;
-
-    // Traînée de fumée
-    this._smokeCd -= dt;
-    if (this._smokeCd <= 0 && particles && particles.length < 280) {
-      this._smokeCd = 0.04;
-      particles.push(new Particle(
-        this.x + rand(-1, 1), this.y + 6,
-        rand(-10, 10), rand(20, 60),
-        Math.random() < 0.5 ? 'rgba(220,220,220,0.5)' : 'rgba(255,180,100,0.6)',
-        rand(0.3, 0.55), rand(1.5, 3.2)
-      ));
-    }
-
-    if (this.y < -30 || this.y > H + 30 || this.x < -30 || this.x > W + 30) this.dead = true;
-  }
-
-  /** Explose en AoE et endommage les ennemis dans le rayon. */
-  explode(enemies, particles, audio, onKill) {
-    const r2 = this.explosionRadius * this.explosionRadius;
-    for (const e of enemies) {
-      if (e.dead || e.dying) continue;
-      const dx = e.x - this.x, dy = e.y - this.y;
-      if (dx * dx + dy * dy > r2) continue;
-      if (e.hit(this.damage)) {
-        e.dead = true;
-        if (onKill) onKill(e);
-      }
-    }
-    spawnExplosion(particles, this.x, this.y, '#ffaa55', 16, true);
-    audio.explosion(false);
-    this.dead = true;
-  }
-
-  draw(ctx) {
-    ctx.save();
-    const angle = Math.atan2(this.vy, this.vx) + Math.PI / 2;
-    ctx.translate(this.x, this.y);
-    ctx.rotate(angle);
-    // Corps blanc
-    ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = this.color; ctx.shadowBlur = 8;
-    ctx.fillRect(-2, -6, 4, 12);
-    // Nose
-    ctx.beginPath();
-    ctx.moveTo(0, -8); ctx.lineTo(-2, -5); ctx.lineTo(2, -5); ctx.closePath();
-    ctx.fillStyle = this.color; ctx.fill();
-    // Flame
-    ctx.fillStyle = '#ffcc66';
-    ctx.fillRect(-1.5, 6, 3, 4);
-    ctx.shadowBlur = 0;
-    ctx.restore();
-  }
-}
-
-// ── PlasmaBall : projectile en arc + explosion AoE ──────────────────
-class PlasmaBall extends Bullet {
-  constructor(x, y, color, damage, explosionRadius) {
-    super(x, y, 0, -340, color, true, '');
-    this.damage = damage;
-    this.w = 20; this.h = 20;
-    this.isPlasma = true;
-    this.explosionRadius = explosionRadius;
-    this.life = 2.0;
-    this.t = 0;
-  }
-
-  update(dt, W, H) {
-    this.t += dt;
-    this.life -= dt;
-    this.x += this.vx * dt;
-    this.y += this.vy * dt;
-    if (this.life <= 0 || this.y < -40) this.dead = true;
-  }
-
-  explode(enemies, particles, audio, onKill) {
-    const r2 = this.explosionRadius * this.explosionRadius;
-    for (const e of enemies) {
-      if (e.dead || e.dying) continue;
-      const dx = e.x - this.x, dy = e.y - this.y;
-      if (dx * dx + dy * dy > r2) continue;
-      if (e.hit(this.damage)) {
-        e.dead = true;
-        if (onKill) onKill(e);
-      }
-    }
-    spawnBoom(particles, this.x, this.y, 'medium', null);
-    spawnExplosion(particles, this.x, this.y, this.color, 24, true);
-    audio.bomb();
-    this.dead = true;
-  }
-
-  draw(ctx) {
-    const t = this.t;
-    const pulse = 1 + 0.18 * Math.sin(t * 18);
-    const r = (this.w / 2) * pulse;
-    ctx.save();
-    ctx.translate(this.x, this.y);
-    // Halo extérieur
-    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 2.6);
-    grad.addColorStop(0,    this.color);
-    grad.addColorStop(0.4,  '#00ffaa');
-    grad.addColorStop(0.75, 'rgba(0,255,170,0.3)');
-    grad.addColorStop(1,    'rgba(0,255,170,0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.arc(0, 0, r * 2.6, 0, Math.PI * 2); ctx.fill();
-    // Noyau brillant
-    ctx.shadowColor = this.color; ctx.shadowBlur = 22;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.65, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.restore();
-  }
-}
+// ── DevastatorBeam : rayon continu appliqué chaque frame par Game ──
+// Non-classe : décrit par WeaponManager.getBeamState() + logique dans Game.
