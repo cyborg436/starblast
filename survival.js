@@ -420,12 +420,12 @@ class KamikazeEnemy extends Enemy {
     this._locked = false;   // trajectoire figée au 1er update
   }
   update(dt, W, H, enemyBullets) {
-    // Verrouille direction à la cible au premier tick
+    // Verrouille direction à la cible au premier tick — vitesse -10 % (équilibrage)
     if (!this._locked && this._target) {
       const dx = this._target.x - this.x;
       const dy = this._target.y - this.y;
       const d  = Math.hypot(dx, dy) || 1;
-      const spd = 200 + Math.min(30, (this.vy || 100)) * 0.5;
+      const spd = (200 + Math.min(30, (this.vy || 100)) * 0.5) * 0.9;
       this.vx = (dx / d) * spd;
       this.vy = (dy / d) * spd;
       this._locked = true;
@@ -439,6 +439,15 @@ class KamikazeEnemy extends Enemy {
   draw(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
+    // Contour rouge clignotant rapide (identification immédiate)
+    const outlineAlpha = 0.5 + 0.5 * Math.sin(this.t * 22);
+    ctx.strokeStyle = `rgba(255,40,60,${outlineAlpha})`;
+    ctx.lineWidth = 2.4;
+    ctx.shadowColor = '#ff2244'; ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.w * 0.75, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
     // Rotation vers la direction
     const ang = Math.atan2(this.vy, this.vx) + Math.PI / 2;
     ctx.rotate(ang);
@@ -532,12 +541,23 @@ class ArmoredEnemy extends Enemy {
       ctx.beginPath(); ctx.arc(w * 0.15, -h * 0.1, w * 0.15 * dmg, 0, Math.PI * 2); ctx.fill();
     }
     ctx.filter = 'none';
-    // Barre PV
-    const bw = w * 0.9, bh = 3.5;
-    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-bw/2, -h/2 - 9, bw, bh);
+    // Barre PV — TOUJOURS visible (identification immédiate) avec "X / 5"
+    const bw = w * 1.1, bh = 5;
+    ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(-bw/2, -h/2 - 12, bw, bh);
     const ratio = this.hp / this.maxHp;
     ctx.fillStyle = ratio > 0.5 ? '#00ff88' : ratio > 0.25 ? '#ffcc00' : '#ff3355';
-    ctx.fillRect(-bw/2, -h/2 - 9, bw * ratio, bh);
+    ctx.fillRect(-bw/2, -h/2 - 12, bw * ratio, bh);
+    // Contour blanc
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-bw/2, -h/2 - 12, bw, bh);
+    // Texte "X/5"
+    ctx.font = '900 8px Orbitron, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+    ctx.fillText(`${this.hp}/${this.maxHp}`, 0, -h/2 - 14);
+    ctx.shadowBlur = 0;
     ctx.restore();
   }
 }
@@ -547,15 +567,16 @@ class HealerEnemy extends Enemy {
   constructor(x, y, speedScale) {
     super('medium', x, y, speedScale);
     this.type = 'healer';
-    this.w = 40; this.h = 40;
+    this.w = 52; this.h = 52;               // +30 % de taille (40 → 52) pour reconnaissance immédiate
     this.hp = 3; this.maxHp = 3;
     this.score = 600;
     this.dropChance = 0.50;
-    this.vy *= 0.6;   // reste en arrière
+    this.vy *= 0.6;                          // reste en arrière
     this.color = '#33ff88';
-    this.fireRate = 6;   // rarement
+    this.fireRate = 6;
     this.fireTimer = 3;
     this.healTimer = 2.0;
+    this.healRange = 120;                    // portée de soin réduite (spec)
     this._render = null;
   }
   /** Répare les ennemis proches. Appelé par Game._update. */
@@ -563,8 +584,7 @@ class HealerEnemy extends Enemy {
     this.healTimer -= dt;
     if (this.healTimer > 0) return null;
     this.healTimer = 2.0;
-    // Cherche le plus proche allié blessé (hors soi, hors boss)
-    let best = null, bestDist = 180;
+    let best = null, bestDist = this.healRange;
     for (const e of enemies) {
       if (e === this || e.dead || e.dying) continue;
       if (e.isBoss) continue;
@@ -581,32 +601,47 @@ class HealerEnemy extends Enemy {
   draw(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
+    // Rayon de soin visible (cercle vert très transparent, pulsant)
+    const pulse = 1 + 0.08 * Math.sin(this.t * 3);
+    ctx.strokeStyle = `rgba(80,255,150,${0.12 + 0.05 * Math.sin(this.t * 3)})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.healRange * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = `rgba(80,255,150,${0.04 + 0.02 * Math.sin(this.t * 3)})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.healRange * pulse, 0, Math.PI * 2);
+    ctx.fill();
     if (this.flashTimer > 0) ctx.filter = 'brightness(3)';
     // Corps rond vert
-    ctx.shadowColor = '#33ff88'; ctx.shadowBlur = 14;
-    const g = ctx.createRadialGradient(0, 0, 3, 0, 0, this.w / 2);
+    ctx.shadowColor = '#33ff88'; ctx.shadowBlur = 18;
+    const g = ctx.createRadialGradient(0, 0, 4, 0, 0, this.w / 2);
     g.addColorStop(0, '#88ffaa');
     g.addColorStop(0.7, '#33cc66');
     g.addColorStop(1, '#0a3319');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(0, 0, this.w * 0.42, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#88ffaa';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
     ctx.stroke();
-    // Croix médicale (au centre)
+    // Croix médicale centrale (blanc)
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(-3, -10, 6, 20);
-    ctx.fillRect(-10, -3, 20, 6);
+    ctx.fillRect(-4, -14, 8, 28);
+    ctx.fillRect(-14, -4, 28, 8);
     ctx.filter = 'none';
     ctx.shadowBlur = 0;
-    // Icône ⚕ flottante (priorité #1)
-    ctx.font = '900 12px Orbitron, monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillStyle = '#88ffaa';
-    ctx.shadowColor = '#00ff44'; ctx.shadowBlur = 10;
-    ctx.fillText('✚', 0, -this.h / 2 - 4);
+    // Icône croix verte PULSANTE au-dessus (priorité #1)
+    const crossScale = 1 + 0.28 * Math.abs(Math.sin(this.t * 4));
+    ctx.save();
+    ctx.translate(0, -this.h / 2 - 12);
+    ctx.scale(crossScale, crossScale);
+    ctx.fillStyle = '#00ff66';
+    ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 16;
+    ctx.font = '900 16px Orbitron, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('✚', 0, 0);
     ctx.shadowBlur = 0;
+    ctx.restore();
     // Barre PV
     if (this.hp < this.maxHp) {
       const bw = this.w * 0.9, bh = 3.5;
@@ -676,6 +711,15 @@ class BomberEnemy extends Enemy {
       ctx.fillStyle = '#ffaa22';
       ctx.fillRect(-bw/2, -h/2 - 9, bw * (this.hp / this.maxHp), bh);
     }
+    // Icône 💣 au-dessus, clignotement lent (identification immédiate)
+    const bombPulse = 0.6 + 0.4 * Math.abs(Math.sin(this.t * 1.8));
+    ctx.globalAlpha = bombPulse;
+    ctx.font = '18px serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 10;
+    ctx.fillText('💣', 0, -h / 2 - 14);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 }
@@ -685,7 +729,8 @@ class BomberBomb {
   constructor(x, y, targetX, targetY) {
     this.x = x; this.y = y;
     this.targetX = targetX; this.targetY = targetY;
-    this.fuse = 3.0;        // 3 s avant explosion
+    this.fuse = 3.5;        // 3.5 s avant explosion (spec équilibrage)
+    this.maxFuse = 3.5;
     this.radius = 55;
     this.dead = false;
     // Marqueur de zone
@@ -694,7 +739,7 @@ class BomberBomb {
   update(dt, W, H, player, particles, audio, onHit) {
     this.fuse -= dt;
     // Trajectoire parabolique douce vers le point de largage
-    const t = 1 - Math.max(0, this.fuse) / 3.0;
+    const t = 1 - Math.max(0, this.fuse) / this.maxFuse;
     this.x = this.zoneX + (this.x - this.zoneX) * (1 - t);
     this.y += 60 * dt;
     if (this.fuse <= 0) {
@@ -712,23 +757,34 @@ class BomberBomb {
     }
   }
   draw(ctx) {
-    // Zone rouge indiquant l'impact
-    const alpha = Math.max(0, this.fuse) / 3.0;
+    // Zone rouge d'avertissement de l'impact — opacité 0.5 + contour rouge vif
     ctx.save();
-    // Cercle d'impact
-    ctx.fillStyle = `rgba(255,50,50,${(1 - alpha) * 0.28 + 0.06})`;
+    // Fond du cercle d'impact : opacité 0.5 fixe (spec — bien visible)
+    ctx.fillStyle = 'rgba(255,40,40,0.5)';
     ctx.beginPath(); ctx.arc(this.zoneX, this.zoneY, this.radius, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = `rgba(255,50,50,${0.9})`;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
+    // Contour rouge vif (bien visible, épais, glow)
+    ctx.strokeStyle = '#ff0022';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#ff0022'; ctx.shadowBlur = 12;
+    ctx.setLineDash([8, 4]);
+    // Décalage dash animé pour effet marquant
+    ctx.lineDashOffset = -Date.now() * 0.03;
     ctx.beginPath(); ctx.arc(this.zoneX, this.zoneY, this.radius, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.setLineDash([]); ctx.lineDashOffset = 0; ctx.shadowBlur = 0;
+    // Cercle intérieur clignotant (dernière seconde → très alarmant)
+    if (this.fuse < 1.2) {
+      const blink = Math.floor(this.fuse * 6) % 2 === 0;
+      if (blink) {
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.beginPath(); ctx.arc(this.zoneX, this.zoneY, this.radius * 0.6, 0, Math.PI * 2); ctx.fill();
+      }
+    }
     // Countdown texte
     const remaining = Math.max(0, this.fuse).toFixed(1);
     ctx.fillStyle = '#ffdd44';
-    ctx.font = '900 12px Orbitron, monospace';
+    ctx.font = '900 13px Orbitron, monospace';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.shadowColor = '#ff2200'; ctx.shadowBlur = 10;
+    ctx.shadowColor = '#ff2200'; ctx.shadowBlur = 12;
     ctx.fillText(remaining, this.zoneX, this.zoneY);
     ctx.shadowBlur = 0;
     // Bombe qui tombe

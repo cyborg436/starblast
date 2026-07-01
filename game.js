@@ -5431,6 +5431,7 @@ class Game {
     this._nextFormationOn = 5;   // formations à partir de la vague 5
     this._deathPending    = false;
     this._slowMoTimer     = 0;
+    this._kamikazePeriodicTimer = 12;
 
     musicManager.play('afterburn');
     this.stars.setPalette('default');
@@ -6660,30 +6661,70 @@ class Game {
   }
 
   /** Injecte des ennemis spéciaux dans la file de la prochaine vague. */
+  /**
+   * Injecte les ennemis spéciaux dans la file de la prochaine vague avec
+   * des comptes GARANTIS par type + niveau (spec Survie).
+   *
+   *  KAMIKAZE : v3+ = 1 / v8+ = 2 / v15+ = 2 + spawns périodiques (12 s)
+   *  BLINDÉ   : v5+ = 1 toutes les 2 vagues / v12+ = 1/vague / v20+ = 2/vague
+   *  SOIGNEUR : v7+ = 1 toutes les 2 vagues / v15+ = 1/vague  (avec vague active)
+   *  BOMBARDIER : v6+ = 1/3v / v15+ = 1/2v / v25+ = 1/vague
+   */
   _injectSpecialEnemies() {
-    if (typeof _pickSpecialEnemyType !== 'function') return;
-    // Injecte 1-3 ennemis spéciaux au-dessus de la file principale
-    const wq = this.wave;
-    const level = wq.level;
-    if (level < 4) return;
-    const count = 1 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < count; i++) {
-      const type = _pickSpecialEnemyType(level);
-      if (!type) continue;
+    const level = this.wave.level;
+    if (level < 3) return;
+    const speedScale = Math.min(level, 30);
+
+    // Comptes par type selon les paliers
+    const counts = { kamikaze: 0, armored: 0, healer: 0, bomber: 0 };
+
+    // Kamikaze
+    if (level >= 3)  counts.kamikaze = 1;
+    if (level >= 8)  counts.kamikaze = 2;
+
+    // Blindé
+    if (level >= 5 && level % 2 === 1) counts.armored = 1;
+    if (level >= 12) counts.armored = 1;
+    if (level >= 20) counts.armored = 2;
+
+    // Soigneur (spawn au démarrage de la vague active → OK avec le timing existant)
+    if (level >= 7 && level % 2 === 1) counts.healer = 1;
+    if (level >= 15) counts.healer = 1;
+
+    // Bombardier
+    if (level >= 6 && level % 3 === 0)  counts.bomber = 1;
+    if (level >= 15 && level % 2 === 0) counts.bomber = 1;
+    if (level >= 25) counts.bomber = 1;
+
+    // Spawn différé — les ennemis apparaissent PENDANT la vague active
+    // (intermission ≈ 2.8 s, la vague normale spawn ses ennemis à partir de ~2.8 s)
+    let delayIdx = 0;
+    const spawnAt = (entity, delayMs) => {
+      setTimeout(() => {
+        if (this.state === 'playing' && this._survivalMode) this.enemies.push(entity);
+      }, delayMs);
+    };
+    for (let k = 0; k < counts.kamikaze; k++) {
       const x = 40 + Math.random() * (this.W - 80);
-      const y = -80 - i * 30;
-      const speedScale = Math.min(level, 30);
-      let entity = null;
-      if (type === 'kamikaze') entity = new KamikazeEnemy(x, y, speedScale, this.player);
-      else if (type === 'armored') entity = new ArmoredEnemy(x, y, speedScale);
-      else if (type === 'healer')  entity = new HealerEnemy(x, y, speedScale);
-      else if (type === 'bomber')  entity = new BomberEnemy(x, y, speedScale, this.player);
-      if (entity) {
-        // Injecte avec un léger délai (via setTimeout — approximatif mais suffisant)
-        setTimeout(() => {
-          if (this.state === 'playing') this.enemies.push(entity);
-        }, 400 + i * 500);
-      }
+      // Kamikaze peut arriver tôt (autonome, n'a pas besoin d'alliés)
+      spawnAt(new KamikazeEnemy(x, -80 - delayIdx * 30, speedScale, this.player), 3500 + delayIdx * 800);
+      delayIdx++;
+    }
+    for (let k = 0; k < counts.armored; k++) {
+      const x = 40 + Math.random() * (this.W - 80);
+      spawnAt(new ArmoredEnemy(x, -80 - delayIdx * 30, speedScale), 3200 + delayIdx * 700);
+      delayIdx++;
+    }
+    for (let k = 0; k < counts.healer; k++) {
+      const x = 60 + Math.random() * (this.W - 120);
+      // Healer : APRÈS le début de la vague pour qu'il y ait des alliés à soigner
+      spawnAt(new HealerEnemy(x, -80 - delayIdx * 30, speedScale), 4500 + delayIdx * 600);
+      delayIdx++;
+    }
+    for (let k = 0; k < counts.bomber; k++) {
+      const x = 60 + Math.random() * (this.W - 120);
+      spawnAt(new BomberEnemy(x, -80 - delayIdx * 30, speedScale, this.player), 3800 + delayIdx * 700);
+      delayIdx++;
     }
   }
 
@@ -6820,6 +6861,18 @@ class Game {
         if (this.adrenaline) this.adrenaline.onPlayerHit();
       });
       if (b.dead) this.bomberBombs.splice(i, 1);
+    }
+
+    // ── Spawn périodique de Kamikaze à partir de la vague 15 (1 / 12 s) ──
+    if (this.wave.level >= 15) {
+      this._kamikazePeriodicTimer = (this._kamikazePeriodicTimer ?? 12) - dt;
+      if (this._kamikazePeriodicTimer <= 0) {
+        this._kamikazePeriodicTimer = 12;
+        const x = 40 + Math.random() * (this.W - 80);
+        this.enemies.push(new KamikazeEnemy(x, -80, Math.min(this.wave.level, 30), this.player));
+      }
+    } else {
+      this._kamikazePeriodicTimer = 12;
     }
 
     // ── Kamikaze : explosion au contact ───────────────────
