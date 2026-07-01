@@ -15,7 +15,7 @@ const CFG = {
 
   // Joueur
   PLAYER_SPEED: 290,          // px/s (vertical)
-  PLAYER_SPEED_X: 850,        // px/s latéral — légèrement augmenté pour un jeu plus frénétique
+  PLAYER_SPEED_X: 1190,       // px/s latéral (×1.4 par rapport à 850) — sensation nerveuse
   PLAYER_FIRE_RATE: 0.22,     // secondes entre tirs
   BULLET_SPEED: 620,          // px/s balles joueur
   ENEMY_BULLET_SPEED: 190,    // px/s balles ennemies
@@ -1671,6 +1671,9 @@ class Player {
     this._moveMag = 0;                // magnitude de déplacement (0..1)
     this._trailBuffer = [];           // positions récentes pour motion trail
     this._smokeCd = 0;                // spawn cooldown fumée basse vie
+
+    // Inertie horizontale légère (accel 0.08 s / decel 0.06 s)
+    this._smoothDx = 0;
   }
 
   // Hitbox réduite (plus fair pour le joueur)
@@ -1764,8 +1767,17 @@ class Player {
   }
 
   update(dt, inp, W, H) {
-    // Déplacement
-    this.x = clamp(this.x + inp.dx * this.w * 0.5 * dt * (CFG.PLAYER_SPEED_X / 140), this.w / 2, W - this.w / 2);
+    // Inertie horizontale légère : lisse inp.dx vers un smoothDx
+    //  - Accélération : atteint la cible en 0.08 s
+    //  - Décélération : s'arrête en 0.06 s quand touche relâchée
+    const targetDx = inp.dx;
+    const tau = (targetDx !== 0 && Math.abs(targetDx) > Math.abs(this._smoothDx)) ? 0.08 : 0.06;
+    const step = dt / tau;
+    if (Math.abs(targetDx - this._smoothDx) <= step) this._smoothDx = targetDx;
+    else this._smoothDx += Math.sign(targetDx - this._smoothDx) * step;
+
+    // Déplacement — utilise smoothDx pour l'inertie (X), inp.dy direct pour Y
+    this.x = clamp(this.x + this._smoothDx * this.w * 0.5 * dt * (CFG.PLAYER_SPEED_X / 140), this.w / 2, W - this.w / 2);
     this.y = clamp(this.y + inp.dy * this.h * 0.5 * dt * (CFG.PLAYER_SPEED / 140), this.h / 2 + 40, H - this.h / 2 - 10);
 
     // Cooldowns
