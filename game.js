@@ -372,42 +372,51 @@ const BG_PALETTES = {
 
 class StarField {
   constructor(w, h) {
-    // 3 couches : lente (fond), moyenne, rapide (avant-plan)
-    this.layers = [
-      { stars: [], speed: 28,  r: 0.8, alpha: 0.35 },
-      { stars: [], speed: 65,  r: 1.3, alpha: 0.6  },
-      { stars: [], speed: 110, r: 1.8, alpha: 0.9  },
-    ];
     this.w = w; this.h = h;
-    const n = Math.ceil(CFG.STAR_COUNT / 3);
-    this.layers.forEach(l => {
-      for (let i = 0; i < n; i++)
-        l.stars.push({ x: rand(0, w), y: rand(0, h), tw: rand(0, Math.PI * 2) });
-    });
-
-    // ── Nébuleuse (blobs qui dérivent lentement) ──
     this.palette = BG_PALETTES.default;
-    this.nebulas = [];
-    for (let i = 0; i < 4; i++) {
-      this.nebulas.push({
-        x: rand(0, w), y: rand(-h * 0.2, h * 1.2),
-        r: rand(120, 220),
-        vy: rand(4, 12),
-        vx: rand(-3, 3),
-        phase: rand(0, Math.PI * 2),
-      });
-    }
+    this._t = 0;   // horloge cumulée pour pulsations de nébuleuse
 
-    // ── Débris spatiaux (petits fragments décoratifs) ──
+    // ── 3 couches de parallaxe (vitesses en px/frame à 60 fps → px/s) ──
+    // starsNear : 30 étoiles épaisses (2-3 px), rapides (3 px/frame = 180 px/s), scintillent
+    // starsMid  : 60 étoiles moyennes (1-2 px), 1.5 px/frame = 90 px/s
+    // starsFar  : 100 étoiles fines   (0.5-1 px), 0.5 px/frame = 30 px/s
+    this.starsNear = [];
+    this.starsMid  = [];
+    this.starsFar  = [];
+    for (let i = 0; i < 30; i++) {
+      this.starsNear.push({ x: rand(0, w), y: rand(0, h), r: rand(2, 3), tw: rand(0, Math.PI * 2) });
+    }
+    for (let i = 0; i < 60; i++) {
+      this.starsMid.push({ x: rand(0, w), y: rand(0, h), r: rand(1, 2) });
+    }
+    for (let i = 0; i < 100; i++) {
+      this.starsFar.push({ x: rand(0, w), y: rand(0, h), r: rand(0.5, 1) });
+    }
+    this._nearSpeed = 180;   // 3 px/frame × 60
+    this._midSpeed  = 90;
+    this._farSpeed  = 30;
+
+    // ── Débris spatiaux (existants, conservés) ──────────────────
     this.debris = [];
     for (let i = 0; i < 14; i++) this.debris.push(this._newDebris(true));
 
-    // ── Éclair distant (flash très bref toutes les 30-60 s) ──
-    this._lightningTimer = rand(20, 40);   // premier flash rapide
+    // ── Éclair distant (existant, conservé) ─────────────────────
+    this._lightningTimer = rand(20, 40);
     this._lightningFlash = 0;
 
-    // Offscreen canvas pour la nébuleuse (redraw seulement quand nécessaire)
-    this._nebCanvas = null; this._nebDirty = true;
+    // ── Nébuleuse : offscreen canvas + 4 gradients pulsants ─────
+    // 4 gradients radiaux avec phases décalées → aucune synchronisation
+    // Composite avec globalCompositeOperation = 'screen' pour un rendu lumineux
+    this._nebCanvas = document.createElement('canvas');
+    this._nebCanvas.width = w; this._nebCanvas.height = h;
+    this._nebCtx = this._nebCanvas.getContext('2d');
+    this._nebConfigs = [
+      { cx: 0.20, cy: 0.30, rMul: 0.40, rgb: '75,0,130',  base: 0.08, period: 4.0, phase: 0.0 },  // #4B0082 indigo
+      { cx: 0.70, cy: 0.60, rMul: 0.35, rgb: '0,0,139',   base: 0.06, period: 5.2, phase: 1.4 },  // #00008B bleu foncé
+      { cx: 0.50, cy: 0.80, rMul: 0.30, rgb: '139,0,0',   base: 0.05, period: 6.0, phase: 2.7 },  // #8B0000 rouge sombre
+      { cx: 0.30, cy: 0.50, rMul: 0.25, rgb: '0,100,0',   base: 0.04, period: 4.7, phase: 3.9 },  // #006400 vert sombre
+    ];
+    this._nebFrameCount = 0;   // pour throttle du debug log
   }
 
   _newDebris(anywhere) {
@@ -433,61 +442,104 @@ class StarField {
     };
   }
 
-  /** Applique une palette de fond (par ex. selon le niveau Histoire). */
+  /** Applique une palette de fond (compat — la nébuleuse reste selon la spec). */
   setPalette(name) {
     const p = BG_PALETTES[name] || BG_PALETTES.default;
-    if (p === this.palette) return;
     this.palette = p;
-    this._nebDirty = true;
   }
 
   update(dt) {
-    this.layers.forEach(l => {
-      l.stars.forEach(s => {
-        s.y  += l.speed * dt;
-        s.tw += dt * 0.8;
-        if (s.y > this.h + 2) { s.y = -2; s.x = rand(0, this.w); }
-      });
-    });
-    // Nébuleuse : dérive très lente
-    this.nebulas.forEach(n => {
-      n.y += n.vy * dt;
-      n.x += n.vx * dt;
-      n.phase += dt * 0.4;
-      if (n.y - n.r > this.h) { n.y = -n.r * 1.1; n.x = rand(0, this.w); }
-      if (n.x < -n.r) n.x = this.w + n.r;
-      if (n.x > this.w + n.r) n.x = -n.r;
-    });
-    // Débris
+    this._t += dt;
+
+    // ── Défilement des 3 couches (boucle infinie, wrap à y > h) ──
+    for (const s of this.starsNear) {
+      s.y += this._nearSpeed * dt;
+      s.tw += dt * 3.5;                         // scintillement rapide
+      if (s.y > this.h) s.y = 0;
+    }
+    for (const s of this.starsMid) {
+      s.y += this._midSpeed * dt;
+      if (s.y > this.h) s.y = 0;
+    }
+    for (const s of this.starsFar) {
+      s.y += this._farSpeed * dt;
+      if (s.y > this.h) s.y = 0;
+    }
+
+    // ── Débris (existant) ──
     for (let i = this.debris.length - 1; i >= 0; i--) {
       const d = this.debris[i];
       d.y += d.vy * dt; d.x += d.vx * dt; d.rot += d.rotV * dt;
       if (d.y > this.h + 20) { this.debris[i] = this._newDebris(false); }
     }
-    // Éclair distant
+
+    // ── Éclair distant (existant) ──
     if (this._lightningFlash > 0) this._lightningFlash -= dt;
     this._lightningTimer -= dt;
     if (this._lightningTimer <= 0) {
       this._lightningTimer = rand(30, 60);
       this._lightningFlash = 0.28;
     }
+
+    // ── Debug parallaxe : log throttled à ~1 log / seconde ──
+    this._nebFrameCount++;
+    if (this._nebFrameCount % 60 === 0 && window.__PARALLAX_DEBUG !== false) {
+      console.log('Parallaxe actif - Near:', this.starsNear[0].y.toFixed(1),
+                  'Mid:', this.starsMid[0].y.toFixed(1),
+                  'Far:', this.starsFar[0].y.toFixed(1));
+    }
   }
 
-  /** Dessine le fond (nébuleuse + débris + étoiles). */
+  /** Redessine la nébuleuse sur son offscreen canvas (4 gradients pulsants). */
+  _paintNebula() {
+    const nctx = this._nebCtx;
+    nctx.clearRect(0, 0, this.w, this.h);
+    const t = this._t;
+    for (const c of this._nebConfigs) {
+      const alpha = c.base + 0.02 * Math.sin((t * 2 * Math.PI) / c.period + c.phase);
+      const cx = c.cx * this.w;
+      const cy = c.cy * this.h;
+      const r  = c.rMul * this.w;
+      const g  = nctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, `rgba(${c.rgb},${alpha})`);
+      g.addColorStop(1, `rgba(${c.rgb},0)`);
+      nctx.fillStyle = g;
+      nctx.fillRect(0, 0, this.w, this.h);
+    }
+  }
+
+  /**
+   * Dessine le fond dans l'ordre :
+   *   1. Nébuleuse (offscreen composite 'screen')
+   *   2. starsNear → starsMid → starsFar
+   *   3. Débris + éclair
+   */
   draw(ctx) {
-    // Nébuleuse dérivante (couche 0, très lente)
-    const p = this.palette;
-    this.nebulas.forEach(n => {
-      const alpha = 0.10 + 0.05 * Math.sin(n.phase);
-      const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
-      g.addColorStop(0, `rgba(${p.neb1[0]},${p.neb1[1]},${p.neb1[2]},${alpha * 1.6})`);
-      g.addColorStop(0.55, `rgba(${p.neb2[0]},${p.neb2[1]},${p.neb2[2]},${alpha * 0.85})`);
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.fill();
-    });
-    // Débris (dessous les étoiles)
-    this.debris.forEach(d => {
+    // 1) Nébuleuse — offscreen puis composite 'screen'
+    this._paintNebula();
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.drawImage(this._nebCanvas, 0, 0);
+    ctx.restore();
+
+    // 2) Étoiles — 3 couches (ordre : Near → Mid → Far comme spécifié)
+    for (const s of this.starsNear) {
+      // Scintillement : opacité entre 0.7 et 1.0
+      const alpha = 0.7 + 0.15 * (1 + Math.sin(s.tw));
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(1, alpha)})`;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+    }
+    for (const s of this.starsMid) {
+      ctx.fillStyle = 'rgba(220,235,255,0.85)';
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+    }
+    for (const s of this.starsFar) {
+      ctx.fillStyle = 'rgba(200,215,240,0.55)';
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 3) Débris (existant, entre étoiles et jeu)
+    for (const d of this.debris) {
       ctx.save();
       ctx.translate(d.x, d.y);
       ctx.rotate(d.rot);
@@ -501,26 +553,14 @@ class StarField {
       ctx.closePath(); ctx.fill();
       ctx.globalAlpha = 1;
       ctx.restore();
-    });
-    // Étoiles (couches parallaxe)
-    this.layers.forEach(l => {
-      l.stars.forEach(s => {
-        const a = l.alpha * (0.7 + 0.3 * Math.sin(s.tw));
-        ctx.fillStyle = `${p.starTint === '#ffffff' ? 'rgba(255,255,255,'+a+')' : p.starTint}`;
-        if (p.starTint !== '#ffffff') ctx.globalAlpha = a;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, l.r, 0, Math.PI * 2);
-        ctx.fill();
-        if (p.starTint !== '#ffffff') ctx.globalAlpha = 1;
-      });
-    });
-    // Éclair distant (flash blanc très bref)
+    }
+
+    // 4) Éclair distant (existant)
     if (this._lightningFlash > 0) {
       const flash = this._lightningFlash;
       const alpha = flash > 0.24 ? 0.30 : flash > 0.20 ? 0.55 : flash * 1.5;
       ctx.fillStyle = `rgba(200,230,255,${alpha})`;
       ctx.fillRect(0, 0, this.w, this.h);
-      // Décharge ramifiée
       if (flash > 0.18) {
         ctx.strokeStyle = `rgba(240,255,255,0.85)`;
         ctx.lineWidth = 1.4;
