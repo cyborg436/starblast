@@ -4329,7 +4329,18 @@ class BossBase {
   }
 
   update(dt, W, H, enemyBullets, player, particles) {
-    this.t += dt;
+    // Boss Rush : applique les multiplicateurs de vitesse et de fire rate.
+    // Les boss Histoire (BossSentinelle/Chasseur/Titan) ne sont PAS boostés (flag absent).
+    const boosted    = !!this._brBoosted;
+    const speedMult  = boosted
+      ? (typeof this._brSpeedMult === 'function' ? this._brSpeedMult()
+        : (typeof BR_BOSS_SPEED_MULT !== 'undefined' ? BR_BOSS_SPEED_MULT : 1.25))
+      : 1.0;
+    const attackMult = boosted
+      ? (typeof BR_FIRE_MULT_ATTACK !== 'undefined' ? BR_FIRE_MULT_ATTACK : 1.30)
+      : 1.0;
+
+    this.t += dt * speedMult;
     if (this.dying) {
       this.deathTimer -= dt;
       if (particles && Math.random() < 0.55) {
@@ -4341,8 +4352,8 @@ class BossBase {
       return;
     }
     if (this.flashTimer > 0) this.flashTimer -= dt;
-    this._move(dt, W, H);
-    this._attack(dt, enemyBullets, player, W, H);
+    this._move(dt * speedMult, W, H);
+    this._attack(dt * attackMult, enemyBullets, player, W, H);
   }
 
   _move(dt, W, H) {}
@@ -5595,6 +5606,8 @@ class Game {
     this.state     = 'bossrush-playing';
     this._survivalMode = false;
     this._deathPending = false; this._slowMoTimer = 0;
+    this._brMinorSpawnTimer = 2.0;   // premier spawn 2 s après le début
+    this._brCoinsEarned = 0;         // compteur affiché en haut à droite
     this.lastTime  = performance.now();
     this.combo.reset();
     this.achievements.onRunStart();
@@ -6435,6 +6448,9 @@ class Game {
 
     if (this._shakeTimer > 0) this._shakeTimer = Math.max(0, this._shakeTimer - dt);
 
+    // ── Spawn continu d'ennemis mineurs (pression permanente) ────
+    this._tickBossRushMinorSpawn(dt);
+
     // Update entités
     this.playerBullets.forEach(b => b.update(dt, this.W, this.H, this.enemies, this.particles));
     this.enemyBullets.forEach( b => b.update(dt, this.W, this.H, this.player));
@@ -6491,13 +6507,19 @@ class Game {
         this.achievements.onShotHit();
         const dmg = b.damage || 1;
         const wasDying = e.dying;
-        e.hit(dmg);
+        const killedResult = e.hit(dmg);
         // Phantom invincible en mode fantôme
         if (e instanceof BRPhantom && e.isGhost) { /* damage canceled inside hit() */ }
-        // Transition vivant → mourant : récompense une seule fois
+        // Boss : transition vivant → mourant, récompense une seule fois
         if (!wasDying && e.dying && !e._brKilled) {
           e._brKilled = true;
           this._onBossRushKill(e);
+        }
+        // Ennemi mineur (pas boss) : Enemy.hit() renvoie true si hp<=0
+        else if (killedResult && !e.isBoss && !e.dead && !e._brKilled) {
+          e._brKilled = true;
+          e.dead = true;
+          this._onBossRushMinorKill(e);
         }
         if (!b.pierce || b.dead) break;
       }
@@ -6574,7 +6596,7 @@ class Game {
       }
     }
 
-    // ── Boss/Leviathan corps → Joueur ──────────────────────
+    // ── Boss/Leviathan/mineurs corps → Joueur ──────────────
     this.enemies.forEach(e => {
       if (e.dead || e.dying) return;
       // Phantom invincible en mode fantôme : pas de collision corps
@@ -6587,6 +6609,8 @@ class Game {
       if (this.player.hit(this.particles, this.audio)) {
         this.ui.flash('#ff3355', 0.6);
         this.combo.reset();
+        // Mineur (non-boss) meurt au contact
+        if (!e.isBoss) e.dead = true;
       }
     });
 
@@ -6726,6 +6750,58 @@ class Game {
       spawnAt(new BomberEnemy(x, -80 - delayIdx * 30, speedScale, this.player), 3800 + delayIdx * 700);
       delayIdx++;
     }
+  }
+
+  /**
+   * Spawn continu de mobs mineurs en Boss Rush, densité progressive :
+   *   Boss 1-3 : 2 basic  / 4.0 s
+   *   Boss 4-6 : 3 medium / 3.0 s
+   *   Boss 7-9 : 4 medium (rapides) / 2.5 s
+   *   Boss 10  : 5 heavy (élites) / 2.0 s
+   * Les mobs ne rapportent pas de pièces via le kill classique — un
+   * bonus fixe (5 pièces + 2 XP) est délivré par _onBossRushMinorKill.
+   */
+  _tickBossRushMinorSpawn(dt) {
+    if (!this.bossRushBoss || this.bossRush.done || this.bossRush.failed) return;
+    // Aucun spawn pendant l'intermission
+    if (this.bossRush.intermission > 0) return;
+    const idx = this.bossRush.bossIndex;   // 0..9
+    let count = 2, interval = 4.0, type = 'basic', speedBoost = 1.0;
+    if (idx >= 3 && idx <= 5)      { count = 3; interval = 3.0; type = 'medium'; }
+    else if (idx >= 6 && idx <= 8) { count = 4; interval = 2.5; type = 'medium'; speedBoost = 1.5; }
+    else if (idx >= 9)             { count = 5; interval = 2.0; type = 'heavy'; }
+
+    this._brMinorSpawnTimer -= dt;
+    if (this._brMinorSpawnTimer > 0) return;
+    this._brMinorSpawnTimer = interval;
+
+    const speedScale = Math.min(idx * 3 + 10, 30);
+    for (let k = 0; k < count; k++) {
+      const x = 40 + Math.random() * (this.W - 80);
+      const e = new Enemy(type, x, -60 - k * 30, speedScale);
+      e.vy *= speedBoost;
+      // Marqueur : rapport pièces 0, mais donne XP + 5 pièces fixe via _onBossRushMinorKill
+      e._brMinor = true;
+      this.enemies.push(e);
+    }
+  }
+
+  /** Appelé quand un ennemi mineur meurt en Boss Rush. */
+  _onBossRushMinorKill(e) {
+    // +5 pièces, +2 XP (spec)
+    this.coins += 5;
+    localStorage.setItem('starblast_coins', this.coins.toString());
+    this.ui.updateCoins(this.coins);
+    this.ui.updateStartCoins(this.coins);
+    this._brCoinsEarned = (this._brCoinsEarned || 0) + 5;
+    this.progression.addXP(2, this.shop);
+    this.battlepass.addXP(2);
+    // Score via combo (pas de score de base — c'est un "point de kill")
+    this.player.score += this.combo.addKill((e.score || 100));
+    this.achievements.onKill();
+    // Effets d'explosion normaux
+    spawnBoom(this.particles, e.x, e.y, e.type || 'basic', (d, i) => this._triggerShake(d, i));
+    this.audio.explosion(e.type === 'heavy');
   }
 
   /** Appelé quand un boss meurt en Boss Rush. */
@@ -7411,6 +7487,17 @@ class Game {
         ctx.fillStyle = '#FFD700';
         ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 12;
         ctx.fillText(`BOSS ${idx} / 10`, this.W / 2, 6);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+
+        // Compteur pièces de la session (haut-droite)
+        const brCoins = this._brCoinsEarned || 0;
+        ctx.save();
+        ctx.font = '800 13px Orbitron, monospace';
+        ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+        ctx.fillStyle = '#FFD700';
+        ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 8;
+        ctx.fillText(`★ +${brCoins.toLocaleString('fr-FR')}`, this.W - 6, 6);
         ctx.shadowBlur = 0;
         ctx.restore();
 

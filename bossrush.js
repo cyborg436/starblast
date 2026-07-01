@@ -7,10 +7,18 @@
 ───────────────────────────────────────────────────────────────────────── */
 
 // ── Constantes mode Boss Rush ───────────────────────────────────────
-const BR_INTERMISSION_DURATION = 5.0;
+const BR_INTERMISSION_DURATION = 2.0;   // ← 5.0 → 2.0 (moins d'attente entre boss)
 const BR_STARTING_LIVES        = 5;
 const BR_VICTORY_REWARD_COINS  = 10000;
 const BR_VICTORY_REWARD_XP     = 5000;
+
+// ── Multiplicateurs d'agressivité (uniquement pour les boss BR) ─────
+const BR_FIRE_MULT_ATTACK      = 1.30;   // +30 % de fréquence de tir
+const BR_PROJ_SPEED_MULT       = 1.20;   // +20 % de vitesse des projectiles
+const BR_BOSS_SPEED_MULT       = 1.25;   // +25 % de vitesse de déplacement des boss
+
+// Vitesse effective des balles boss (baked constant, calculée au chargement)
+const BR_ENEMY_BULLET_SPEED    = CFG.ENEMY_BULLET_SPEED * BR_PROJ_SPEED_MULT;
 
 // ─────────────────────────────────────────────────────────────────────
 // BOSS 1 — SENTINEL — Cube rotatif gris à 4 canons
@@ -38,7 +46,7 @@ class BRSentinel extends BossBase {
     this.crossTimer -= dt;
     if (this.crossTimer <= 0) {
       this.crossTimer = 2.0;
-      const spd = CFG.ENEMY_BULLET_SPEED * 1.1;
+      const spd = BR_ENEMY_BULLET_SPEED * 1.1;
       // Tir en croix : haut/bas/gauche/droite (selon rotation)
       for (let i = 0; i < 4; i++) {
         const a = this.rotation + i * Math.PI / 2;
@@ -125,12 +133,12 @@ class BRHydra extends BossBase {
         head.timer = 1.5;
         const hx = this.x + head.offX;
         const hy = this.y + this.h * 0.2;
-        let vx = 0, vy = CFG.ENEMY_BULLET_SPEED;
+        let vx = 0, vy = BR_ENEMY_BULLET_SPEED;
         if (player) {
           const dx = player.x - hx, dy = player.y - hy;
           const d = Math.hypot(dx, dy) || 1;
-          vx = (dx / d) * CFG.ENEMY_BULLET_SPEED;
-          vy = (dy / d) * CFG.ENEMY_BULLET_SPEED;
+          vx = (dx / d) * BR_ENEMY_BULLET_SPEED;
+          vy = (dy / d) * BR_ENEMY_BULLET_SPEED;
         }
         enemyBullets.push(new Bullet(hx, hy, vx, vy, '#33ff88', false));
       }
@@ -225,7 +233,7 @@ class BRPhantom extends BossBase {
     if (this.fireTimer <= 0) {
       this.fireTimer = 2.0;
       // Salve circulaire 8 projectiles
-      const spd = CFG.ENEMY_BULLET_SPEED * 0.9;
+      const spd = BR_ENEMY_BULLET_SPEED * 0.9;
       for (let i = 0; i < 8; i++) {
         const a = i * Math.PI / 4;
         enemyBullets.push(new Bullet(this.x, this.y,
@@ -305,12 +313,12 @@ class BRLeviathan extends BossBase {
     if (this.fireTimer <= 0) {
       this.fireTimer = 1.0;
       // Crachat depuis la tête vers le joueur
-      let vx = 0, vy = CFG.ENEMY_BULLET_SPEED;
+      let vx = 0, vy = BR_ENEMY_BULLET_SPEED;
       if (player) {
         const dx = player.x - this.x, dy = player.y - this.y;
         const d = Math.hypot(dx, dy) || 1;
-        vx = (dx / d) * CFG.ENEMY_BULLET_SPEED * 1.1;
-        vy = (dy / d) * CFG.ENEMY_BULLET_SPEED * 1.1;
+        vx = (dx / d) * BR_ENEMY_BULLET_SPEED * 1.1;
+        vy = (dy / d) * BR_ENEMY_BULLET_SPEED * 1.1;
       }
       enemyBullets.push(new Bullet(this.x, this.y, vx, vy, '#ffaa44', false));
     }
@@ -403,7 +411,7 @@ class BRNova extends BossBase {
       this.fireTimer -= dt;
       if (this.fireTimer <= 0) {
         this.fireTimer = 0.55;
-        const spd = CFG.ENEMY_BULLET_SPEED * 0.85;
+        const spd = BR_ENEMY_BULLET_SPEED * 0.85;
         for (let i = 0; i < 6; i++) {
           const a = this.spinTimer * 1.1 + i * Math.PI / 3;
           enemyBullets.push(new Bullet(this.x, this.y,
@@ -415,7 +423,7 @@ class BRNova extends BossBase {
       this.superNovaTimer -= dt;
       if (this.superNovaTimer <= 0) {
         this.superNovaTimer = 4.0;
-        const spd = CFG.ENEMY_BULLET_SPEED * 1.0;
+        const spd = BR_ENEMY_BULLET_SPEED * 1.0;
         for (let i = 0; i < 36; i++) {
           const a = i * Math.PI * 2 / 36;
           enemyBullets.push(new Bullet(this.x, this.y,
@@ -530,7 +538,7 @@ class BRReaper extends BossBase {
           const dx = player.x - mx, dy = player.y - my;
           const d = Math.hypot(dx, dy) || 1;
           enemyBullets.push(new Bullet(mx, my,
-            (dx/d) * CFG.ENEMY_BULLET_SPEED, (dy/d) * CFG.ENEMY_BULLET_SPEED, '#cc66ff', false));
+            (dx/d) * BR_ENEMY_BULLET_SPEED, (dy/d) * BR_ENEMY_BULLET_SPEED, '#cc66ff', false));
         }
       }
     });
@@ -546,7 +554,7 @@ class BRReaper extends BossBase {
       if (tq.delay <= 0) {
         const dx = tq.x - tq.fromX, dy = tq.y - tq.fromY;
         const d = Math.hypot(dx, dy) || 1;
-        const spd = CFG.ENEMY_BULLET_SPEED * 0.85;
+        const spd = BR_ENEMY_BULLET_SPEED * 0.85;
         enemyBullets.push(new Bullet(tq.fromX, tq.fromY,
           (dx/d) * spd, (dy/d) * spd, '#aa44ff', false));
         this.trailQueue.splice(i, 1);
@@ -670,7 +678,7 @@ class BRFortress extends BossBase {
       if (t.fireTimer <= 0) {
         t.fireTimer = 1.8;
         const tx = this.x + t.offsetX, ty = this.y + t.offsetY;
-        const spd = CFG.ENEMY_BULLET_SPEED;
+        const spd = BR_ENEMY_BULLET_SPEED;
         if (player) {
           const dx = player.x - tx, dy = player.y - ty;
           const d = Math.hypot(dx, dy) || 1;
@@ -987,8 +995,8 @@ class BRColossus extends BossBase {
           const dx = player.x - this.x, dy = player.y - this.y;
           const d = Math.hypot(dx, dy) || 1;
           enemyBullets.push(new Bullet(this.x, this.y + 30,
-            (dx/d) * CFG.ENEMY_BULLET_SPEED * 1.2,
-            (dy/d) * CFG.ENEMY_BULLET_SPEED * 1.2, '#ffaa44', false));
+            (dx/d) * BR_ENEMY_BULLET_SPEED * 1.2,
+            (dy/d) * BR_ENEMY_BULLET_SPEED * 1.2, '#ffaa44', false));
         }
       }
     }
@@ -1101,6 +1109,8 @@ class BRNemesisPrime extends BossBase {
     this.targetY = 140;
   }
   isFragmented() { return this.phase === 3; }
+  /** Nemesis en phase 4 : +40 % de vitesse (override du base 25 %). */
+  _brSpeedMult() { return this.phase === 4 ? 1.40 : BR_BOSS_SPEED_MULT; }
   _move(dt, W, H) {
     if (this.phase === 3) {
       // Fragments se déplacent indépendamment
@@ -1183,14 +1193,14 @@ class BRNemesisPrime extends BossBase {
             const ddx = player.x - dx, ddy = player.y - dy;
             const dd = Math.hypot(ddx, ddy) || 1;
             enemyBullets.push(new Bullet(dx, dy,
-              (ddx/dd) * CFG.ENEMY_BULLET_SPEED, (ddy/dd) * CFG.ENEMY_BULLET_SPEED, '#FFD700', false));
+              (ddx/dd) * BR_ENEMY_BULLET_SPEED, (ddy/dd) * BR_ENEMY_BULLET_SPEED, '#FFD700', false));
           }
         }
       });
       this.fireTimer -= dt;
       if (this.fireTimer <= 0) {
         this.fireTimer = 1.5;
-        const spd = CFG.ENEMY_BULLET_SPEED;
+        const spd = BR_ENEMY_BULLET_SPEED;
         for (let i = -2; i <= 2; i++) {
           const a = Math.PI/2 + i * 0.2;
           enemyBullets.push(new Bullet(this.x, this.y + 30,
@@ -1203,7 +1213,7 @@ class BRNemesisPrime extends BossBase {
       this.fireTimer -= dt;
       if (this.fireTimer <= 0) {
         this.fireTimer = 1.0;
-        const spd = CFG.ENEMY_BULLET_SPEED * 0.9;
+        const spd = BR_ENEMY_BULLET_SPEED * 0.9;
         for (let i = 0; i < 8; i++) {
           const a = this.t * 1.5 + i * Math.PI / 4;
           enemyBullets.push(new Bullet(this.x, this.y,
@@ -1230,8 +1240,8 @@ class BRNemesisPrime extends BossBase {
             const dx = player.x - f.x, dy = player.y - f.y;
             const d = Math.hypot(dx, dy) || 1;
             enemyBullets.push(new Bullet(f.x, f.y,
-              (dx/d) * CFG.ENEMY_BULLET_SPEED * 1.1,
-              (dy/d) * CFG.ENEMY_BULLET_SPEED * 1.1, '#ff3366', false));
+              (dx/d) * BR_ENEMY_BULLET_SPEED * 1.1,
+              (dy/d) * BR_ENEMY_BULLET_SPEED * 1.1, '#ff3366', false));
           }
         }
       });
@@ -1242,7 +1252,7 @@ class BRNemesisPrime extends BossBase {
       this.spiralTimer += dt;
       if (this.spiralTimer >= 0.12) {
         this.spiralTimer = 0;
-        const spd = CFG.ENEMY_BULLET_SPEED * 0.85;
+        const spd = BR_ENEMY_BULLET_SPEED * 0.85;
         const a = this.t * 3;
         for (let i = 0; i < 3; i++) {
           const aa = a + i * Math.PI * 2 / 3;
@@ -1465,6 +1475,8 @@ class BossRushManager {
       return;
     }
     this.boss = BR_BOSS_FACTORIES[this.bossIndex](this.W, this.H);
+    // Marque le boss comme boosté (activates BR_FIRE_MULT_ATTACK, BR_BOSS_SPEED_MULT dans BossBase.update)
+    this.boss._brBoosted = true;
     this.entranceFlash = 0.5;
     if (this.boss instanceof BRNova) this.entranceFlash = 1.2;  // flash spécial
   }
