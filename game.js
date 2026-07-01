@@ -2502,18 +2502,87 @@ function _pickPowerupType() {
 }
 
 const PU_DEFS = {
-  shield:    { emoji: '🛡',  color: '#00ff88', glow: '#00ff88', name: 'BOUCLIER' },
-  double:    { emoji: '⚡',  color: '#ffcc00', glow: '#ffdd44', name: 'TIR DOUBLE' },
-  bomb:      { emoji: '💣',  color: '#ff6b35', glow: '#ff6b35', name: 'BOMBE' },
-  surcharge: { emoji: '⚡',  color: '#ff2222', glow: '#ff4444', name: 'SURCHARGE' },
-  mirror:    { emoji: '⬡',  color: '#3a8aff', glow: '#88bbff', name: 'BOUCLIER MIROIR' },
-  freeze:    { emoji: '❄',  color: '#88ddff', glow: '#aaeeff', name: 'TEMPS GELÉ' },
-  orbital:   { emoji: '🛰', color: '#ffdd55', glow: '#ffee99', name: 'FRAPPE ORBITALE' },
-  repair:    { emoji: '✚',  color: '#00ff66', glow: '#66ffaa', name: 'NANO-RÉPARATION' },
-  swarm:     { emoji: '🐝', color: '#ff9933', glow: '#ffcc66', name: 'ESSAIM' },
-  magnet:    { emoji: '🧲', color: '#cc55ff', glow: '#dd88ff', name: 'MAGNÉTISME' },
-  frenzy:    { emoji: '💀', color: '#ff1133', glow: '#ff4466', name: 'FRÉNÉSIE' },
-  reload:    { emoji: '🔄', color: '#00ddff', glow: '#88eeff', name: 'RECHARGEMENT' },
+  // COMMUNS ────────────────────────────────────
+  shield:    { emoji: '🛡',  color: '#00ff88', glow: '#00ff88', name: 'BOUCLIER',          rarity: 'common' },
+  double:    { emoji: '⚡',  color: '#ffcc00', glow: '#ffdd44', name: 'TIR DOUBLE',        rarity: 'common' },
+  repair:    { emoji: '✚',  color: '#00ff66', glow: '#66ffaa', name: 'NANO-RÉPARATION',   rarity: 'common' },
+  magnet:    { emoji: '🧲', color: '#cc55ff', glow: '#dd88ff', name: 'MAGNÉTISME',        rarity: 'common' },
+  bomb:      { emoji: '💣',  color: '#ff6b35', glow: '#ff6b35', name: 'BOMBE',             rarity: 'common' },
+  // RARES ───────────────────────────────────────
+  surcharge: { emoji: '⚡',  color: '#ff2222', glow: '#ff4444', name: 'SURCHARGE',         rarity: 'rare'   },
+  swarm:     { emoji: '🐝', color: '#ff9933', glow: '#ffcc66', name: 'ESSAIM',            rarity: 'rare'   },
+  freeze:    { emoji: '❄',  color: '#88ddff', glow: '#aaeeff', name: 'TEMPS GELÉ',        rarity: 'rare'   },
+  reload:    { emoji: '🔄', color: '#00ddff', glow: '#88eeff', name: 'RECHARGEMENT',      rarity: 'rare'   },
+  // ÉPIQUES ─────────────────────────────────────
+  mirror:    { emoji: '⬡',  color: '#3a8aff', glow: '#88bbff', name: 'BOUCLIER MIROIR',   rarity: 'epic'   },
+  orbital:   { emoji: '🛰', color: '#ffdd55', glow: '#ffee99', name: 'FRAPPE ORBITALE',   rarity: 'epic'   },
+  frenzy:    { emoji: '💀', color: '#ff1133', glow: '#ff4466', name: 'FRÉNÉSIE',          rarity: 'epic'   },
+  // LÉGENDAIRES ─────────────────────────────────
+  invuln:    { emoji: '✨', color: '#ffffff', glow: '#ffffff', name: 'INVULNÉRABILITÉ',   rarity: 'legendary' },
+  cleanse:   { emoji: '💥', color: '#ffaa22', glow: '#ffee88', name: 'NETTOYAGE ORBITAL', rarity: 'legendary' },
+  superadr:  { emoji: '🔥', color: '#ff2244', glow: '#ff6688', name: 'SUPER ADRÉNALINE',  rarity: 'legendary' },
+};
+
+// ── Système de drop progressif Survie ─────────────────────────────
+// Paliers de rareté par vague (spec équilibrage).
+// La somme des pourcentages doit toujours faire 1.00.
+const SURVIVAL_DROP_TIERS = [
+  { maxWave: 5,        rate: 0.08, weights: { common: 1.00, rare: 0,    epic: 0,    legendary: 0    } },
+  { maxWave: 10,       rate: 0.12, weights: { common: 0.80, rare: 0.20, epic: 0,    legendary: 0    } },
+  { maxWave: 15,       rate: 0.16, weights: { common: 0.60, rare: 0.35, epic: 0.05, legendary: 0    } },
+  { maxWave: 20,       rate: 0.22, weights: { common: 0.40, rare: 0.45, epic: 0.15, legendary: 0    } },
+  { maxWave: 25,       rate: 0.28, weights: { common: 0.25, rare: 0.45, epic: 0.25, legendary: 0.05 } },
+  { maxWave: 30,       rate: 0.35, weights: { common: 0.15, rare: 0.35, epic: 0.35, legendary: 0.15 } },
+  { maxWave: Infinity, rate: 0.40, weights: { common: 0.10, rare: 0.30, epic: 0.35, legendary: 0.25 } },
+];
+
+function _survivalDropTier(waveLevel) {
+  for (const t of SURVIVAL_DROP_TIERS) if (waveLevel <= t.maxWave) return t;
+  return SURVIVAL_DROP_TIERS[SURVIVAL_DROP_TIERS.length - 1];
+}
+
+/** Sélectionne une rareté selon les poids du tier de vague. */
+function _pickRarityByWave(waveLevel) {
+  const tier = _survivalDropTier(waveLevel);
+  const w = tier.weights;
+  const r = Math.random();
+  let acc = 0;
+  for (const rarity of ['common', 'rare', 'epic', 'legendary']) {
+    acc += w[rarity] || 0;
+    if (r < acc) return rarity;
+  }
+  return 'common';
+}
+
+/** Sélectionne un power-up d'une rareté donnée. */
+function _pickPowerupByRarity(rarity) {
+  const pool = Object.keys(PU_DEFS).filter(k => PU_DEFS[k].rarity === rarity);
+  if (pool.length === 0) return 'shield';
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/** Sélectionne un power-up en fonction du niveau de vague (Survie). */
+function _pickPowerupTypeSurvival(waveLevel) {
+  const rarity = _pickRarityByWave(waveLevel);
+  return _pickPowerupByRarity(rarity);
+}
+
+// Vérification runtime : somme des poids par tier doit être ≈ 1.00
+(function _validateDropTiers() {
+  for (const t of SURVIVAL_DROP_TIERS) {
+    const s = (t.weights.common || 0) + (t.weights.rare || 0) + (t.weights.epic || 0) + (t.weights.legendary || 0);
+    if (Math.abs(s - 1.0) > 0.001) {
+      console.warn(`[SurvivalDrop] Tier maxWave=${t.maxWave} weights sum=${s} (should be 1.00)`);
+    }
+  }
+})();
+
+// Couleurs de bordure par rareté de power-up
+const PU_RARITY_STYLES = {
+  common:    { border: '#8a8f9a', glow: '#8a8f9a', width: 2, blur: 8  },
+  rare:      { border: '#3a8aff', glow: '#3a8aff', width: 2.5, blur: 16 },
+  epic:      { border: '#c246ff', glow: '#c246ff', width: 3, blur: 22 },
+  legendary: { border: '#FFD700', glow: '#FFD700', width: 3.5, blur: 28 },
 };
 
 class PowerUp {
@@ -2524,42 +2593,87 @@ class PowerUp {
     this.color = d.color;
     this.glow  = d.glow;
     this.emoji = d.emoji;
-    this.r    = 16;
+    this.rarity = d.rarity || 'common';
+    this.r    = this.rarity === 'legendary' ? 20 : this.rarity === 'epic' ? 18 : 16;
     this.vy   = 82;
     this.t    = rand(0, Math.PI * 2);
     this.dead = false;
+    // Drop garanti (spec) : anim spéciale, rayon de lumière du haut
+    this.guaranteed = false;
+    this._beamLife  = 0;      // durée du rayon de lumière (0 → pas de beam)
   }
 
   get hitbox() { return { x: this.x-this.r, y: this.y-this.r, w: this.r*2, h: this.r*2 }; }
 
   update(dt, H) {
-    this.y += this.vy * dt;
+    // Drop garanti : chute plus lente + beam qui accompagne
+    this.y += (this.guaranteed ? 40 : this.vy) * dt;
     this.t += dt;
+    if (this._beamLife > 0) this._beamLife -= dt;
     if (this.y > H + 30) this.dead = true;
   }
 
   draw(ctx) {
+    // Rayon de lumière descendant (drop garanti)
+    if (this.guaranteed && this._beamLife > 0) {
+      const alpha = Math.min(1, this._beamLife * 1.2);
+      ctx.save();
+      const g = ctx.createLinearGradient(this.x, 0, this.x, this.y);
+      g.addColorStop(0, `rgba(255,215,0,${alpha * 0.05})`);
+      g.addColorStop(0.7, `rgba(255,215,0,${alpha * 0.32})`);
+      g.addColorStop(1, `rgba(255,255,255,${alpha * 0.5})`);
+      ctx.fillStyle = g;
+      const bw = 18 + Math.sin(this.t * 4) * 4;
+      ctx.fillRect(this.x - bw/2, 0, bw, this.y);
+      ctx.restore();
+    }
+
     ctx.save();
-    ctx.translate(this.x, this.y + Math.sin(this.t * 2.2) * 4.5);
-
-    ctx.shadowColor = this.glow;
-    ctx.shadowBlur  = 14 + 7 * Math.sin(this.t * 2.8);
-
+    const bobY = Math.sin(this.t * 2.2) * 4.5;
+    ctx.translate(this.x, this.y + bobY);
+    // Style de bordure selon la rareté
+    const style = PU_RARITY_STYLES[this.rarity] || PU_RARITY_STYLES.common;
+    // Pulsation supplémentaire pour épiques/légendaires
+    const pulseAmp = this.rarity === 'epic' ? 12 : this.rarity === 'legendary' ? 20 : 6;
+    ctx.shadowColor = style.glow;
+    ctx.shadowBlur  = style.blur + pulseAmp * Math.abs(Math.sin(this.t * 2.8));
+    // Cercle intérieur (couleur du power-up, semi-transparent)
     ctx.beginPath();
     ctx.arc(0, 0, this.r, 0, Math.PI * 2);
-    ctx.strokeStyle = this.color;
-    ctx.lineWidth   = 2;
-    ctx.fillStyle   = 'rgba(0,0,0,0.52)';
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.fill();
+    // Bordure de rareté (par-dessus)
+    ctx.strokeStyle = style.border;
+    ctx.lineWidth   = style.width;
     ctx.stroke();
-
+    // Cercle intérieur : couleur du power-up en fine ligne
     ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.r - 3, 0, Math.PI * 2);
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Emoji au centre
     ctx.font       = `${this.r * 1.05}px serif`;
     ctx.textAlign  = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(this.emoji, 0, 1);
-
     ctx.restore();
+
+    // Particules dorées orbitales pour les légendaires
+    if (this.rarity === 'legendary') {
+      const cx = this.x, cy = this.y + bobY;
+      for (let i = 0; i < 4; i++) {
+        const a = this.t * 3 + i * Math.PI / 2;
+        const rr = this.r + 8 + Math.sin(this.t * 4 + i) * 3;
+        const px = cx + Math.cos(a) * rr;
+        const py = cy + Math.sin(a) * rr;
+        ctx.fillStyle = '#FFD700';
+        ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(px, py, 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    }
   }
 }
 
@@ -5665,6 +5779,7 @@ class Game {
     this._survivalMode = true;
     this.bomberBombs   = [];
     this.gravityZones  = []; this.voidTears = []; this._novaFlash = 0;
+    this._invulnFlash  = 0;
     if (this.adrenaline)     this.adrenaline.reset();
     if (this.dangerZones)    this.dangerZones.reset();
     if (this.survivalEvents) this.survivalEvents.reset();
@@ -5727,6 +5842,7 @@ class Game {
     this._survivalMode = false;
     this._deathPending = false; this._slowMoTimer = 0;
     this.gravityZones  = []; this.voidTears = []; this._novaFlash = 0;
+    this._invulnFlash  = 0;
 
     const _storyTrack = levelId <= 3 ? 'frontier' : levelId <= 6 ? 'tension' : 'assault';
     musicManager.play(_storyTrack);
@@ -5844,6 +5960,7 @@ class Game {
     this._survivalMode = false;
     this._deathPending = false; this._slowMoTimer = 0;
     this.gravityZones  = []; this.voidTears = []; this._novaFlash = 0;
+    this._invulnFlash  = 0;
     this._brMinorSpawnTimer = 2.0;   // premier spawn 2 s après le début
     this._brCoinsEarned = 0;         // compteur affiché en haut à droite
     this.lastTime  = performance.now();
@@ -5968,9 +6085,99 @@ class Game {
         this.audio.powerup();
         this.weapons.rechargeAll();
         return;
+      // ── LÉGENDAIRES ────────────────────────────────────────
+      case 'invuln':
+        this.audio.levelUp();
+        this.player.invincible  = true;
+        this.player.invTimer    = 4.0;    // 4 s d'invincibilité totale
+        this.player.blinkTimer  = 0;
+        this._invulnFlash       = 4.0;    // visuel blanc éblouissant
+        this.ui.flash('#ffffff', 0.8);
+        return;
+      case 'cleanse': {
+        this.audio.levelUp();
+        // Détruit instantanément tous les ennemis à l'écran (sauf boss)
+        // en explosions en chaîne (délais échelonnés pour effet)
+        const enemies = this.enemies.filter(e => !e.isBoss && !e.dead && !e.dying);
+        enemies.forEach((e, k) => {
+          setTimeout(() => {
+            if (e.dead || e.dying) return;
+            spawnBoom(this.particles, e.x, e.y, e.type || 'medium', (d, i) => this._triggerShake(d, i));
+            spawnExplosion(this.particles, e.x, e.y, '#ffcc44', 20, true);
+            e.dead = true;
+            this.player.score += this.combo.addKill((e.score || 100) * (this.wave?.level || 1));
+            this.achievements.onKill();
+            if (this.wave) this.wave.enemyKilled();
+          }, k * 45);
+        });
+        this._triggerShake(0.35, 8);
+        this.ui.flash('#ffcc44', 0.55);
+        return;
+      }
+      case 'superadr':
+        this.audio.levelUp();
+        if (this.adrenaline) {
+          this.adrenaline.value = 100;
+          this.adrenaline.activate(this.player);
+          // Prolonge la durée à 10 s (au lieu de 6 s standard)
+          this.adrenaline.remaining = 10.0;
+        } else {
+          // Fallback si adrénaline indisponible : au moins invincibilité
+          this.player.invincible = true;
+          this.player.invTimer   = 3.0;
+        }
+        this.ui.flash('#ff2244', 0.6);
+        return;
       default:
         // Effets locaux au joueur
         this.player.activatePowerup(p.type, this.audio);
+    }
+  }
+
+  /**
+   * Système de drop progressif Survie. Consulte le tier de la vague courante
+   * pour décider si un power-up drop, puis choisit la rareté et le type.
+   */
+  _maybeSurvivalDrop(x, y) {
+    // Fallback : hors Survie, utilise l'ancien système
+    if (!this._survivalMode || !this.wave) {
+      if (Math.random() < 0.2) this.powerups.push(new PowerUp(x, y, _pickPowerupType()));
+      return;
+    }
+    const tier = _survivalDropTier(this.wave.level);
+    if (Math.random() >= tier.rate) return;
+    const type = _pickPowerupTypeSurvival(this.wave.level);
+    this.powerups.push(new PowerUp(x, y, type));
+  }
+
+  /**
+   * Accorde les drops garantis à la fin d'une vague donnée (Survie uniquement).
+   * @param {number} justCompletedWave  numéro de la vague qui vient de finir
+   */
+  _grantGuaranteedDrops(justCompletedWave) {
+    if (!this._survivalMode) return;
+    const drops = [];
+    if (justCompletedWave === 5)  drops.push({ rarity: 'rare',      count: 1 });
+    if (justCompletedWave === 10) drops.push({ rarity: 'epic',      count: 1 });
+    if (justCompletedWave === 15) drops.push({ rarity: 'epic',      count: 2 });
+    if (justCompletedWave === 20) drops.push({ rarity: 'legendary', count: 1 });
+    if (justCompletedWave > 20 && justCompletedWave % 5 === 0) {
+      drops.push({ rarity: 'legendary', count: 1 });
+    }
+    if (drops.length === 0) return;
+    let slot = 0;
+    for (const d of drops) {
+      for (let k = 0; k < d.count; k++) {
+        const type = _pickPowerupByRarity(d.rarity);
+        // Position au centre de l'écran, légèrement espacée
+        const x = this.W * (0.35 + Math.random() * 0.30);
+        const y = 40 + slot * 44;
+        const p = new PowerUp(x, y, type);
+        p.guaranteed = true;
+        p._beamLife  = 2.5;   // 2.5 s de rayon lumineux
+        this.powerups.push(p);
+        slot++;
+      }
     }
   }
 
@@ -7602,6 +7809,7 @@ class Game {
     this._tickVoidTears(dt);
     this._photonDestroyEnemyBullets();
     if (this._novaFlash > 0) this._novaFlash -= dt;
+    if (this._invulnFlash && this._invulnFlash > 0) this._invulnFlash -= dt;
     // Trace des balles Void en vol
     for (const b of this.playerBullets) { if (b.isVoid && !b.dead) this._extendVoidTrail(b); }
 
@@ -7632,9 +7840,8 @@ class Game {
                 this.ui.updateStartCoins(this.coins);
               }
             }
-            if (Math.random() < killed.dropChance) {
-              this.powerups.push(new PowerUp(killed.x, killed.y, _pickPowerupType()));
-            }
+            // Drop Survie (missile/plasma callback)
+            this._maybeSurvivalDrop(killed.x, killed.y);
           });
           break;
         }
@@ -7686,10 +7893,8 @@ class Game {
           this.audio.explosion(boomTier === 'heavy');
           e.dead = true;
 
-          // Drop power-up aléatoire (pondéré par CFG.PU_WEIGHTS)
-          if (Math.random() < e.dropChance) {
-            this.powerups.push(new PowerUp(e.x, e.y, _pickPowerupType()));
-          }
+          // Drop power-up : Survie utilise le système progressif par vague
+          this._maybeSurvivalDrop(e.x, e.y);
         }
         // Effets on-hit des armes boutique (Quantum split, Gravity zone, Chain, Solar blast)
         this._premiumBulletOnHit(b, e);
@@ -7809,6 +8014,9 @@ class Game {
       // Déverrouille les armes éligibles + notification
       const newly = this.weapons.unlockUpToWave(this.wave.level);
       newly.forEach(def => this._showWeaponUnlock(def));
+      // Drops garantis à la fin de la vague qui vient de se terminer
+      // (this.wave.level a déjà été incrémenté → la précédente = level-1)
+      this._grantGuaranteedDrops(this.wave.level - 1);
 
       // ── Prépare formation / événement pour la prochaine vague ──
       const opts = {};
@@ -7982,6 +8190,22 @@ class Game {
       }
       // Bombes de Bombardiers
       if (this._survivalMode) this.bomberBombs.forEach(b => b.draw(ctx));
+
+      // Invulnérabilité (power-up légendaire) : vaisseau blanc éblouissant
+      if (this._invulnFlash && this._invulnFlash > 0 && this.player.visible) {
+        const t = Date.now() * 0.03;
+        // Halo blanc autour du vaisseau
+        const g = ctx.createRadialGradient(this.player.x, this.player.y, 5, this.player.x, this.player.y, 60);
+        g.addColorStop(0, 'rgba(255,255,255,0.9)');
+        g.addColorStop(0.6, `rgba(255,255,255,${0.35 + 0.2 * Math.sin(t)})`);
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(this.player.x, this.player.y, 60, 0, Math.PI * 2); ctx.fill();
+        // Anneau intérieur pulsant
+        ctx.strokeStyle = `rgba(255,255,255,${0.7 + 0.3 * Math.sin(t * 2)})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(this.player.x, this.player.y, 30 + Math.sin(t) * 2, 0, Math.PI * 2); ctx.stroke();
+      }
 
       // Adrénaline : aura rouge autour du vaisseau
       if (this._survivalMode && this.adrenaline && this.adrenaline.isActive && this.player.visible) {
