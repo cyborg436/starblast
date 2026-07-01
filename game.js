@@ -2453,15 +2453,36 @@ class WaveManager {
     return queue;
   }
 
-  /** Démarre un niveau. */
-  start(level, W) {
-    this.level        = level;
-    this.spawnQueue   = this._buildWave(level, W);
+  /** Démarre un niveau. Opts: { formation, formationName, densityMult } */
+  start(level, W, opts = {}) {
+    this.level          = level;
+    this.formationName  = null;   // libellé de formation (bannière)
+    this.formationBanner = 0;      // timer d'affichage bannière
+    if (opts.formation && typeof FormationSpawner !== 'undefined') {
+      const built = FormationSpawner.build(opts.formation, W, level);
+      this.spawnQueue    = built.queue;
+      this.formationName = built.name;
+      this.formationBanner = 2.0;   // affiche la bannière 2 s
+    } else {
+      this.spawnQueue = this._buildWave(level, W);
+    }
+    // Invasion : multiplie la densité
+    if (opts.densityMult && opts.densityMult > 1) {
+      const extra = [];
+      const base  = this.spawnQueue.length;
+      const target = Math.floor(base * (opts.densityMult - 1));
+      for (let i = 0; i < target; i++) {
+        const src = this.spawnQueue[i % base];
+        extra.push({ ...src, delay: src.delay + 0.4 * (Math.floor(i / base) + 1) });
+      }
+      this.spawnQueue = this.spawnQueue.concat(extra);
+    }
     this.spawnTimer   = 0;
     this.betweenWave  = false;
     this._spawned     = this.spawnQueue.length;
     this._killed      = 0;
     this._done        = false;
+    this._eliteBonus  = !!opts.elitePV;   // multiplicateur PV supplémentaire
   }
 
   /** Notifie qu'un ennemi a été détruit. */
@@ -2476,21 +2497,34 @@ class WaveManager {
       this.betweenTimer -= dt;
       if (this.betweenTimer <= 0) {
         this.betweenWave = false;
-        this.start(this.level, W);
+        // Reprise avec les mêmes opts si le Game a préparé une formation.
+        // Sinon vague standard sans formation.
+        this.start(this.level, W, this._nextOpts || {});
+        this._nextOpts = null;
       }
       return;
     }
+    // Bannière formation
+    if (this.formationBanner > 0) this.formationBanner -= dt;
 
     // Spawn des ennemis depuis la file avec délai
     if (this.spawnQueue.length > 0) {
       this.spawnTimer += dt;
       while (this.spawnQueue.length > 0 && this.spawnTimer >= this.spawnQueue[0].delay) {
         const s = this.spawnQueue.shift();
-        const e = new Enemy(s.type, s.x, s.y, this._speedScale());
         // Application du multiplicateur de PV par vague
-        const hpMult = WaveManager.hpMultiplier(this.level);
-        e.hp    = Math.ceil(e.hp    * hpMult);
-        e.maxHp = Math.ceil(e.maxHp * hpMult);
+        const hpMult = WaveManager.hpMultiplier(this.level) * (this._eliteBonus ? 2 : 1);
+        let e;
+        if (s.elite && typeof ArmoredEnemy !== 'undefined') {
+          // Formation Élite : ennemis lourds avec 3× PV
+          e = new Enemy(s.type, s.x, s.y, this._speedScale());
+          e.hp    = Math.ceil(e.hp    * hpMult * 3);
+          e.maxHp = Math.ceil(e.maxHp * hpMult * 3);
+        } else {
+          e = new Enemy(s.type, s.x, s.y, this._speedScale());
+          e.hp    = Math.ceil(e.hp    * hpMult);
+          e.maxHp = Math.ceil(e.maxHp * hpMult);
+        }
         enemies.push(e);
       }
     }
@@ -3020,6 +3054,20 @@ class UIManager {
   setIonicWarning(visible) {
     if (!this.$ionicWarn) return;
     this.$ionicWarn.classList.toggle('hidden', !visible);
+  }
+
+  /** Met à jour la jauge d'adrénaline (Survie). */
+  updateAdrenaline(mgr) {
+    const box  = document.getElementById('hud-adrenaline');
+    const fill = document.getElementById('hud-adr-fill');
+    const btn  = document.getElementById('hud-adr-ready');
+    if (!box || !fill) return;
+    if (!mgr) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    fill.style.width = `${Math.round(mgr.ratio * 100)}%`;
+    box.classList.toggle('adr-full',    mgr.isFull && !mgr.isActive);
+    box.classList.toggle('adr-active',  mgr.isActive);
+    if (btn) btn.classList.toggle('hidden', !(mgr.isFull && !mgr.isActive));
   }
 
   updatePowerupBar(player) {
@@ -4668,6 +4716,14 @@ class Game {
     this.bossRushBoss   = null;       // référence directe au boss actif
     this._brStartLives  = (typeof BR_STARTING_LIVES !== 'undefined') ? BR_STARTING_LIVES : 5;
     this._brVictoryAnim = null;       // animation finale victoire
+
+    // ── Enrichissements mode Survie ──
+    this.adrenaline     = (typeof AdrenalineManager !== 'undefined') ? new AdrenalineManager() : null;
+    this.dangerZones    = (typeof DangerZoneManager !== 'undefined') ? new DangerZoneManager() : null;
+    this.survivalEvents = (typeof SurvivalEventManager !== 'undefined') ? new SurvivalEventManager() : null;
+    this.bomberBombs    = [];
+    this._survivalMode  = false;      // vrai si mode Survie actif
+    this._nextFormationOn = 0;        // niveau minimum pour spawn en formation
     this.achievements.setRefs({ shop: this.shop, story: this.story, progression: this.progression, audio: this.audio });
     this.achievements.setCoinsCallback(n => {
       this.coins += n;
@@ -4905,6 +4961,13 @@ class Game {
           this._togglePause();
         }
       }
+      // Activation Adrénaline (Shift) — mode Survie uniquement
+      if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && this.state === 'playing' && this._survivalMode) {
+        if (this.adrenaline && this.adrenaline.activate(this.player)) {
+          this.audio.powerup();
+          this.ui.flash('#ff2244', 0.5);
+        }
+      }
       // Changement d'arme — couvre :
       //   QWERTY/AZERTY physique  : e.code Digit1–Digit6
       //   Pavé numérique          : e.code Numpad1–Numpad6
@@ -5033,6 +5096,14 @@ class Game {
     // Réinitialise les munitions au début de la partie (mais conserve les déverrouillages)
     this.weapons.rechargeAll();
 
+    // ── Reset des systèmes Survie ──
+    this._survivalMode = true;
+    this.bomberBombs   = [];
+    if (this.adrenaline)     this.adrenaline.reset();
+    if (this.dangerZones)    this.dangerZones.reset();
+    if (this.survivalEvents) this.survivalEvents.reset();
+    this._nextFormationOn = 5;   // formations à partir de la vague 5
+
     musicManager.play('afterburn');
     this.ui.hideScreens();
     this.ui.showLevelNotif(1);
@@ -5082,6 +5153,7 @@ class Game {
     this.achievements.onRunStart();
     this._prevLives = CFG.LIVES;
     this.weapons.rechargeAll();
+    this._survivalMode = false;
 
     const _storyTrack = levelId <= 3 ? 'frontier' : levelId <= 6 ? 'tension' : 'assault';
     musicManager.play(_storyTrack);
@@ -5187,6 +5259,7 @@ class Game {
 
     this._playMode = 'bossrush';
     this.state     = 'bossrush-playing';
+    this._survivalMode = false;
     this.lastTime  = performance.now();
     this.combo.reset();
     this.achievements.onRunStart();
@@ -5857,6 +5930,7 @@ class Game {
     this.ui.updateHUD(this.player.score, this.storyCtrl.waveNum, this.player.lives, this.highscore);
     this.ui.updateCombo(this.combo);
     this.ui.updatePowerupBar(this.player);
+    this.ui.updateAdrenaline(null);
 
     // Conditions de fin
     if (this.storyCtrl.done)        this._storyVictory();
@@ -6084,8 +6158,37 @@ class Game {
     this.ui.updateHUD(this.player.score, this.bossRush.bossReached(), this.player.lives, this.highscore);
     this.ui.updateCombo(this.combo);
     this.ui.updatePowerupBar(this.player);
+    this.ui.updateAdrenaline(null);
 
     if (this.player.lives <= 0) this._bossRushFailed();
+  }
+
+  /** Injecte des ennemis spéciaux dans la file de la prochaine vague. */
+  _injectSpecialEnemies() {
+    if (typeof _pickSpecialEnemyType !== 'function') return;
+    // Injecte 1-3 ennemis spéciaux au-dessus de la file principale
+    const wq = this.wave;
+    const level = wq.level;
+    if (level < 4) return;
+    const count = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i++) {
+      const type = _pickSpecialEnemyType(level);
+      if (!type) continue;
+      const x = 40 + Math.random() * (this.W - 80);
+      const y = -80 - i * 30;
+      const speedScale = Math.min(level, 30);
+      let entity = null;
+      if (type === 'kamikaze') entity = new KamikazeEnemy(x, y, speedScale, this.player);
+      else if (type === 'armored') entity = new ArmoredEnemy(x, y, speedScale);
+      else if (type === 'healer')  entity = new HealerEnemy(x, y, speedScale);
+      else if (type === 'bomber')  entity = new BomberEnemy(x, y, speedScale, this.player);
+      if (entity) {
+        // Injecte avec un léger délai (via setTimeout — approximatif mais suffisant)
+        setTimeout(() => {
+          if (this.state === 'playing') this.enemies.push(entity);
+        }, 400 + i * 500);
+      }
+    }
   }
 
   /** Appelé quand un boss meurt en Boss Rush. */
@@ -6126,16 +6229,36 @@ class Game {
     // ── Fond étoilé ──────────────────────────────────────
     this.stars.update(dt);
 
+    // ── Adrénaline : booste la vitesse du joueur ─────────
+    const adrenActive = this.adrenaline && this.adrenaline.isActive;
+    const _origDx = inp.dx, _origDy = inp.dy;
+    if (adrenActive) {
+      const sm = this.adrenaline.speedMult;
+      inp.dx = _origDx * sm; inp.dy = _origDy * sm;
+    }
+
     // ── Joueur ───────────────────────────────────────────
     // Mise à jour couleur balle chaque frame (gère le rainbow live)
     this.player.bulletColor = this.shop.getBulletColor();
     this.player.laserType   = this.shop.equippedColor;
     this.player.update(dt, inp, this.W, this.H);
 
+    // Restaure les valeurs originales (évite fuite entre frames)
+    if (adrenActive) { inp.dx = _origDx; inp.dy = _origDy; }
+
     // Tir (clavier ou tactile)
     if (inp.fire) {
+      const preLen = this.playerBullets.length;
       const n = this.player.fire(this.playerBullets, this.audio);
       for (let k = 0; k < n; k++) this.achievements.onShotFired();
+      // Adrénaline : ×2 dégâts sur les nouveaux projectiles
+      if (adrenActive && n > 0) {
+        const dmgMult = this.adrenaline.damageMult;
+        for (let bi = preLen; bi < this.playerBullets.length; bi++) {
+          const bb = this.playerBullets[bi];
+          if (bb) bb.damage = (bb.damage || 1) * dmgMult;
+        }
+      }
     }
 
     // Bombe clavier
@@ -6169,6 +6292,71 @@ class Game {
     });
     this.ui.setIonicWarning(this.ionicStorm.warningActive);
 
+    // ── Zones de danger dynamiques ────────────────────────
+    if (this.dangerZones) {
+      this.dangerZones.update(dt, this.W, this.H, this.player, this.particles, this.audio, () => {
+        this.ui.flash('#ff2222', 0.4);
+        this.combo.reset();
+        if (this.adrenaline) this.adrenaline.onPlayerHit();
+      });
+    }
+
+    // ── Bombardiers : lâcher de bombes ────────────────────
+    this.enemies.forEach(e => {
+      if (e instanceof BomberEnemy) {
+        const bomb = e.maybeDropBomb(dt);
+        if (bomb) this.bomberBombs.push(bomb);
+      }
+      if (e instanceof HealerEnemy) {
+        const healEvt = e.healNearby(this.enemies, dt);
+        if (healEvt) {
+          // Effet visuel : petites étincelles vertes de la source vers la cible
+          spawnExplosion(this.particles, healEvt.to.x, healEvt.to.y, '#33ff88', 8);
+        }
+      }
+    });
+    // Update des bombes
+    for (let i = this.bomberBombs.length - 1; i >= 0; i--) {
+      const b = this.bomberBombs[i];
+      b.update(dt, this.W, this.H, this.player, this.particles, this.audio, () => {
+        this.ui.flash('#ff5500', 0.6);
+        this.combo.reset();
+        if (this.adrenaline) this.adrenaline.onPlayerHit();
+      });
+      if (b.dead) this.bomberBombs.splice(i, 1);
+    }
+
+    // ── Kamikaze : explosion au contact ───────────────────
+    for (const e of this.enemies) {
+      if (!(e instanceof KamikazeEnemy)) continue;
+      if (e.dead || e.dying) continue;
+      // Contact joueur → explosion
+      if (aabb(e.hitbox, this.player.hitbox)) {
+        e.dead = true;
+        spawnExplosion(this.particles, e.x, e.y, '#ff6600', 20, true);
+        this.audio.explosion(true);
+        this._triggerShake(0.2, 6);
+        // AoE
+        const dx = this.player.x - e.x, dy = this.player.y - e.y;
+        if (Math.hypot(dx, dy) < e.explosionRadius) {
+          if (this.player.hit(this.particles, this.audio)) {
+            this.ui.flash('#ff6600', 0.6);
+            this.combo.reset();
+            if (this.adrenaline) this.adrenaline.onPlayerHit();
+          }
+        }
+      }
+    }
+
+    // ── Adrénaline : tick + gain passif "dodge" ───────────
+    if (this.adrenaline) {
+      this.adrenaline.tick(dt);
+      this.adrenaline.tickDodgeGain(dt, this.player, this.enemyBullets);
+    }
+
+    // ── Événements Survie : tick effets temporels ─────────
+    if (this.survivalEvents) this.survivalEvents.tick(dt);
+
     // ── Détection de collisions ──────────────────────────
 
     // Balles joueur → Ennemis
@@ -6181,9 +6369,21 @@ class Game {
           if (e.dead || e.dying) continue;
           if (!aabb(b.hitbox, e.hitbox)) continue;
           b.explode(this.enemies, this.particles, this.audio, (killed) => {
-            this.player.score += this.combo.addKill(killed.score * this.wave.level);
+            const scoreMul = (this.survivalEvents?.scoreMult() || 1);
+            this.player.score += this.combo.addKill(killed.score * this.wave.level * scoreMul);
             this.achievements.onKill();
             this.wave.enemyKilled();
+            if (this.adrenaline) this.adrenaline.onKill();
+            const coinMul = this.wave?._eliteBonus ? 2 : 1;
+            if (coinMul > 1) {
+              const bonus = Math.floor(killed.score / 20);
+              if (bonus > 0) {
+                this.coins += bonus;
+                localStorage.setItem('starblast_coins', this.coins.toString());
+                this.ui.updateCoins(this.coins);
+                this.ui.updateStartCoins(this.coins);
+              }
+            }
             if (Math.random() < killed.dropChance) {
               this.powerups.push(new PowerUp(killed.x, killed.y, _pickPowerupType()));
             }
@@ -6209,12 +6409,28 @@ class Game {
 
         this.achievements.onShotHit();
         if (e.hit(b.damage || 1)) {
-          // Ennemi tué — score : base × niveau de vague × multiplicateur de combo
-          this.player.score += this.combo.addKill(e.score * this.wave.level);
+          // Ennemi tué — score : base × niveau de vague × multiplicateur de combo × événement
+          const scoreMul = this.survivalEvents?.scoreMult() || 1;
+          this.player.score += this.combo.addKill(e.score * this.wave.level * scoreMul);
           this.achievements.onKill();
           this.wave.enemyKilled();
-          spawnBoom(this.particles, e.x, e.y, e.type, (d, i) => this._triggerShake(d, i));
-          this.audio.explosion(e.type === 'heavy');
+          if (this.adrenaline) this.adrenaline.onKill();
+          // Bonus pièces en vague Élite
+          const coinMul = this.wave?._eliteBonus ? 2 : 1;
+          if (coinMul > 1) {
+            const bonus = Math.floor(e.score / 20);
+            if (bonus > 0) {
+              this.coins += bonus;
+              localStorage.setItem('starblast_coins', this.coins.toString());
+              this.ui.updateCoins(this.coins);
+              this.ui.updateStartCoins(this.coins);
+            }
+          }
+          const boomTier = (e.type === 'heavy' || e.type === 'armored') ? 'heavy'
+                         : (e.type === 'medium' || e.type === 'healer' || e.type === 'bomber') ? 'medium'
+                         : 'basic';
+          spawnBoom(this.particles, e.x, e.y, boomTier, (d, i) => this._triggerShake(d, i));
+          this.audio.explosion(boomTier === 'heavy');
           e.dead = true;
 
           // Drop power-up aléatoire (pondéré par CFG.PU_WEIGHTS)
@@ -6268,16 +6484,20 @@ class Game {
       if (this.player.hit(this.particles, this.audio)) {
         this.ui.flash('#ff3355', 0.5);
         this.combo.reset();
+        if (this.adrenaline) this.adrenaline.onPlayerHit();
       }
     }
 
     // Ennemis → Joueur (collision directe)
     for (const e of this.enemies) {
       if (e.dead || !aabb(e.hitbox, this.player.hitbox)) continue;
+      // Kamikaze géré séparément (explosion), skip ici
+      if (e instanceof KamikazeEnemy) continue;
       if (this.player.hit(this.particles, this.audio)) {
         this.ui.flash('#ff3355', 0.6);
         this.combo.reset();
         e.dead = true;
+        if (this.adrenaline) this.adrenaline.onPlayerHit();
       }
     }
 
@@ -6307,6 +6527,30 @@ class Game {
       // Déverrouille les armes éligibles + notification
       const newly = this.weapons.unlockUpToWave(this.wave.level);
       newly.forEach(def => this._showWeaponUnlock(def));
+
+      // ── Prépare formation / événement pour la prochaine vague ──
+      const opts = {};
+      // Formation à partir de la vague 5 (2/3 des vagues environ)
+      if (this.wave.level >= this._nextFormationOn && Math.random() < 0.65) {
+        opts.formation = FormationSpawner.pickRandom(this.wave.level);
+      }
+      // Événement tous les 5 vagues
+      if (this.survivalEvents) {
+        this.survivalEvents.onWaveStart(this.wave.level, this);
+        if (this.survivalEvents.pendingEliteWave) {
+          opts.elitePV = true;
+          this.survivalEvents.pendingEliteWave = false;
+        }
+        if (this.survivalEvents.pendingInvasion) {
+          opts.densityMult = 3;
+          this.survivalEvents.pendingInvasion = false;
+        }
+      }
+      // Injecte options dans WaveManager pour la reprise post-intermission
+      this.wave._nextOpts = opts;
+
+      // ── Injection d'ennemis spéciaux ──
+      this._injectSpecialEnemies();
     }
 
     // ── Tick weapons (recharge + charge plasma) ──────────
@@ -6332,6 +6576,7 @@ class Game {
     this.ui.updateHUD(this.player.score, this.wave.level, this.player.lives, this.highscore);
     this.ui.updateCombo(this.combo);
     this.ui.updatePowerupBar(this.player);
+    this.ui.updateAdrenaline(this.adrenaline);
 
     // ── Fin de partie ────────────────────────────────────
     if (this.player.lives <= 0) this._gameOver();
@@ -6428,9 +6673,88 @@ class Game {
       // Anneau de charge Plasma autour du joueur
       this._drawPlasmaCharge(ctx);
 
+      // Zones de danger (Survie) — dessinées derrière les particules mais devant les entités
+      if (this._survivalMode && this.dangerZones && (this.state === 'playing' || this.state === 'paused')) {
+        this.dangerZones.draw(ctx);
+      }
+      // Bombes de Bombardiers
+      if (this._survivalMode) this.bomberBombs.forEach(b => b.draw(ctx));
+
+      // Adrénaline : aura rouge autour du vaisseau
+      if (this._survivalMode && this.adrenaline && this.adrenaline.isActive && this.player.visible) {
+        const t = Date.now() * 0.02;
+        const rings = 3;
+        for (let r = 0; r < rings; r++) {
+          const rr = 30 + r * 10 + Math.sin(t + r) * 4;
+          const alpha = 0.35 * (1 - r / rings);
+          ctx.strokeStyle = `rgba(255,30,60,${alpha})`;
+          ctx.lineWidth = 2 + (rings - r);
+          ctx.beginPath(); ctx.arc(this.player.x, this.player.y, rr, 0, Math.PI * 2); ctx.stroke();
+        }
+        // Vignette rouge sur les bords
+        const g = ctx.createRadialGradient(this.W/2, this.H/2, this.W * 0.25, this.W/2, this.H/2, this.W * 0.75);
+        g.addColorStop(0, 'rgba(0,0,0,0)');
+        g.addColorStop(1, 'rgba(255,20,40,0.28)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, this.W, this.H);
+      }
+
+      // Brouillard de guerre (événement Survie)
+      if (this._survivalMode && this.survivalEvents) {
+        this.survivalEvents.drawFogOverlay(ctx, this.W, this.H);
+      }
+
       // Barre d'armes (bas de l'écran) + toast nouvelle arme
       this._drawWeaponsBar(ctx);
       this._drawWeaponUnlockToast(ctx);
+
+      // Bannière formation (Survie)
+      if (this._survivalMode && this.wave?.formationBanner > 0 && this.wave.formationName) {
+        const alpha = Math.min(1, this.wave.formationBanner);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(0, 40, this.W, 34);
+        ctx.font = '900 16px Orbitron, monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ff4488';
+        ctx.shadowColor = '#ff4488'; ctx.shadowBlur = 14;
+        ctx.fillText(`▶ FORMATION : ${this.wave.formationName}`, this.W / 2, 57);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      }
+
+      // Carte d'annonce d'événement (Survie)
+      if (this._survivalMode && this.survivalEvents?.announce) {
+        const a = this.survivalEvents.announce;
+        const alpha = a.life > 1.5 ? (a.maxLife - a.life) * 2 : Math.min(1, a.life * 1.5);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+        const cx = this.W / 2, cy = this.H / 2;
+        const cw = Math.min(this.W * 0.85, 340), ch = 100;
+        // Fond
+        ctx.fillStyle = a.kind === 'pos' ? 'rgba(80,220,120,0.14)' : 'rgba(220,60,60,0.14)';
+        ctx.fillRect(cx - cw/2, cy - ch/2, cw, ch);
+        ctx.strokeStyle = a.kind === 'pos' ? '#88ff88' : '#ff4444';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 18;
+        ctx.strokeRect(cx - cw/2, cy - ch/2, cw, ch);
+        ctx.shadowBlur = 0;
+        // Icône
+        ctx.font = '38px serif';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(a.icon, cx - cw/2 + 16, cy);
+        // Nom + desc
+        ctx.font = '900 16px Orbitron, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = a.kind === 'pos' ? '#88ff88' : '#ff6666';
+        ctx.fillText(a.name, cx + 20, cy - 14);
+        ctx.font = '600 11px Orbitron, monospace';
+        ctx.fillStyle = '#dde';
+        ctx.fillText(a.desc, cx + 20, cy + 12);
+        ctx.restore();
+      }
 
       // Particules (par-dessus tout le reste)
       this.particles.forEach(p => p.draw(ctx));

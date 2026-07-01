@@ -58,6 +58,13 @@
       </div>
     </div>
 
+    <!-- ── Jauge d'Adrénaline (Survie) ─────────────────────────── -->
+    <div id="hud-adrenaline" class="hud-adrenaline hidden">
+      <div class="hud-adr-label">ADRÉNALINE</div>
+      <div class="hud-adr-bar"><div id="hud-adr-fill" class="hud-adr-fill"></div></div>
+      <div id="hud-adr-ready" class="hud-adr-ready hidden">⚡ SHIFT</div>
+    </div>
+
     <!-- ── Multiplicateur de combo (haut centre) ─────────────────── -->
     <div id="hud-combo-float-host" class="hud-combo-float-host"></div>
     <div id="hud-combo-box" class="hud-combo-box combo-tier-1">
@@ -544,9 +551,10 @@
 <script src="battlepass.js"></script>
 <script src="achievements.js"></script>
 <script src="leaderboard.js"></script>
-<!-- weapons.js et bossrush.js DOIVENT être chargés APRÈS game.js (extends Bullet/BossBase) -->
+<!-- weapons.js, bossrush.js et survival.js DOIVENT être chargés APRÈS game.js (extends Bullet/BossBase/Enemy) -->
 <script src="game.js"></script>
 <script src="weapons.js"></script>
 <script src="bossrush.js"></script>
+<script src="survival.js"></script>
 </body>
 </html>

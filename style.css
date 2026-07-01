@@ -2249,3 +2249,81 @@ body.is-mobile #mobile-ui { display: flex; }
   text-shadow: 0 0 18px rgba(255, 68, 34, 0.6);
 }
 
+/* ============================================================
+   SURVIE — Jauge d'Adrénaline (HUD)
+   ============================================================ */
+.hud-adrenaline {
+  position: absolute;
+  top: 52px;
+  left: 10px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 40, 60, 0.4);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 5;
+  font-family: 'Orbitron', sans-serif;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.hud-adrenaline.hidden { display: none; }
+.hud-adr-label {
+  font-size: 0.5rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #ffaaaa;
+  text-shadow: 0 0 6px rgba(255, 60, 80, 0.5);
+}
+.hud-adr-bar {
+  width: 110px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.hud-adr-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #cc0022, #ff2244 60%, #ff8844);
+  transition: width 0.18s ease-out;
+  box-shadow: 0 0 8px rgba(255, 40, 60, 0.5) inset;
+}
+.hud-adr-ready {
+  font-size: 0.55rem;
+  font-weight: 900;
+  color: #FFD700;
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 8px #FFD700;
+  animation: adr-blink 0.7s ease-in-out infinite alternate;
+}
+.hud-adr-ready.hidden { display: none; }
+@keyframes adr-blink {
+  0%   { opacity: 0.6; text-shadow: 0 0 4px #FFD700; }
+  100% { opacity: 1;   text-shadow: 0 0 14px #FFD700; }
+}
+.hud-adrenaline.adr-full {
+  border-color: #FFD700;
+  box-shadow: 0 0 14px rgba(255, 215, 0, 0.55);
+  animation: adr-full-pulse 1.2s ease-in-out infinite;
+}
+@keyframes adr-full-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(255,215,0,0.45); }
+  50%      { box-shadow: 0 0 22px rgba(255,215,0,0.85); }
+}
+.hud-adrenaline.adr-active {
+  border-color: #ff2244;
+  box-shadow: 0 0 18px rgba(255, 40, 60, 0.75);
+  animation: adr-active-shake 0.16s linear infinite;
+}
+@keyframes adr-active-shake {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(-0.6px, 0.4px); }
+  50%  { transform: translate(0.6px, -0.4px); }
+  75%  { transform: translate(-0.3px, 0.3px); }
+  100% { transform: translate(0, 0); }
+}
+.hud-adrenaline.adr-active .hud-adr-fill {
+  background: linear-gradient(90deg, #FFD700, #ff2244 60%, #ff0044);
+}
+
