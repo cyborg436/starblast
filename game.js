@@ -3912,6 +3912,17 @@ class ShopManager {
     grid.innerHTML = '';
 
     const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3 };
+    // Onglet ARMES : logique dédiée (verrouillage global sur Story lvl 10)
+    if (this._tab === 'weapons') {
+      const weaponUnlocked = (typeof window !== 'undefined') && !!window.__STARBLAST_STORY_LVL10;
+      let items = PREMIUM_WEAPONS.slice();
+      if (this._rarityFilter !== 'all') items = items.filter(i => i.rarity === this._rarityFilter);
+      items.sort((a, b) => (RARITY_ORDER[a.rarity] ?? 0) - (RARITY_ORDER[b.rarity] ?? 0));
+      items.forEach(item => this._renderWeaponCard(grid, item, coins, weaponUnlocked));
+      if (items.some(i => i.rarity === 'legendary')) this._startShopAnims();
+      return;
+    }
+
     let items = (this._tab === 'skins' ? SKIN_DATA : COLOR_DATA).slice();
     // Cacher les exclusivités Battle Pass / Boss Rush tant qu'elles ne sont pas possédées
     items = items.filter(i => (!i.bpOnly && !i.brOnly) || this.owned.has(i.id));
@@ -3922,6 +3933,87 @@ class ShopManager {
 
     // Start legendary animation if any visible
     if (items.some(i => i.rarity === 'legendary')) this._startShopAnims();
+  }
+
+  /** Rendu d'une carte d'arme boutique. */
+  _renderWeaponCard(grid, item, coins, weaponUnlocked) {
+    const wm = window.game?.weapons;
+    const owned  = wm ? wm.ownsPremium(item.id) : false;
+    const canBuy = coins >= item.price;
+    const rarity = item.rarity || 'common';
+
+    const stateClass = owned ? 'owned' : (!weaponUnlocked ? 'locked' : 'available');
+    const card = document.createElement('div');
+    card.className = `shop-card shop-card-weapon ${stateClass} rarity-${rarity}`;
+    card.dataset.rarity = rarity;
+
+    // Badge rareté + badge "ULTIME" pour les légendaires
+    const RARITY_LABELS = { common: 'COMMUN', rare: 'RARE', epic: 'ÉPIQUE', legendary: 'LÉGEND.' };
+    const badge = document.createElement('div');
+    badge.className = `card-rarity-badge rarity-badge-${rarity}`;
+    badge.textContent = RARITY_LABELS[rarity];
+    card.appendChild(badge);
+    if (rarity === 'legendary') {
+      const ult = document.createElement('div');
+      ult.className = 'card-ultimate-badge';
+      ult.textContent = 'ULTIME';
+      card.appendChild(ult);
+    }
+
+    // Icône (grand emoji)
+    const iconEl = document.createElement('div');
+    iconEl.className = 'card-weapon-icon';
+    iconEl.textContent = item.icon;
+    card.appendChild(iconEl);
+
+    // Nom
+    const nameEl = document.createElement('div');
+    nameEl.className = 'card-name';
+    nameEl.textContent = item.name;
+    card.appendChild(nameEl);
+
+    // Description mécanique unique
+    const descEl = document.createElement('div');
+    descEl.className = 'card-weapon-desc';
+    descEl.textContent = item.desc;
+    card.appendChild(descEl);
+
+    // Prix
+    const priceEl = document.createElement('div');
+    priceEl.className = 'card-price';
+    priceEl.innerHTML = `<span class="coin-star">★</span> ${item.price.toLocaleString('fr-FR')}`;
+    card.appendChild(priceEl);
+
+    // Bouton action
+    const btn = document.createElement('button');
+    if (!weaponUnlocked) {
+      btn.className   = 'card-btn card-btn-nocoins';
+      btn.textContent = '🔒 VERROUILLÉ';
+      btn.disabled    = true;
+      // Message d'aide
+      const hint = document.createElement('div');
+      hint.className = 'card-weapon-locked-hint';
+      hint.textContent = 'Terminez le niveau 10 du Mode Histoire pour débloquer';
+      card.appendChild(hint);
+    } else if (owned) {
+      btn.className   = 'card-btn card-btn-equipped';
+      btn.textContent = '✓ POSSÉDÉ';
+      btn.disabled    = true;
+    } else if (canBuy) {
+      btn.className   = 'card-btn card-btn-buy';
+      btn.textContent = 'ACHETER';
+      btn.addEventListener('click', () =>
+        document.dispatchEvent(new CustomEvent('starblast-shop-buy-weapon', {
+          detail: { id: item.id, price: item.price }
+        }))
+      );
+    } else {
+      btn.className   = 'card-btn card-btn-nocoins';
+      btn.textContent = 'Pièces insuf.';
+      btn.disabled    = true;
+    }
+    card.appendChild(btn);
+    grid.appendChild(card);
   }
 
   _renderCard(grid, item, coins) {
@@ -5272,6 +5364,12 @@ class Game {
         this.shop._tab = btn.dataset.tab;
         this.shop._rarityFilter = 'all';
         this.shop.refresh(this.coins);
+        // Onglet armes vu → hide badge NEW
+        if (btn.dataset.tab === 'weapons') {
+          localStorage.setItem('starblast_shop_weapons_seen', '1');
+          const badge = document.getElementById('shop-weapons-badge');
+          if (badge) badge.classList.add('hidden');
+        }
       });
     });
 
@@ -5295,6 +5393,22 @@ class Game {
       this.achievements.onShopBuy();
     });
 
+    // Achat d'arme boutique
+    document.addEventListener('starblast-shop-buy-weapon', ({ detail: { id, price } }) => {
+      if (this.coins < price) return;
+      if (!window.__STARBLAST_STORY_LVL10) return;   // sécurité
+      this.coins -= price;
+      localStorage.setItem('starblast_coins', this.coins.toString());
+      this.weapons.buyPremium(id);
+      this.shop.refresh(this.coins);
+      this.ui.updateCoins(this.coins);
+      this.ui.updateStartCoins(this.coins);
+      this.audio.levelUp();
+      // Notification "nouvelle arme"
+      const def = PREMIUM_WEAPONS.find(w => w.id === id);
+      if (def) this._showWeaponUnlock(def);
+    });
+
     // Clavier global : Pause + Armes (QWERTY/AZERTY/pavé numérique)
     window.addEventListener('keydown', e => {
       if (e.code === 'KeyP' || e.code === 'Escape') {
@@ -5309,27 +5423,40 @@ class Game {
           this.ui.flash('#ff2244', 0.5);
         }
       }
-      // Changement d'arme — couvre :
-      //   QWERTY/AZERTY physique  : e.code Digit1–Digit6
-      //   Pavé numérique          : e.code Numpad1–Numpad6
-      //   AZERTY caractères       : e.key & é " ' ( -
+      // Changement d'arme — 12 slots (tactiques 1-6 + boutique 7-12)
+      //   QWERTY/AZERTY : Digit1–Digit9, Digit0, Minus, Equal
+      //   Pavé numérique : Numpad1–Numpad9, Numpad0
+      //   AZERTY caractères (couvre les caractères FR pour rangée du haut)
       if (this.state === 'playing' || this.state === 'story-playing' || this.state === 'bossrush-playing') {
-        const AZERTY_MAP = { '&':0, 'é':1, '"':2, "'":3, '(':4, '-':5 };
-        let idx = -1;
-        const codeM = e.code.match(/^(?:Digit|Numpad)([1-6])$/);
-        if (codeM) {
-          idx = parseInt(codeM[1], 10) - 1;
-        } else if (e.key in AZERTY_MAP) {
-          idx = AZERTY_MAP[e.key];
+        // Alt : bascule mode Pulse/Corona pour Solar Flare (si équipée)
+        if (e.code === 'AltLeft' || e.code === 'AltRight') {
+          if (this.weapons.toggleSolarMode()) {
+            e.preventDefault();
+            this.audio.powerup();
+            const mode = this.weapons.solarMode();
+            this.ui.flash(mode === 'corona' ? '#ffcc00' : '#ffee66', 0.4);
+          }
         }
-        if (idx >= 0) {
+        const AZERTY_MAP = {
+          '&': 0, 'é': 1, '"': 2, "'": 3, '(': 4, '-': 5,
+          'è': 6, '_': 7, 'ç': 8, 'à': 9, ')': 10, '=': 11,
+        };
+        let idx = -1;
+        // Digit / Numpad 1-9
+        const codeM = e.code.match(/^(?:Digit|Numpad)([1-9])$/);
+        if (codeM) idx = parseInt(codeM[1], 10) - 1;
+        else if (e.code === 'Digit0' || e.code === 'Numpad0') idx = 9;
+        else if (e.code === 'Minus') idx = 10;
+        else if (e.code === 'Equal') idx = 11;
+        else if (e.key in AZERTY_MAP) idx = AZERTY_MAP[e.key];
+        if (idx >= 0 && idx < totalWeaponSlots()) {
           e.preventDefault();
           if (this.weapons.select(idx)) this.audio.powerup();
         }
       }
     });
 
-    // Clic sur les icônes d'armes (canvas)
+    // Clic sur les icônes d'armes (canvas) — hit-test dynamique
     this.canvas.addEventListener('click', e => {
       if (this.state !== 'playing' && this.state !== 'story-playing' && this.state !== 'bossrush-playing') return;
       const rect = this.canvas.getBoundingClientRect();
@@ -5337,15 +5464,25 @@ class Game {
       const scaleY = this.H / rect.height;
       const mx = (e.clientX - rect.left) * scaleX;
       const my = (e.clientY - rect.top)  * scaleY;
-      const cellW = 56, cellH = 38, gap = 4;
-      const n     = WEAPON_DEFS.length;
+      // Reconstruit la liste visible (mêmes règles que _drawWeaponsBar)
+      const wm = this.weapons;
+      const slots = [];
+      for (let i = 0; i < WEAPON_DEFS.length; i++) slots.push(i);
+      for (let i = 0; i < PREMIUM_WEAPONS.length; i++) {
+        if (wm.ownsPremium(PREMIUM_WEAPONS[i].id)) slots.push(WEAPON_DEFS.length + i);
+      }
+      const n = slots.length;
+      const cellW = Math.min(56, Math.floor((this.W - 20) / n - 3));
+      const cellH = 38;
+      const gap   = Math.min(4, Math.floor(cellW * 0.08));
       const x0    = (this.W - (n * cellW + (n - 1) * gap)) / 2;
       const y0    = this.H - cellH - 6;
       if (my >= y0 && my <= y0 + cellH) {
-        const rel  = mx - x0;
-        const slot = Math.floor(rel / (cellW + gap));
-        if (slot >= 0 && slot < n && rel % (cellW + gap) < cellW) {
-          if (this.weapons.select(slot)) this.audio.powerup();
+        const rel = mx - x0;
+        const slotPos = Math.floor(rel / (cellW + gap));
+        if (slotPos >= 0 && slotPos < n && rel % (cellW + gap) < cellW) {
+          const idx = slots[slotPos];
+          if (this.weapons.select(idx)) this.audio.powerup();
         }
       }
     });
@@ -5536,10 +5673,15 @@ class Game {
     const bossBonus = { 8: { coins: 500, xp: 300 }, 9: { coins: 800, xp: 500 }, 10: { coins: 2000, xp: 1000 } };
     const bonus = bossBonus[this.storyLevelId] || { coins: 0, xp: 0 };
 
-    // Déblocage skin Titan sur victoire niveau 10
+    // Déblocage skin Titan sur victoire niveau 10 + section armes boutique
     if (this.storyLevelId === 10) {
       this.shop.owned.add('titan');
       this.shop._persistOwned();
+      // Débloque l'accès à la section ARMES de la boutique
+      window.__STARBLAST_STORY_LVL10 = true;
+      localStorage.setItem('starblast_story_lvl10_done', '1');
+      const badge = document.getElementById('shop-weapons-badge');
+      if (badge) badge.classList.remove('hidden');
     }
 
     const coinsEarned = Math.floor(score / 8) + bonus.coins;
@@ -5820,7 +5962,11 @@ class Game {
     };
     this.audio.levelUp();
     // Sélectionne automatiquement l'arme nouvellement débloquée
-    const idx = WEAPON_DEFS.findIndex(w => w.id === def.id);
+    let idx = WEAPON_DEFS.findIndex(w => w.id === def.id);
+    if (idx < 0) {
+      const pIdx = PREMIUM_WEAPONS.findIndex(w => w.id === def.id);
+      if (pIdx >= 0) idx = WEAPON_DEFS.length + pIdx;
+    }
     if (idx >= 0) this.weapons.select(idx);
   }
 
@@ -5866,26 +6012,31 @@ class Game {
     ctx.save();
     ctx.font = '700 9px Orbitron, monospace';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const keyLabels = ['1','2','3','4','5','6','7','8','9','0','-','='];
     slots.forEach((slot, slotPos) => {
       const d = slot.def;
       const idx = slot.idx;
       const isPremium = slot.premium;
-      // Étiquettes des touches (1-6 puis 7,8,9,0,-,=)
-      const keyLabels = ['1','2','3','4','5','6','7','8','9','0','-','='];
-      const cx = x0 + idx * (cellW + gap);
+      const cx = x0 + slotPos * (cellW + gap);   // position visuelle (compacte)
       const isCurrent  = idx === wm.current;
-      const isUnlocked = wm.unlocked.has(d.id);
+      const isUnlocked = wm.isSlotUsable(idx);
       // Fond
-      ctx.fillStyle = isCurrent ? 'rgba(255,215,0,0.18)' : 'rgba(0,0,0,0.55)';
+      ctx.fillStyle = isCurrent ? (isPremium ? 'rgba(255,180,0,0.22)' : 'rgba(255,215,0,0.18)') : 'rgba(0,0,0,0.55)';
       ctx.fillRect(cx, y0, cellW, cellH);
-      ctx.strokeStyle = isCurrent ? '#ffd700' : isUnlocked ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)';
-      ctx.lineWidth = isCurrent ? 2 : 1;
+      // Bordure : dorée + épaisse pour les armes boutique
+      if (isPremium) {
+        ctx.strokeStyle = isCurrent ? '#FFD700' : '#c99b17';
+        ctx.lineWidth = isCurrent ? 2.5 : 2;
+      } else {
+        ctx.strokeStyle = isCurrent ? '#ffd700' : isUnlocked ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = isCurrent ? 2 : 1;
+      }
       ctx.strokeRect(cx + 0.5, y0 + 0.5, cellW - 1, cellH - 1);
-      // Numéro 1-6 en haut-gauche
-      ctx.fillStyle = isUnlocked ? 'rgba(255,215,0,0.7)' : 'rgba(255,255,255,0.25)';
+      // Numéro (1-6 tactiques, 7,8,9,0,-,= premium)
+      ctx.fillStyle = isPremium ? '#FFD700' : (isUnlocked ? 'rgba(255,215,0,0.7)' : 'rgba(255,255,255,0.25)');
       ctx.font = '700 8px Orbitron, monospace';
       ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      ctx.fillText(String(idx + 1), cx + 3, y0 + 3);
+      ctx.fillText(keyLabels[idx] || '?', cx + 3, y0 + 3);
       // Icône (emoji)
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '15px serif';
@@ -5897,7 +6048,21 @@ class Game {
       ctx.font = '700 7.5px Orbitron, monospace';
       if (!isUnlocked) {
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.fillText(`V.${d.wave}`, cx + cellW / 2, y0 + cellH - 7);
+        if (isPremium) {
+          ctx.fillText('SHOP', cx + cellW / 2, y0 + cellH - 7);
+        } else {
+          ctx.fillText(`V.${d.wave}`, cx + cellW / 2, y0 + cellH - 7);
+        }
+      } else if (d.hasCorona && isCurrent) {
+        // Solar Flare : affiche mode + charges Corona
+        const mode = wm.solarMode();
+        if (mode === 'corona') {
+          ctx.fillStyle = wm.solarAmmo() > 0 ? '#ffee88' : '#ff5566';
+          ctx.fillText(`CORONA ${wm.solarAmmo()}/3`, cx + cellW / 2, y0 + cellH - 7);
+        } else {
+          ctx.fillStyle = '#ffdd44';
+          ctx.fillText('PULSE', cx + cellW / 2, y0 + cellH - 7);
+        }
       } else if (d.isBeam) {
         // Devastator : indicateur de surchauffe
         if (isCurrent && wm.isOverheated()) {
@@ -5923,8 +6088,16 @@ class Game {
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
         ctx.fillText('∞', cx + cellW / 2, y0 + cellH - 7);
       }
-      // Barre de rechargement (armes à munitions) OU barre de chaleur (Devastator)
-      if (isUnlocked && d.isBeam && isCurrent) {
+      // Barre de rechargement (armes à munitions) OU barre de chaleur (Devastator) OU charge (Solar)
+      if (isUnlocked && d.hasCorona && isCurrent && wm.solarMode() === 'corona') {
+        // Solar Flare Corona : barre de charge (1.5s)
+        const r = wm.chargeProgress();
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.fillRect(cx + 3, y0 + cellH - 3, cellW - 6, 2);
+        ctx.fillStyle = r > 0.85 ? '#ffffff' : '#ffdd44';
+        ctx.fillRect(cx + 3, y0 + cellH - 3, (cellW - 6) * r, 2);
+      } else if (isUnlocked && d.isBeam && d.heatMax && isCurrent) {
+        // Devastator : barre de chaleur (Photon Lance = pas de heatMax, skip)
         const heatRatio = wm.heatRatio();
         ctx.fillStyle = 'rgba(255,255,255,0.1)';
         ctx.fillRect(cx + 3, y0 + cellH - 3, cellW - 6, 2);
@@ -7954,5 +8127,14 @@ class Game {
 // SECTION 13 — BOOTSTRAP : initialisation au chargement du DOM
 // ============================================================
 window.addEventListener('DOMContentLoaded', () => {
-  new Game();
+  // Restaure l'état de déblocage des armes boutique (Story lvl 10 terminé)
+  window.__STARBLAST_STORY_LVL10 = localStorage.getItem('starblast_story_lvl10_done') === '1';
+  window.game = new Game();
+  // Badge "NEW" sur l'onglet ARMES si le joueur vient de débloquer et n'a pas encore vu
+  if (window.__STARBLAST_STORY_LVL10) {
+    const badge = document.getElementById('shop-weapons-badge');
+    if (badge && localStorage.getItem('starblast_shop_weapons_seen') !== '1') {
+      badge.classList.remove('hidden');
+    }
+  }
 });

@@ -2366,6 +2366,74 @@ body.is-mobile #mobile-ui { display: flex; }
 #level-notif.wave-zoom.show {
   animation: wave-zoom 1.5s ease-out forwards !important;
 }
+
+/* ============================================================
+   ARMES BOUTIQUE — Onglet + cartes
+   ============================================================ */
+.shop-tab-badge {
+  display: inline-block;
+  background: #ff2244;
+  color: #fff;
+  font-size: 0.42rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+  animation: badge-pulse 1.4s ease-in-out infinite;
+}
+@keyframes badge-pulse {
+  0%, 100% { transform: scale(1);   box-shadow: 0 0 0 rgba(255,34,68,0.5); }
+  50%      { transform: scale(1.1); box-shadow: 0 0 8px rgba(255,34,68,0.9); }
+}
+
+.shop-card-weapon {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 6px;
+  min-height: 220px;
+}
+.shop-card-weapon.locked {
+  filter: grayscale(0.75) brightness(0.6);
+}
+.card-ultimate-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: linear-gradient(135deg, #ff2244, #ff8800);
+  color: #fff;
+  font-size: 0.48rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  box-shadow: 0 0 8px rgba(255, 68, 68, 0.6);
+}
+.card-weapon-icon {
+  font-size: 3rem;
+  line-height: 1;
+  margin: 8px 0 4px;
+  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.5));
+}
+.card-weapon-desc {
+  font-size: 0.55rem;
+  color: #b8c8d8;
+  text-align: center;
+  padding: 4px 4px;
+  min-height: 32px;
+  line-height: 1.35;
+}
+.card-weapon-locked-hint {
+  font-size: 0.48rem;
+  color: #ffa060;
+  text-align: center;
+  margin-top: 6px;
+  line-height: 1.3;
+  padding: 0 4px;
+}
 @keyframes wave-zoom {
   0%   { transform: translate(-50%, -50%) scale(0.15); opacity: 0; letter-spacing: 0.5em; }
   20%  { transform: translate(-50%, -50%) scale(1.15); opacity: 1; letter-spacing: 0.15em; }
