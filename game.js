@@ -5049,6 +5049,10 @@ class Game {
     this.leaderboardUI  = new LeaderboardUI(this.leaderboard);
     this.weapons        = new WeaponManager();
     this._weaponUnlockToast = null;   // notification de nouvelle arme
+    // Zones et déchirures créées par les armes boutique
+    this.gravityZones   = [];         // Gravity Cannon
+    this.voidTears      = [];         // Void Ripper
+    this._novaFlash     = 0;          // Solar Flare Corona overlay
     this.bossRush       = (typeof BossRushManager !== 'undefined') ? new BossRushManager(this.W, this.H) : null;
     this.bossRushBoss   = null;       // référence directe au boss actif
     this._brStartLives  = (typeof BR_STARTING_LIVES !== 'undefined') ? BR_STARTING_LIVES : 5;
@@ -5436,6 +5440,7 @@ class Game {
     // ── Reset des systèmes Survie ──
     this._survivalMode = true;
     this.bomberBombs   = [];
+    this.gravityZones  = []; this.voidTears = []; this._novaFlash = 0;
     if (this.adrenaline)     this.adrenaline.reset();
     if (this.dangerZones)    this.dangerZones.reset();
     if (this.survivalEvents) this.survivalEvents.reset();
@@ -5496,6 +5501,7 @@ class Game {
     this.weapons.rechargeAll();
     this._survivalMode = false;
     this._deathPending = false; this._slowMoTimer = 0;
+    this.gravityZones  = []; this.voidTears = []; this._novaFlash = 0;
 
     const _storyTrack = levelId <= 3 ? 'frontier' : levelId <= 6 ? 'tension' : 'assault';
     musicManager.play(_storyTrack);
@@ -5606,6 +5612,7 @@ class Game {
     this.state     = 'bossrush-playing';
     this._survivalMode = false;
     this._deathPending = false; this._slowMoTimer = 0;
+    this.gravityZones  = []; this.voidTears = []; this._novaFlash = 0;
     this._brMinorSpawnTimer = 2.0;   // premier spawn 2 s après le début
     this._brCoinsEarned = 0;         // compteur affiché en haut à droite
     this.lastTime  = performance.now();
@@ -5840,8 +5847,18 @@ class Game {
   _drawWeaponsBar(ctx) {
     if (!this.weapons) return;
     const wm = this.weapons;
-    const n  = WEAPON_DEFS.length;
-    const cellW = 56, cellH = 38, gap = 4;
+    // Liste combinée : les 6 tactiques + les premium POSSÉDÉES uniquement
+    const slots = [];
+    for (let i = 0; i < WEAPON_DEFS.length; i++) slots.push({ idx: i, def: WEAPON_DEFS[i], premium: false });
+    for (let i = 0; i < PREMIUM_WEAPONS.length; i++) {
+      if (wm.ownsPremium(PREMIUM_WEAPONS[i].id)) {
+        slots.push({ idx: WEAPON_DEFS.length + i, def: PREMIUM_WEAPONS[i], premium: true });
+      }
+    }
+    const n = slots.length;
+    // Dynamic cellW pour tenir dans la largeur canvas
+    const cellW = Math.min(56, Math.floor((this.W - 20) / n - 3));
+    const cellH = 38, gap = Math.min(4, Math.floor(cellW * 0.08));
     const totalW = n * cellW + (n - 1) * gap;
     const x0 = (this.W - totalW) / 2;
     const y0 = this.H - cellH - 6;
@@ -5849,7 +5866,12 @@ class Game {
     ctx.save();
     ctx.font = '700 9px Orbitron, monospace';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    WEAPON_DEFS.forEach((d, idx) => {
+    slots.forEach((slot, slotPos) => {
+      const d = slot.def;
+      const idx = slot.idx;
+      const isPremium = slot.premium;
+      // Étiquettes des touches (1-6 puis 7,8,9,0,-,=)
+      const keyLabels = ['1','2','3','4','5','6','7','8','9','0','-','='];
       const cx = x0 + idx * (cellW + gap);
       const isCurrent  = idx === wm.current;
       const isUnlocked = wm.unlocked.has(d.id);
@@ -5975,7 +5997,7 @@ class Game {
     return beam;
   }
 
-  /** Dessine le rayon Devastator. Retourne true si dessiné. */
+  /** Dessine le rayon Devastator ou Photon Lance. Retourne true si dessiné. */
   _drawDevastatorBeam(ctx) {
     const wm = this.weapons;
     const beam = wm.getBeamState(this.player, !!this.input?.fire);
@@ -5983,20 +6005,25 @@ class Game {
     const px = beam.x;
     const y0 = beam.yStart;
     const t = Date.now() * 0.02;
+    const isPhoton = !!beam.isPhoton;
+    const haloW    = isPhoton ? 60 : 40;   // Photon plus épais
+    const coreCol1 = isPhoton ? 'rgba(255,220,80,0)'    : 'rgba(255,60,60,0)';
+    const coreCol2 = isPhoton ? 'rgba(255,220,80,0.55)' : 'rgba(255,120,60,0.35)';
+    const coreCol3 = 'rgba(255,255,255,0.85)';
     ctx.save();
-    // Halo externe (chaleur)
-    const grad1 = ctx.createLinearGradient(px - 40, 0, px + 40, 0);
-    grad1.addColorStop(0,    'rgba(255,60,60,0)');
-    grad1.addColorStop(0.35, 'rgba(255,120,60,0.35)');
-    grad1.addColorStop(0.5,  'rgba(255,255,255,0.75)');
-    grad1.addColorStop(0.65, 'rgba(255,120,60,0.35)');
-    grad1.addColorStop(1,    'rgba(255,60,60,0)');
+    // Halo externe (chaleur/lumière)
+    const grad1 = ctx.createLinearGradient(px - haloW, 0, px + haloW, 0);
+    grad1.addColorStop(0,    coreCol1);
+    grad1.addColorStop(0.35, coreCol2);
+    grad1.addColorStop(0.5,  coreCol3);
+    grad1.addColorStop(0.65, coreCol2);
+    grad1.addColorStop(1,    coreCol1);
     ctx.fillStyle = grad1;
-    ctx.fillRect(px - 40, 0, 80, y0);
+    ctx.fillRect(px - haloW, 0, haloW * 2, y0);
     // Cœur brillant
-    const coreW = 8 + Math.sin(t * 3) * 2;
+    const coreW = (isPhoton ? 14 : 8) + Math.sin(t * 3) * 2;
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.shadowColor = '#ff5522'; ctx.shadowBlur = 24;
+    ctx.shadowColor = isPhoton ? '#FFD700' : '#ff5522'; ctx.shadowBlur = isPhoton ? 32 : 24;
     ctx.fillRect(px - coreW/2, 0, coreW, y0);
     ctx.shadowBlur = 0;
     // Aura pulsante en base
@@ -6012,6 +6039,310 @@ class Game {
     }
     ctx.restore();
     return true;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  ARMES BOUTIQUE — mécaniques uniques
+  // ═══════════════════════════════════════════════════════════════
+
+  /** Détruit les balles ennemies sur la colonne du rayon Photon Lance. */
+  _photonDestroyEnemyBullets() {
+    const wm = this.weapons;
+    const beam = wm.getBeamState(this.player, !!this.input?.fire);
+    if (!beam || !beam.active || !beam.isPhoton) return;
+    const halfW = 20;
+    const px = beam.x;
+    const yTop = 0, yBot = beam.yStart;
+    for (const b of this.enemyBullets) {
+      if (b.dead) continue;
+      if (Math.abs(b.x - px) > halfW) continue;
+      if (b.y < yTop || b.y > yBot) continue;
+      b.dead = true;
+      spawnExplosion(this.particles, b.x, b.y, '#ffee88', 3);
+    }
+  }
+
+  /**
+   * Effets sur impact d'une balle boutique.
+   * Retourne true si la balle doit poursuivre (pierce/void), false sinon.
+   */
+  _premiumBulletOnHit(b, e) {
+    if (b.isQuantum && b.quantumSplitsLeft > 0) {
+      // Se divise en 2 fragments à ±45° de sa direction actuelle
+      const cur = Math.atan2(b.vy, b.vx);
+      const spd = Math.hypot(b.vx, b.vy);
+      const nextDmg = b.damage * 0.5;   // 3 → 1.5 → 0.75
+      for (const off of [-Math.PI / 4, Math.PI / 4]) {
+        const na = cur + off;
+        const nb = new Bullet(b.x, b.y, Math.cos(na) * spd, Math.sin(na) * spd, b.color, true, '');
+        nb.damage = nextDmg;
+        nb.isQuantum = true;
+        nb.quantumSplitsLeft = b.quantumSplitsLeft - 1;
+        nb.w = b.w * 0.85;
+        this.playerBullets.push(nb);
+      }
+    }
+    if (b.isGravity) {
+      // Crée une zone gravitationnelle temporaire
+      this.gravityZones.push({
+        x: b.x, y: b.y, r: 80, life: 2.0, maxLife: 2.0, dmgAccum: 0,
+      });
+    }
+    if (b.isChain && b.chainBouncesLeft > 0) {
+      // Chaîne : trouve 3 ennemis les plus proches et applique dégâts réduits
+      this._chainLightningBounce(e, b, b.damage * 0.7);
+    }
+    if (b.isSolar) {
+      // AoE 40 px à l'impact
+      this._solarBlast(b.x, b.y, b.solarBlastRadius || 40, b.damage);
+    }
+    return !!b.isVoid;   // Void continue à traverser
+  }
+
+  /** Chaîne éclair : hit `origin`, puis trouve 3 ennemis les plus proches, damage -30% par rebond. */
+  _chainLightningBounce(origin, sourceBullet, damage, hitSet = new Set(), depth = 0) {
+    if (depth >= 3) return;   // max 3 rebonds
+    if (!origin) return;
+    hitSet.add(origin);
+    // Trouve jusqu'à 3 cibles les plus proches (non touchées)
+    const targets = [];
+    for (const e of this.enemies) {
+      if (e.dead || e.dying || hitSet.has(e)) continue;
+      const d = Math.hypot(e.x - origin.x, e.y - origin.y);
+      if (d > 220) continue;
+      targets.push({ e, d });
+    }
+    targets.sort((a, b) => a.d - b.d);
+    const picks = targets.slice(0, 3);
+    for (const t of picks) {
+      // Dégâts + effet visuel arc entre origin et t.e
+      const wasDying = t.e.dying;
+      const killed = t.e.hit(damage);
+      // Effet arc (particles ligne courte)
+      this._drawChainArc(origin.x, origin.y, t.e.x, t.e.y);
+      if (killed && !t.e.isBoss && !t.e.dead) {
+        t.e.dead = true;
+      }
+      if (this._survivalMode || this.state === 'story-playing') {
+        // rewards non émulés ici — les kills chaînés donnent juste dégâts
+      }
+    }
+    // Rebond suivant depuis chaque cible
+    for (const t of picks) {
+      this._chainLightningBounce(t.e, sourceBullet, damage * 0.7, hitSet, depth + 1);
+    }
+  }
+
+  /** Effet visuel d'arc électrique — stocke un arc temporaire. */
+  _drawChainArc(x1, y1, x2, y2) {
+    this._chainArcs = this._chainArcs || [];
+    this._chainArcs.push({ x1, y1, x2, y2, life: 0.15 });
+  }
+
+  /** AoE Solar Flare Pulse à l'impact. */
+  _solarBlast(x, y, radius, damage) {
+    spawnExplosion(this.particles, x, y, '#ffff88', 14, true);
+    const r2 = radius * radius;
+    for (const e of this.enemies) {
+      if (e.dead || e.dying) continue;
+      const dx = e.x - x, dy = e.y - y;
+      if (dx * dx + dy * dy > r2) continue;
+      const killed = e.hit(damage);
+      if (killed && !e.isBoss && !e.dead) e.dead = true;
+    }
+  }
+
+  /** Déclenche la nova Solar Flare Corona : détruit tous les ennemis normaux + damages boss. */
+  _triggerSolarNova() {
+    this._novaFlash = 1.0;    // 1s de flash blanc
+    this.ui.flash('#ffffff', 0.9);
+    this._triggerShake(0.5, 12);
+    this.audio.explosion(true);
+    // Rayon = 60 % de l'écran
+    const radius = this.W * 0.6;
+    const cx = this.player.x, cy = this.player.y;
+    const r2 = radius * radius;
+    for (const e of this.enemies) {
+      if (e.dead || e.dying) continue;
+      const dx = e.x - cx, dy = e.y - cy;
+      if (dx * dx + dy * dy > r2) continue;
+      if (e.isBoss) {
+        // 200 dégâts aux boss
+        const wasDying = e.dying;
+        e.hit(200);
+        if (!wasDying && e.dying && !e._brKilled) {
+          e._brKilled = true;
+          if (this.state === 'bossrush-playing') this._onBossRushKill(e);
+        }
+      } else {
+        // Détruit instantanément
+        spawnExplosion(this.particles, e.x, e.y, '#ffff88', 12, true);
+        e.dead = true;
+        if (this.state === 'bossrush-playing' && !e._brKilled) {
+          e._brKilled = true;
+          this._onBossRushMinorKill(e);
+        } else {
+          this.player.score += this.combo.addKill((e.score || 100));
+          this.achievements.onKill();
+        }
+      }
+    }
+  }
+
+  /** Update des zones gravitationnelles (attraction + dégâts continus). */
+  _tickGravityZones(dt) {
+    if (this.gravityZones.length === 0) return;
+    for (let i = this.gravityZones.length - 1; i >= 0; i--) {
+      const z = this.gravityZones[i];
+      z.life -= dt;
+      if (z.life <= 0) { this.gravityZones.splice(i, 1); continue; }
+      z.dmgAccum += dt * 2;   // 2 dps
+      // Attirer les ennemis dans la zone
+      for (const e of this.enemies) {
+        if (e.dead || e.dying || e.isBoss) continue;
+        const dx = z.x - e.x, dy = z.y - e.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d > z.r) continue;
+        // Attraction
+        const pull = 140;
+        e.x += (dx / d) * pull * dt;
+        e.y += (dy / d) * pull * dt;
+        // Dégâts périodiques
+        if (z.dmgAccum >= 1) {
+          const killed = e.hit(1);   // 2 dps → 1 dégât par tick (accumulé)
+          if (killed && !e.isBoss && !e.dead) e.dead = true;
+        }
+      }
+      if (z.dmgAccum >= 1) z.dmgAccum = 0;
+    }
+  }
+
+  /** Update des déchirures Void (dégâts continus + fade). */
+  _tickVoidTears(dt) {
+    if (this.voidTears.length === 0) return;
+    for (let i = this.voidTears.length - 1; i >= 0; i--) {
+      const t = this.voidTears[i];
+      t.life -= dt;
+      if (t.life <= 0) { this.voidTears.splice(i, 1); continue; }
+      // Dégâts aux ennemis traversant (test approximatif : rectangle 30 x length)
+      for (const e of this.enemies) {
+        if (e.dead || e.dying) continue;
+        // Ligne (x1,y1)→(x2,y2), test distance
+        const dx = t.x2 - t.x1, dy = t.y2 - t.y1;
+        const len2 = dx * dx + dy * dy;
+        if (len2 < 1) continue;
+        const tt = Math.max(0, Math.min(1, ((e.x - t.x1) * dx + (e.y - t.y1) * dy) / len2));
+        const px = t.x1 + dx * tt, py = t.y1 + dy * tt;
+        const distSq = (e.x - px) ** 2 + (e.y - py) ** 2;
+        if (distSq < 15 * 15) {
+          const killed = e.hit(4 * dt);   // 4 dps
+          if (killed && !e.isBoss && !e.dead) e.dead = true;
+        }
+      }
+    }
+  }
+
+  /** Ajoute un point à la trace d'une balle Void. */
+  _extendVoidTrail(b) {
+    if (!b.isVoid) return;
+    if (!b._voidLastX) { b._voidLastX = b.x; b._voidLastY = b.y; return; }
+    // Ajoute un segment si le déplacement est notable
+    const dx = b.x - b._voidLastX, dy = b.y - b._voidLastY;
+    if (dx * dx + dy * dy > 100) {   // > ~10 px
+      this.voidTears.push({
+        x1: b._voidLastX, y1: b._voidLastY,
+        x2: b.x, y2: b.y,
+        life: 3.0, maxLife: 3.0,
+      });
+      b._voidLastX = b.x; b._voidLastY = b.y;
+    }
+  }
+
+  /** Dessine les zones gravitationnelles. */
+  _drawGravityZones(ctx) {
+    for (const z of this.gravityZones) {
+      const t = Date.now() * 0.005;
+      const p = z.life / z.maxLife;
+      ctx.save();
+      // Vortex
+      const g = ctx.createRadialGradient(z.x, z.y, 0, z.x, z.y, z.r);
+      g.addColorStop(0, `rgba(180,80,220,${0.55 * p})`);
+      g.addColorStop(0.5, `rgba(120,40,180,${0.25 * p})`);
+      g.addColorStop(1, 'rgba(80,20,140,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2); ctx.fill();
+      // Anneau tournant
+      ctx.strokeStyle = `rgba(220,140,255,${0.8 * p})`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([12, 8]);
+      ctx.lineDashOffset = -Date.now() * 0.05;
+      ctx.beginPath(); ctx.arc(z.x, z.y, z.r * 0.85, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+  }
+
+  /** Dessine les déchirures Void (lignes noires bord violet). */
+  _drawVoidTears(ctx) {
+    for (const t of this.voidTears) {
+      const p = t.life / t.maxLife;
+      ctx.save();
+      ctx.strokeStyle = `rgba(180,80,255,${0.7 * p})`;
+      ctx.lineWidth = 6;
+      ctx.shadowColor = '#aa44ff'; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.moveTo(t.x1, t.y1); ctx.lineTo(t.x2, t.y2); ctx.stroke();
+      ctx.strokeStyle = `rgba(0,0,0,${0.9 * p})`;
+      ctx.lineWidth = 3;
+      ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.moveTo(t.x1, t.y1); ctx.lineTo(t.x2, t.y2); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** Dessine les arcs de chaîne éclair (frame courte). */
+  _drawChainArcs(ctx, dt) {
+    if (!this._chainArcs) return;
+    for (let i = this._chainArcs.length - 1; i >= 0; i--) {
+      const a = this._chainArcs[i];
+      a.life -= dt;
+      if (a.life <= 0) { this._chainArcs.splice(i, 1); continue; }
+      const alpha = Math.max(0, a.life / 0.15);
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,240,120,${alpha})`;
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = '#ffff66'; ctx.shadowBlur = 12;
+      ctx.beginPath();
+      // Ligne zigzag entre les 2 points
+      const steps = 6;
+      ctx.moveTo(a.x1, a.y1);
+      for (let k = 1; k < steps; k++) {
+        const tt = k / steps;
+        const x = a.x1 + (a.x2 - a.x1) * tt + (Math.random() - 0.5) * 10;
+        const y = a.y1 + (a.y2 - a.y1) * tt + (Math.random() - 0.5) * 10;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(a.x2, a.y2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** Dessine l'overlay flash de la nova Solar Corona. */
+  _drawNovaFlash(ctx) {
+    if (this._novaFlash <= 0) return;
+    const p = this._novaFlash;
+    ctx.fillStyle = `rgba(255,255,255,${Math.min(1, p)})`;
+    ctx.fillRect(0, 0, this.W, this.H);
+    // Onde de choc
+    const wave = 1.0 - p;
+    const radius = wave * this.W * 0.8;
+    ctx.strokeStyle = `rgba(255,220,80,${p * 0.6})`;
+    ctx.lineWidth = 10;
+    ctx.shadowColor = '#ffee88'; ctx.shadowBlur = 30;
+    ctx.beginPath();
+    ctx.arc(this.player.x, this.player.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
   }
 
   // ── Toast "nouvelle arme" ───────────────────────────────────
@@ -6295,6 +6626,7 @@ class Game {
         else if (b.laserType === 'lightning')  spawnExplosion(this.particles, b.x, b.y, '#FFEC3D', 10);
         else                                    spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
         this.achievements.onShotHit();
+        if (b.isVoid) this._extendVoidTrail(b);
         if (e.hit(b.damage || 1)) {
           this.player.score += this.combo.addKill(e.score);
           this.achievements.onKill();
@@ -6306,6 +6638,7 @@ class Game {
             this.powerups.push(new PowerUp(e.x, e.y, _pickPowerupType()));
           }
         }
+        this._premiumBulletOnHit(b, e);
         if (!b.pierce || b.dead) break;
       }
       if (b.dead) continue;
@@ -6374,6 +6707,13 @@ class Game {
     this.meteors       = this.meteors.filter(      m => !m.dead);
     cleanParticles(this.particles);
 
+    // Armes boutique : ticks et effets
+    this._tickGravityZones(dt);
+    this._tickVoidTears(dt);
+    this._photonDestroyEnemyBullets();
+    if (this._novaFlash > 0) this._novaFlash -= dt;
+    for (const b of this.playerBullets) { if (b.isVoid && !b.dead) this._extendVoidTrail(b); }
+
     // Contrôleur de vagues histoire
     this.storyCtrl.update(dt, this.enemies);
 
@@ -6391,6 +6731,8 @@ class Game {
     if (fireReq === 'fire') {
       const n = this.weapons.fire(this.player, this.playerBullets, this.audio);
       for (let k = 0; k < n; k++) this.achievements.onShotFired();
+    } else if (fireReq === 'nova') {
+      this._triggerSolarNova();
     }
 
     // Combo
@@ -6451,6 +6793,13 @@ class Game {
     // ── Spawn continu d'ennemis mineurs (pression permanente) ────
     this._tickBossRushMinorSpawn(dt);
 
+    // ── Armes boutique : effets sur boss rush ─────────────────
+    this._tickGravityZones(dt);
+    this._tickVoidTears(dt);
+    this._photonDestroyEnemyBullets();
+    if (this._novaFlash > 0) this._novaFlash -= dt;
+    for (const b of this.playerBullets) { if (b.isVoid && !b.dead) this._extendVoidTrail(b); }
+
     // Update entités
     this.playerBullets.forEach(b => b.update(dt, this.W, this.H, this.enemies, this.particles));
     this.enemyBullets.forEach( b => b.update(dt, this.W, this.H, this.player));
@@ -6505,6 +6854,7 @@ class Game {
         if (b.pierceWeakOnly && (e.maxHp || 1) >= 2) b.dead = true;
         spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
         this.achievements.onShotHit();
+        if (b.isVoid) this._extendVoidTrail(b);
         const dmg = b.damage || 1;
         const wasDying = e.dying;
         const killedResult = e.hit(dmg);
@@ -6521,6 +6871,7 @@ class Game {
           e.dead = true;
           this._onBossRushMinorKill(e);
         }
+        this._premiumBulletOnHit(b, e);
         if (!b.pierce || b.dead) break;
       }
     }
@@ -6982,6 +7333,14 @@ class Game {
     // ── Événements Survie : tick effets temporels ─────────
     if (this.survivalEvents) this.survivalEvents.tick(dt);
 
+    // ── Armes boutique : zones actives + faisceau Photon Lance ──
+    this._tickGravityZones(dt);
+    this._tickVoidTears(dt);
+    this._photonDestroyEnemyBullets();
+    if (this._novaFlash > 0) this._novaFlash -= dt;
+    // Trace des balles Void en vol
+    for (const b of this.playerBullets) { if (b.isVoid && !b.dead) this._extendVoidTrail(b); }
+
     // ── Détection de collisions ──────────────────────────
 
     // Balles joueur → Ennemis
@@ -7035,6 +7394,9 @@ class Game {
         else                                    spawnExplosion(this.particles, b.x, b.y, '#00bbdd', 5);
 
         this.achievements.onShotHit();
+        // Mécaniques boutique (avant hit pour Void pierce, après pour split/gravity/etc.)
+        const wasChain = !!b.isChain;
+        if (b.isVoid) this._extendVoidTrail(b);
         if (e.hit(b.damage || 1)) {
           // Ennemi tué — score : base × niveau de vague × multiplicateur de combo × événement
           const scoreMul = this.survivalEvents?.scoreMult() || 1;
@@ -7065,6 +7427,8 @@ class Game {
             this.powerups.push(new PowerUp(e.x, e.y, _pickPowerupType()));
           }
         }
+        // Effets on-hit des armes boutique (Quantum split, Gravity zone, Chain, Solar blast)
+        this._premiumBulletOnHit(b, e);
         // Pierce : continue à traverser ; sinon (ou pierceStopped) stoppe
         if (!b.pierce || b.dead) break;
       }
@@ -7210,9 +7574,10 @@ class Game {
     // ── Tick weapons (recharge + charge plasma) ──────────
     const fireRequest = this.weapons.tick(dt, !!this.input.fire);
     if (fireRequest === 'fire') {
-      // Plasma : tir auto à la fin de la charge (consume ammo et pousse la balle)
       const n = this.weapons.fire(this.player, this.playerBullets, this.audio);
       for (let k = 0; k < n; k++) this.achievements.onShotFired();
+    } else if (fireRequest === 'nova') {
+      this._triggerSolarNova();
     }
 
     // ── Combo ───────────────────────────────────────────
@@ -7336,8 +7701,16 @@ class Game {
       // Anneau de charge Plasma (obsolète — Devastator n'utilise plus de charge)
       this._drawPlasmaCharge(ctx);
 
-      // Rayon Devastator (vertical, au-dessus du joueur)
+      // Rayon Devastator + Photon Lance (vertical, au-dessus du joueur)
       this._drawDevastatorBeam(ctx);
+
+      // Zones/déchirures/arcs des armes boutique
+      this._drawGravityZones(ctx);
+      this._drawVoidTears(ctx);
+      this._drawChainArcs(ctx, 0.016);
+
+      // Overlay flash nova Solar Flare (en dernier — au-dessus de tout)
+      this._drawNovaFlash(ctx);
 
       // Zones de danger (Survie) — dessinées derrière les particules mais devant les entités
       if (this._survivalMode && this.dangerZones && (this.state === 'playing' || this.state === 'paused')) {

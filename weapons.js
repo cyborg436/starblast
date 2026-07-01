@@ -8,6 +8,25 @@
      (qui garde son rouge caractéristique).
 ───────────────────────────────────────────────────────────────────────── */
 
+// ═════════════════════════════════════════════════════════════════════
+// ARMES BOUTIQUE (PREMIUM) — débloquées via la boutique + Story lvl 10
+// Slots 7-12 (indices 6-11 dans le tableau global des armes).
+// ═════════════════════════════════════════════════════════════════════
+const PREMIUM_WEAPONS = [
+  { id:'photon',   name:'PHOTON LANCE',        icon:'🌟', price:50000,  rarity:'rare',
+    desc:'Rayon doré permanent — 15 dps, détruit les balles ennemies', isBeam:true, damagePerSec:15 },
+  { id:'quantum',  name:'QUANTUM SPLITTER',    icon:'💠', price:80000,  rarity:'rare',
+    desc:'Se divise en 2 à chaque impact (2 splits max)', fireRate:0.21, damage:3 },
+  { id:'gravity',  name:'GRAVITY CANNON',      icon:'🌀', price:120000, rarity:'epic',
+    desc:'Crée des zones gravitationnelles à l\'impact', fireRate:0.8, damage:5 },
+  { id:'chain',    name:'CHAIN LIGHTNING',     icon:'⚡', price:180000, rarity:'epic',
+    desc:'Arcs électriques qui rebondissent sur 6 ennemis', fireRate:0.4, damage:8 },
+  { id:'void',     name:'VOID RIPPER',         icon:'🌑', price:350000, rarity:'legendary',
+    desc:'Ignore boucliers/blindages + déchirure spatiale', fireRate:0.35, damage:12 },
+  { id:'solar',    name:'SOLAR FLARE CANNON',  icon:'☀',  price:999999, rarity:'legendary',
+    desc:'Alt = mode CORONA (nova nettoyeuse d\'écran)', fireRate:0.12, damage:4, hasCorona:true },
+];
+
 const WEAPON_DEFS = [
   { id:'blaster', name:'BLASTER',        icon:'🔫', wave:0,  maxAmmo:Infinity,
     fireRate:0.21, damage:1 },
@@ -29,37 +48,56 @@ const WEAPON_DEFS = [
     heatMax:3.0, heatCooldown:1.5 },
 ];
 
+/**
+ * Helper : retourne l'arme au slot combiné (0-5 = tactique, 6-11 = premium).
+ */
+function getWeaponAt(idx) {
+  if (idx < WEAPON_DEFS.length) return WEAPON_DEFS[idx];
+  return PREMIUM_WEAPONS[idx - WEAPON_DEFS.length];
+}
+/** Nombre total de slots (tactiques + premium). */
+function totalWeaponSlots() { return WEAPON_DEFS.length + PREMIUM_WEAPONS.length; }
+function isPremiumIdx(idx) { return idx >= WEAPON_DEFS.length; }
+
 // ── WeaponManager ────────────────────────────────────────────────────
 class WeaponManager {
   constructor() {
     this.current   = 0;
-    this.unlocked  = new Set(['blaster']);
+    this.unlocked  = new Set(['blaster']);          // armes tactiques débloquées par vague
+    this.ownedPremium = new Set();                  // armes boutique possédées
     this.ammo     = {};
     this.reloadCd = {};
     this._wasFiring = false;
 
     // Burst state (Storm Blaster)
-    this._burstShotsLeft = 0;         // tirs restants dans le burst en cours
-    this._burstTimer     = 0;         // temps avant le prochain tir du burst
-    this._burstPauseT    = 0;         // pause après un burst complet
+    this._burstShotsLeft = 0;
+    this._burstTimer     = 0;
+    this._burstPauseT    = 0;
 
     // Beam state (Devastator)
-    this._beamHeat       = 0;         // 0..heatMax
-    this._beamOverheated = false;     // vrai pendant heatCooldown
-    this._beamOverheatT  = 0;         // temps restant en surchauffe
+    this._beamHeat       = 0;
+    this._beamOverheated = false;
+    this._beamOverheatT  = 0;
+
+    // Solar Flare Cannon state
+    this._solarMode      = 'pulse';    // 'pulse' | 'corona'
+    this._solarCharge    = 0;          // 0..1.5s pour Corona
+    this._solarAmmo      = 3;          // charges Corona
+    this._solarReloadT   = 0;          // recharge Corona
 
     for (const d of WEAPON_DEFS) {
       this.ammo[d.id]     = isFinite(d.maxAmmo) ? d.maxAmmo : 0;
       this.reloadCd[d.id] = 0;
     }
     this._load();
+    this._loadPremium();
   }
 
   // ── Persistance ────────────────────────────────────────────────
   _save() {
     localStorage.setItem('starblast_weapons', JSON.stringify({
       unlocked: [...this.unlocked],
-      selected: WEAPON_DEFS[this.current]?.id || 'blaster',
+      selected: getWeaponAt(this.current)?.id || 'blaster',
     }));
   }
   _load() {
@@ -71,25 +109,60 @@ class WeaponManager {
       if (idx >= 0 && this.unlocked.has(raw.selected)) this.current = idx;
     }
   }
+  _savePremium() {
+    localStorage.setItem('starblast_weapons_shop', JSON.stringify({
+      owned: [...this.ownedPremium],
+    }));
+  }
+  _loadPremium() {
+    const raw = JSON.parse(localStorage.getItem('starblast_weapons_shop') || 'null');
+    if (!raw || !Array.isArray(raw.owned)) return;
+    raw.owned.forEach(id => this.ownedPremium.add(id));
+  }
+  /** Achète une arme boutique (Game l'appelle après validation des pièces). */
+  buyPremium(id) {
+    if (!PREMIUM_WEAPONS.some(w => w.id === id)) return false;
+    this.ownedPremium.add(id);
+    this._savePremium();
+    return true;
+  }
+  /** Est-ce que le joueur possède l'arme boutique donnée ? */
+  ownsPremium(id) { return this.ownedPremium.has(id); }
 
   // ── Helpers ────────────────────────────────────────────────────
-  def(idx = this.current) { return WEAPON_DEFS[idx]; }
-  isUnlocked(id) { return this.unlocked.has(id); }
+  def(idx = this.current) { return getWeaponAt(idx); }
+  isUnlocked(id) {
+    if (this.unlocked.has(id)) return true;
+    return this.ownedPremium.has(id);
+  }
+  /** Vrai si le slot idx est activable maintenant. */
+  isSlotUsable(idx) {
+    const d = getWeaponAt(idx);
+    if (!d) return false;
+    if (idx < WEAPON_DEFS.length) return this.unlocked.has(d.id);
+    return this.ownedPremium.has(d.id);
+  }
   hasAmmo(idx = this.current) {
     const d = this.def(idx);
+    if (!d) return false;
+    if (!isFinite(d.maxAmmo) && !d.maxAmmo) return true;   // undefined maxAmmo → infinite
     if (!isFinite(d.maxAmmo)) return true;
     return this.ammo[d.id] > 0;
   }
-  /** Ratio de charge (obsolète — armes rapides). Conservé pour compat HUD. */
-  chargeProgress() { return 0; }
+  chargeProgress() {
+    // Solar Flare : progression de charge Corona
+    const d = this.def();
+    if (d && d.hasCorona && this._solarMode === 'corona') return this._solarCharge / 1.5;
+    return 0;
+  }
 
-  /** Devastator : ratio de surchauffe 0..1. */
   heatRatio() {
     const d = this.def();
-    if (!d.isBeam) return 0;
+    if (!d || !d.isBeam) return 0;
+    // Photon Lance n'a pas de heatMax (permanent) → 0
+    if (!d.heatMax) return 0;
     return Math.min(1, this._beamHeat / d.heatMax);
   }
-  /** Vrai si Devastator actuellement en surchauffe. */
   isOverheated() { return this._beamOverheated; }
 
   /** Recharge complète — reset des états spéciaux. */
@@ -102,6 +175,7 @@ class WeaponManager {
     }
     this._burstShotsLeft = 0; this._burstTimer = 0; this._burstPauseT = 0;
     this._beamHeat = 0; this._beamOverheated = false; this._beamOverheatT = 0;
+    this._solarAmmo = 3; this._solarReloadT = 0; this._solarCharge = 0;
   }
 
   /** Déverrouille les armes selon la vague atteinte. */
@@ -118,25 +192,37 @@ class WeaponManager {
   }
 
   select(idx) {
-    if (idx < 0 || idx >= WEAPON_DEFS.length) return false;
-    if (!this.unlocked.has(WEAPON_DEFS[idx].id)) return false;
+    if (idx < 0 || idx >= totalWeaponSlots()) return false;
+    if (!this.isSlotUsable(idx)) return false;
     this.current = idx;
-    // Reset des états spécifiques
+    // Reset des états spécifiques (transition d'arme)
     this._burstShotsLeft = 0; this._burstTimer = 0; this._burstPauseT = 0;
     this._beamHeat = 0; this._beamOverheated = false; this._beamOverheatT = 0;
+    this._solarCharge = 0;
     this._wasFiring = false;
     this._save();
     return true;
   }
   switchBy(delta) {
-    const n = WEAPON_DEFS.length;
+    const n = totalWeaponSlots();
     let next = this.current;
     for (let i = 0; i < n; i++) {
       next = (next + delta + n) % n;
-      if (this.unlocked.has(WEAPON_DEFS[next].id)) { this.select(next); return true; }
+      if (this.isSlotUsable(next)) { this.select(next); return true; }
     }
     return false;
   }
+  /** Bascule mode Pulse/Corona pour Solar Flare (touche Alt). */
+  toggleSolarMode() {
+    const d = this.def();
+    if (!d || !d.hasCorona) return false;
+    this._solarMode = this._solarMode === 'pulse' ? 'corona' : 'pulse';
+    this._solarCharge = 0;
+    return true;
+  }
+  solarMode() { return this._solarMode; }
+  solarAmmo() { return this._solarAmmo; }
+  solarReloadRatio() { return this._solarReloadT > 0 ? 1 - (this._solarReloadT / 20) : 1; }
 
   // ── Update : gestion du burst Storm Blaster + surchauffe Devastator ──
   /**
@@ -150,27 +236,65 @@ class WeaponManager {
   tick(dt, isFiring) {
     const d = this.def();
 
-    // Devastator (beam) : gestion chaleur / surchauffe
+    // Devastator ou Photon Lance (beam) : gestion chaleur / surchauffe (Photon = pas de surchauffe)
     if (d.isBeam) {
-      if (this._beamOverheated) {
-        this._beamOverheatT -= dt;
-        if (this._beamOverheatT <= 0) {
-          this._beamOverheated = false;
-          this._beamHeat = 0;
+      if (d.heatMax) {
+        // Devastator (surchauffe)
+        if (this._beamOverheated) {
+          this._beamOverheatT -= dt;
+          if (this._beamOverheatT <= 0) {
+            this._beamOverheated = false;
+            this._beamHeat = 0;
+          }
+        } else if (isFiring) {
+          this._beamHeat += dt;
+          if (this._beamHeat >= d.heatMax) {
+            this._beamOverheated = true;
+            this._beamOverheatT  = d.heatCooldown;
+            this._beamHeat       = d.heatMax;
+          }
+        } else {
+          this._beamHeat = Math.max(0, this._beamHeat - dt * 1.6);
         }
-      } else if (isFiring) {
-        this._beamHeat += dt;
-        if (this._beamHeat >= d.heatMax) {
-          this._beamOverheated = true;
-          this._beamOverheatT  = d.heatCooldown;
-          this._beamHeat       = d.heatMax;
+      }
+      // Photon Lance : pas de surchauffe, rien à faire
+      this._wasFiring = isFiring;
+      return null;
+    }
+
+    // Solar Flare Cannon : gestion du mode Pulse/Corona + charge + recharge
+    if (d.hasCorona) {
+      // Recharge des munitions Corona (1 charge / 20 s)
+      if (this._solarAmmo < 3) {
+        this._solarReloadT -= dt;
+        if (this._solarReloadT <= 0) {
+          this._solarAmmo++;
+          this._solarReloadT = this._solarAmmo < 3 ? 20 : 0;
         }
       } else {
-        // Refroidit à ~2× la vitesse quand on ne tire pas
-        this._beamHeat = Math.max(0, this._beamHeat - dt * 1.6);
+        this._solarReloadT = 0;
       }
+      // Mode Corona : charge en maintenant tir
+      if (this._solarMode === 'corona') {
+        if (isFiring && this._solarAmmo > 0) {
+          this._solarCharge += dt;
+          if (this._solarCharge >= 1.5) {
+            // Nova prête !
+            this._solarCharge = 0;
+            this._solarAmmo--;
+            if (this._solarAmmo < 3 && this._solarReloadT <= 0) this._solarReloadT = 20;
+            this._wasFiring = isFiring;
+            return 'nova';   // signal spécial pour Game
+          }
+        } else {
+          this._solarCharge = Math.max(0, this._solarCharge - dt * 2);
+        }
+        this._wasFiring = isFiring;
+        return null;
+      }
+      // Mode Pulse : fire cadence normale via Player.fire
       this._wasFiring = isFiring;
-      return null;   // pas de projectile
+      return null;
     }
 
     // Storm Blaster : burst automatique
@@ -208,12 +332,15 @@ class WeaponManager {
     return null;
   }
 
-  /** Beam state pour le Game. Retourne null si l'arme actuelle n'est pas Devastator. */
+  /** Beam state pour le Game. Retourne null si l'arme actuelle n'est pas un beam. */
   getBeamState(player, isFiring) {
     const d = this.def();
-    if (!d.isBeam) return null;
-    const active = isFiring && !this._beamOverheated;
+    if (!d || !d.isBeam) return null;
+    // Photon Lance = pas d'overheat
+    const active = isFiring && (d.heatMax ? !this._beamOverheated : true);
     return {
+      id:          d.id,                    // 'plasma' (Devastator) ou 'photon' (Photon Lance)
+      isPhoton:    d.id === 'photon',       // détruit les balles ennemies
       active,
       overheated:  this._beamOverheated,
       heatRatio:   this.heatRatio(),
@@ -296,6 +423,65 @@ class WeaponManager {
       case 'plasma': {
         // Devastator : rendu par beam, pas de projectile
         return 0;
+      }
+
+      // ── ARMES BOUTIQUE ──────────────────────────────────────
+      case 'photon': {
+        // Rayon permanent — rendu et dégâts par beam, pas de projectile
+        return 0;
+      }
+      case 'quantum': {
+        // Projectile qui se divise en 2 sur impact (récursif × 2)
+        const b = makeBullet(px, py, 0, -CFG.BULLET_SPEED * 1.15, color, lt, damage, player.surcharge);
+        b.w *= 1.8; b.h *= 1.2;
+        b.isQuantum = true;
+        b.quantumSplitsLeft = 2;    // 2 divisions max = 4 fragments finaux
+        b.color = '#33ddff';
+        bullets.push(b);
+        audio.shoot();
+        return 1;
+      }
+      case 'gravity': {
+        const b = makeBullet(px, py, 0, -CFG.BULLET_SPEED * 0.8, color, lt, damage, false);
+        b.w *= 2.4; b.h *= 1.6;
+        b.isGravity = true;
+        b.color = '#8844cc';
+        bullets.push(b);
+        audio.shoot();
+        return 1;
+      }
+      case 'chain': {
+        const b = makeBullet(px, py, 0, -CFG.BULLET_SPEED, color, lt, damage, false);
+        b.w *= 1.4;
+        b.isChain = true;
+        b.chainBouncesLeft = 3;    // 1 primaire + 3 rebonds = 4 hits (mais avec 3 nearest par rebond = up to 6)
+        b.color = '#ffee66';
+        bullets.push(b);
+        audio.shoot();
+        return 1;
+      }
+      case 'void': {
+        const b = makeBullet(px, py, 0, -CFG.BULLET_SPEED * 1.3, color, lt, damage, false);
+        b.w *= 1.6; b.h *= 1.8;
+        b.isVoid = true;
+        b.pierce = true;
+        b._hitSet = new Set();
+        b._voidTrail = [];        // positions successives pour la déchirure
+        b.color = '#0a0014';
+        bullets.push(b);
+        audio.shoot();
+        return 1;
+      }
+      case 'solar': {
+        // Mode Pulse : tir rapide avec petite AoE 40px à l'impact
+        if (this._solarMode !== 'pulse') return 0;
+        const b = makeBullet(px, py, 0, -CFG.BULLET_SPEED * 1.2, '#ffee88', lt, damage, false);
+        b.w *= 1.4;
+        b.isSolar = true;
+        b.solarBlastRadius = 40;
+        bullets.push(b);
+        audio.shoot();
+        return 1;
       }
     }
     return 0;
