@@ -11,7 +11,7 @@ const WARGOD_IRE_MAX     = 100;
 const WARGOD_FORM_DURATION = 10.0;
 const WARGOD_ACTIVATE_COST = 100;
 
-function _state(game) {
+function _wargodGetState(game) {
   if (!game._wargodState) {
     game._wargodState = {
       ire: 0,
@@ -27,7 +27,7 @@ function _state(game) {
 
 /** Appelé par le Game à chaque kill lorsque l'arme Wargod est équipée. */
 window.wargodOnKill = function(game, enemy) {
-  const st = _state(game);
+  const st = _wargodGetState(game);
   if (!enemy) return;
   let gain = 5;
   if (enemy.isBoss)         gain = 50;
@@ -44,7 +44,7 @@ window.wargodOnKill = function(game, enemy) {
 
 /** Alt : déclenche la transformation si 100 IRE dispo. */
 window.wargodTryTransform = function(game) {
-  const st = _state(game);
+  const st = _wargodGetState(game);
   if (st.godForm) return false;
   if (st.ire < WARGOD_ACTIVATE_COST) return false;
   st.ire = 0;
@@ -64,7 +64,7 @@ window.wargodTryTransform = function(game) {
 
 window.registerPremiumWeapon('wargod', {
   onFire(wm, player, bullets, audio, game) {
-    const st = _state(game);
+    const st = _wargodGetState(game);
     // En forme Dieu : tir omnidirectionnel 8 directions
     if (st.godForm) {
       const spd = CFG.BULLET_SPEED * 1.1;
@@ -91,7 +91,7 @@ window.registerPremiumWeapon('wargod', {
     return window.wargodTryTransform(game);
   },
   tick(dt, game) {
-    const st = _state(game);
+    const st = _wargodGetState(game);
     if (st.transformAnim > 0) st.transformAnim = Math.max(0, st.transformAnim - dt);
     if (st.godForm) {
       st.godTimer -= dt;
@@ -133,7 +133,7 @@ window.registerPremiumWeapon('wargod', {
     }
   },
   draw(ctx, game) {
-    const st = _state(game);
+    const st = _wargodGetState(game);
     if (!game.player) return;
     // Aura d'IRE quand la barre monte (forme normale)
     if (!st.godForm && st.ire > 0) {
@@ -191,7 +191,7 @@ window.registerPremiumWeapon('wargod', {
     }
   },
   getHUDInfo(wm, game) {
-    const st = _state(game);
+    const st = _wargodGetState(game);
     if (st.godForm) {
       return { text: `DIEU ${st.godTimer.toFixed(1)}s`, color: '#FFD700', ratio: st.godTimer / WARGOD_FORM_DURATION };
     }

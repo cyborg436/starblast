@@ -79,7 +79,7 @@ class QuantumGhost {
   }
 }
 
-function _state(game) {
+function _echoGetState(game) {
   if (!game._echoState) {
     game._echoState = {
       recordBuffer: [],      // [{ t, x, y, py, fired, damage }, ...]
@@ -93,7 +93,7 @@ function _state(game) {
 
 /** Alt : crée un fantôme quantique (jusqu'à 2). */
 window.echoQuantiqueSpawnGhost = function(game) {
-  const st = _state(game);
+  const st = _echoGetState(game);
   if (st.ghosts.length >= GHOST_MAX) return false;
   if (st.cooldown > 0) return false;
   const delay = GHOST_DELAY_BASE * (st.ghosts.length + 1);
@@ -113,7 +113,7 @@ window.registerPremiumWeapon('echo', {
     b.damage = 1;
     bullets.push(b);
     // Enregistre le tir dans le buffer pour les fantômes
-    const st = _state(game);
+    const st = _echoGetState(game);
     if (st.recordBuffer.length > 0) {
       st.recordBuffer[st.recordBuffer.length - 1].fired = true;
       st.recordBuffer[st.recordBuffer.length - 1].damage = 1;
@@ -126,7 +126,7 @@ window.registerPremiumWeapon('echo', {
   },
   tick(dt, game) {
     if (!game.player) return;
-    const st = _state(game);
+    const st = _echoGetState(game);
     game._echoT = (game._echoT || 0) + dt;
     st.cooldown = Math.max(0, st.cooldown - dt);
     // Enregistre la position actuelle du joueur (60 Hz max, buffer léger)
@@ -159,11 +159,11 @@ window.registerPremiumWeapon('echo', {
     }
   },
   draw(ctx, game) {
-    const st = _state(game);
+    const st = _echoGetState(game);
     for (const g of st.ghosts) g.draw(ctx, game);
   },
   getHUDInfo(wm, game) {
-    const st = _state(game);
+    const st = _echoGetState(game);
     const n = st.ghosts ? st.ghosts.length : 0;
     if (st.cooldown > 0) return { text: 'CD ' + st.cooldown.toFixed(1), color: '#88ccff', ratio: 1 - st.cooldown / GHOST_COOLDOWN };
     return { text: `${n}/${GHOST_MAX}`, color: '#88ccff', ratio: n / GHOST_MAX };

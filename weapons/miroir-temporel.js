@@ -28,14 +28,14 @@ class MirrorTimeState {
 }
 
 /** Retourne l'état de l'arme (créé à la volée sur le WeaponManager). */
-function _state(wm) {
+function _mirrorGetState(wm) {
   if (!wm._mirrorState) wm._mirrorState = new MirrorTimeState();
   return wm._mirrorState;
 }
 
 /** Alt : déclenche le replay si dispo. */
 window.mirrorTemporelTryReplay = function(wm, game) {
-  const st = _state(wm);
+  const st = _mirrorGetState(wm);
   if (st.replaying || st.cooldown > 0 || st.recording.length === 0) return false;
   st.replaying = true;
   st.replayT   = 0;
@@ -46,7 +46,7 @@ window.mirrorTemporelTryReplay = function(wm, game) {
 
 window.registerPremiumWeapon('mirror-time', {
   onFire(wm, player, bullets, audio, game) {
-    const st = _state(wm);
+    const st = _mirrorGetState(wm);
     const px = player.x, py = player.y - player.h * 0.46;
     const color = player.bulletColor || '#ffffff';
     // Tir normal (Blaster)
@@ -62,7 +62,7 @@ window.registerPremiumWeapon('mirror-time', {
   tick(dt, game) {
     if (!game || !game.weapons) return;
     const wm = game.weapons;
-    const st = _state(wm);
+    const st = _mirrorGetState(wm);
     st.t += dt;
     if (st.cooldown > 0) st.cooldown = Math.max(0, st.cooldown - dt);
     // Purge les enregistrements > 6s
@@ -96,7 +96,7 @@ window.registerPremiumWeapon('mirror-time', {
     return window.mirrorTemporelTryReplay(wm, game);
   },
   getHUDInfo(wm) {
-    const st = _state(wm);
+    const st = _mirrorGetState(wm);
     if (st.replaying) return { text: 'REPLAY', color: '#ffd700', ratio: 1 - st.replayT / MIRROR_REPLAY_DURATION };
     if (st.cooldown > 0) return { text: 'CD ' + st.cooldown.toFixed(1), color: '#8888ff', ratio: 1 - st.cooldown / MIRROR_COOLDOWN };
     return { text: `${st.recording.length} shots`, color: '#ffffff', ratio: Math.min(1, st.recording.length / 30) };
