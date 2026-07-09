@@ -1,0 +1,168 @@
+{
+  "_doc": {
+    "fichier": "mobs.json — bestiaire complet de Chroniques d'Aldenor",
+    "source": "Extrait de medieval/js/entities.js (G.ENNEMIS, G.spawnEnemy, G.updateEnemies, G.ambientSpawn), medieval/js/items.js (G.LOOT) et medieval/js/world.js (G.SPAWN_TABLES, G.lvlAt, staticSpawns, G.DONJONS).",
+    "note": "Le JSON standard n'autorise pas les commentaires : ce bloc _doc sert de documentation.",
+    "schema": {
+      "mobs": "Tableau de tous les types de monstres. Les stats sont les valeurs de BASE au niveau 1 ; voir reglesNiveau pour la mise à l'échelle.",
+      "mobs[].id": "Identifiant unique (string).",
+      "mobs[].nom": "Nom affiché.",
+      "mobs[].pv": "Points de vie de base (niveau 1).",
+      "mobs[].degats": "Dégâts d'attaque de base (niveau 1). Chaque coup inflige degats × aléatoire(0.9..1.1).",
+      "mobs[].vitesse": "Vitesse de déplacement en pixels/seconde (1 tuile = 32 px). Pour un moteur 3D : convertir en unités/s en gardant les ratios.",
+      "mobs[].xp": "XP de base accordée à la mort (voir reglesNiveau.xpAccordee).",
+      "mobs[].aggro": "Rayon de détection du joueur, en TUILES.",
+      "mobs[].humanoide": "true = utilise le squelette humanoïde (4 directions, animation de marche).",
+      "mobs[].vole": "true = vole : ignore les collisions terrain, flottement visuel.",
+      "mobs[].taille": "Multiplicateur d'échelle visuelle et de portée de mêlée (défaut 1).",
+      "mobs[].attaqueDistance": "Si présent, le mob tire des projectiles : { projectile, porteeTuiles, cooldown (s), triple (dragon : 3 projectiles en éventail), degatsFacteur (dégâts du tir = degats × 0.8) }.",
+      "mobs[].invoque": "Id de mob invoqué périodiquement en combat (nécromancien).",
+      "mobs[].loot": "Table de butin, tirages INDÉPENDANTS : [{ objet | or, probabilite 0..1, min, max }]. L'or est multiplié par (1 + 0.15 × niveau).",
+      "mobs[].habitats": "Où ce mob apparaît (régions du monde et/ou donjons) — dérivé des tables de spawn.",
+      "reglesNiveau": "Formules de mise à l'échelle par niveau du mob.",
+      "reglesCombat": "Formules de combat partagées (dégâts, défense, critiques).",
+      "spawnAmbiant": "Règles d'apparition continue autour du joueur en extérieur.",
+      "tablesSpawnParRegion": "Pool de mobs par région du monde extérieur (tirage uniforme, les doublons augmentent la probabilité).",
+      "spawnsFixes": "Mobs placés à la génération du monde (camps, cimetière) — hors donjons.",
+      "boss": "Les 4 boss uniques : ne réapparaissent jamais une fois tués (flag persistant en sauvegarde)."
+    }
+  },
+
+  "reglesNiveau": {
+    "niveauZone": "niveau = clamp(round(1 + distanceALaCapitaleEnTuiles / 26), 1, 12). Les donjons ont un niveau fixe.",
+    "pv": "pvMax = round(pvBase × (1 + 0.45 × (niveau − 1)))",
+    "degats": "degats = round(degatsBase × (1 + 0.30 × (niveau − 1)))",
+    "vitesse": "vitesse = vitesseBase × (1 + 0.02 × (niveau − 1))",
+    "xpAccordee": "xp = round(xpBase × (1 + 0.5 × (niveau − 1)))",
+    "niveauSpawnAmbiant": "niveauZone ± 1 (aléatoire), borné 1..13"
+  },
+
+  "reglesCombat": {
+    "degatsSubisParJoueur": "max(1, round(degatsMob − 0.6 × defenseJoueur)), avec 0.6 s d'invulnérabilité après un coup.",
+    "degatsSurMob": "max(1, round(attaque × aléatoire(0.9..1.1) × (critique ? 1.8 : 1))), 10 % de chance de critique.",
+    "cooldownMelee": "1 seconde entre deux attaques de mêlée d'un mob.",
+    "porteeMeleeMob": "26 + 6 × taille pixels (contact).",
+    "recul": "Les coups de mêlée repoussent légèrement la cible.",
+    "ia": {
+      "errance": "Hors aggro : direction aléatoire changée toutes les 1 à 3.5 s, à 35 % de la vitesse, ou immobile (50 %).",
+      "poursuite": "Si distance < aggro (ou riposte 6 s après avoir été touché) : fonce vers le joueur ; les tireurs s'arrêtent à 70 % de leur portée.",
+      "retour": "Les mobs fixes (non ambiants, non boss) rentrent à leur point d'origine et se soignent à fond s'ils s'en éloignent de plus de 20 tuiles.",
+      "gel": "Aucune mise à jour à plus de 26 tuiles du joueur."
+    }
+  },
+
+  "spawnAmbiant": {
+    "actifUniquementEnExterieur": true,
+    "intervalle": 2.2,
+    "maxProchesDuJoueur": 8,
+    "rayonComptage": 22,
+    "maxTotal": 45,
+    "distanceApparition": "anneau de 11 à 18 tuiles autour du joueur, sur tuile praticable",
+    "exclusion": "jamais à moins de 18 tuiles du centre d'un village",
+    "despawn": "les mobs ambiants disparaissent à plus de 34 tuiles du joueur"
+  },
+
+  "tablesSpawnParRegion": {
+    "plaines": ["slime", "slime", "loup", "gobelin"],
+    "foret": ["loup", "gobelin", "araignee", "bandit", "loup"],
+    "desert": ["scorpion", "serpent", "bandit", "momie"],
+    "marais": ["slimetox", "serpent", "zombi", "fantome"],
+    "neige": ["loupblanc", "yeti", "golemglace"],
+    "montagne": ["golem", "chauvesouris", "orc"],
+    "mer": []
+  },
+
+  "tablesSpawnDonjons": {
+    "crypte": { "niveau": 5, "nombre": 16, "pool": ["squelette", "squelette", "zombi", "fantome"], "variationNiveau": "±1" },
+    "mine": { "niveau": 6, "nombre": 18, "pool": ["chauvesouris", "araignee", "gobelin", "golem"], "variationNiveau": "±1" },
+    "antre": { "niveau": 11, "nombre": 12, "pool": ["golem", "orc", "chauvesouris"], "variationNiveau": "±1" }
+  },
+
+  "spawnsFixes": [
+    { "mob": "bandit", "nombre": 4, "niveau": 3, "lieu": "camp de bandits" },
+    { "mob": "zombi", "nombre": 1, "niveau": 4, "lieu": "cimetière (surface)" },
+    { "mob": "fantome", "nombre": 1, "niveau": 4, "lieu": "cimetière (surface)" }
+  ],
+
+  "boss": [
+    { "id": "chefbandit", "nomUnique": "Garrok le Balafré", "niveau": 4, "lieu": "camp de bandits (monde extérieur)", "flagPersistant": "chefbandit", "queteLiee": "principale étape 2 — lâche l'objet sceauvole via la quête" },
+    { "id": "golemancien", "nomUnique": "Gardien des Ruines", "niveau": 8, "lieu": "ruines anciennes (monde extérieur)", "flagPersistant": "golemancien", "queteLiee": "aucune — garde le coffre des ruines (tier 3)" },
+    { "id": "necromancien", "nomUnique": "Malakar le Nécromancien", "niveau": 7, "lieu": "dernière salle de la crypte", "flagPersistant": "necromancien", "queteLiee": "principale étape 3 — lâche le fragment d'étoile ; son coffre (tier 4) se déverrouille à sa mort" },
+    { "id": "dragon", "nomUnique": "Vermithrax, Terreur d'Aldenor", "niveau": 13, "lieu": "dernière salle de l'antre", "flagPersistant": "dragon", "queteLiee": "principale étape 5 — sa mort déclenche la victoire ; déverrouille 2 coffres (tier 4 et tier 5)" }
+  ],
+
+  "mobs": [
+    { "id": "slime", "nom": "Slime", "pv": 12, "degats": 3, "vitesse": 40, "xp": 6, "aggro": 5,
+      "loot": [{ "objet": "gelee", "probabilite": 0.8, "min": 1, "max": 2 }, { "or": true, "probabilite": 0.5, "min": 1, "max": 4 }],
+      "habitats": ["plaines"] },
+    { "id": "slimetox", "nom": "Slime toxique", "pv": 16, "degats": 5, "vitesse": 45, "xp": 9, "aggro": 5,
+      "loot": [{ "objet": "gelee", "probabilite": 0.6, "min": 1, "max": 2 }, { "objet": "venin", "probabilite": 0.5, "min": 1, "max": 1 }, { "or": true, "probabilite": 0.5, "min": 2, "max": 6 }],
+      "habitats": ["marais"] },
+    { "id": "loup", "nom": "Loup", "pv": 16, "degats": 5, "vitesse": 95, "xp": 9, "aggro": 7,
+      "loot": [{ "objet": "peauloup", "probabilite": 0.7, "min": 1, "max": 1 }, { "objet": "croc", "probabilite": 0.4, "min": 1, "max": 2 }, { "or": true, "probabilite": 0.4, "min": 2, "max": 5 }],
+      "habitats": ["plaines", "foret"], "notes": "Cible de la quête principale étape 1 (en tuer 5)." },
+    { "id": "loupblanc", "nom": "Loup des neiges", "pv": 22, "degats": 7, "vitesse": 105, "xp": 13, "aggro": 8,
+      "loot": [{ "objet": "peauloup", "probabilite": 0.8, "min": 1, "max": 2 }, { "objet": "croc", "probabilite": 0.5, "min": 1, "max": 2 }, { "or": true, "probabilite": 0.5, "min": 4, "max": 9 }],
+      "habitats": ["neige"] },
+    { "id": "gobelin", "nom": "Gobelin", "pv": 18, "degats": 5, "vitesse": 70, "xp": 10, "aggro": 6, "humanoide": true,
+      "loot": [{ "or": true, "probabilite": 0.8, "min": 3, "max": 8 }, { "objet": "croc", "probabilite": 0.25, "min": 1, "max": 1 }, { "objet": "ppv1", "probabilite": 0.12, "min": 1, "max": 1 }],
+      "habitats": ["plaines", "foret", "mine"] },
+    { "id": "orc", "nom": "Orc", "pv": 34, "degats": 9, "vitesse": 60, "xp": 20, "aggro": 6, "humanoide": true,
+      "loot": [{ "or": true, "probabilite": 0.8, "min": 6, "max": 14 }, { "objet": "ppv1", "probabilite": 0.15, "min": 1, "max": 1 }, { "objet": "minerai", "probabilite": 0.2, "min": 1, "max": 1 }],
+      "habitats": ["montagne", "antre"] },
+    { "id": "bandit", "nom": "Bandit", "pv": 24, "degats": 7, "vitesse": 75, "xp": 14, "aggro": 7, "humanoide": true,
+      "loot": [{ "or": true, "probabilite": 0.9, "min": 4, "max": 12 }, { "objet": "ppv1", "probabilite": 0.15, "min": 1, "max": 1 }, { "objet": "pain", "probabilite": 0.2, "min": 1, "max": 1 }],
+      "habitats": ["foret", "desert", "camp de bandits"] },
+    { "id": "chefbandit", "nom": "Chef bandit", "pv": 90, "degats": 10, "vitesse": 80, "xp": 60, "aggro": 8, "humanoide": true, "taille": 1.3,
+      "loot": [{ "or": true, "probabilite": 1, "min": 40, "max": 60 }, { "objet": "ppv2", "probabilite": 1, "min": 1, "max": 2 }],
+      "habitats": ["camp de bandits (boss unique)"] },
+    { "id": "squelette", "nom": "Squelette", "pv": 20, "degats": 6, "vitesse": 55, "xp": 12, "aggro": 6, "humanoide": true,
+      "loot": [{ "objet": "os", "probabilite": 0.8, "min": 1, "max": 2 }, { "or": true, "probabilite": 0.5, "min": 3, "max": 8 }],
+      "habitats": ["crypte", "invocations du nécromancien"] },
+    { "id": "zombi", "nom": "Zombi", "pv": 28, "degats": 7, "vitesse": 35, "xp": 13, "aggro": 6, "humanoide": true,
+      "loot": [{ "objet": "os", "probabilite": 0.5, "min": 1, "max": 1 }, { "or": true, "probabilite": 0.5, "min": 3, "max": 7 }, { "objet": "essence", "probabilite": 0.1, "min": 1, "max": 1 }],
+      "habitats": ["marais", "crypte", "cimetière"] },
+    { "id": "momie", "nom": "Momie", "pv": 30, "degats": 8, "vitesse": 40, "xp": 16, "aggro": 6, "humanoide": true,
+      "loot": [{ "objet": "essence", "probabilite": 0.4, "min": 1, "max": 1 }, { "or": true, "probabilite": 0.6, "min": 6, "max": 14 }],
+      "habitats": ["desert"] },
+    { "id": "fantome", "nom": "Fantôme", "pv": 18, "degats": 6, "vitesse": 65, "xp": 14, "aggro": 8, "vole": true,
+      "loot": [{ "objet": "essence", "probabilite": 0.6, "min": 1, "max": 1 }, { "or": true, "probabilite": 0.4, "min": 4, "max": 10 }],
+      "habitats": ["marais", "crypte", "cimetière"] },
+    { "id": "araignee", "nom": "Araignée géante", "pv": 15, "degats": 5, "vitesse": 85, "xp": 10, "aggro": 6,
+      "attaqueDistance": { "projectile": "toile", "porteeTuiles": 4, "cooldown": 2.2, "degatsFacteur": 0.8 },
+      "loot": [{ "objet": "soie", "probabilite": 0.7, "min": 1, "max": 2 }, { "objet": "venin", "probabilite": 0.3, "min": 1, "max": 1 }],
+      "habitats": ["foret", "mine"] },
+    { "id": "chauvesouris", "nom": "Chauve-souris", "pv": 10, "degats": 4, "vitesse": 110, "xp": 7, "aggro": 7, "vole": true,
+      "loot": [{ "objet": "plume", "probabilite": 0.6, "min": 1, "max": 2 }, { "or": true, "probabilite": 0.3, "min": 1, "max": 3 }],
+      "habitats": ["montagne", "mine", "antre"] },
+    { "id": "scorpion", "nom": "Scorpion géant", "pv": 20, "degats": 7, "vitesse": 65, "xp": 12, "aggro": 6,
+      "loot": [{ "objet": "venin", "probabilite": 0.6, "min": 1, "max": 1 }, { "or": true, "probabilite": 0.4, "min": 3, "max": 8 }],
+      "habitats": ["desert"] },
+    { "id": "serpent", "nom": "Serpent des sables", "pv": 14, "degats": 6, "vitesse": 90, "xp": 10, "aggro": 6,
+      "loot": [{ "objet": "venin", "probabilite": 0.5, "min": 1, "max": 1 }, { "objet": "peauloup", "probabilite": 0.3, "min": 1, "max": 1 }, { "or": true, "probabilite": 0.4, "min": 2, "max": 6 }],
+      "habitats": ["desert", "marais"] },
+    { "id": "golem", "nom": "Golem de pierre", "pv": 50, "degats": 11, "vitesse": 40, "xp": 28, "aggro": 5,
+      "loot": [{ "objet": "minerai", "probabilite": 0.8, "min": 1, "max": 3 }, { "objet": "gemme", "probabilite": 0.25, "min": 1, "max": 1 }, { "or": true, "probabilite": 0.6, "min": 8, "max": 16 }],
+      "habitats": ["montagne", "mine", "antre"] },
+    { "id": "golemglace", "nom": "Golem de glace", "pv": 55, "degats": 12, "vitesse": 42, "xp": 32, "aggro": 5,
+      "loot": [{ "objet": "gemme", "probabilite": 0.4, "min": 1, "max": 1 }, { "objet": "minerai", "probabilite": 0.5, "min": 1, "max": 2 }, { "or": true, "probabilite": 0.6, "min": 10, "max": 18 }],
+      "habitats": ["neige"] },
+    { "id": "golemancien", "nom": "Golem ancien", "pv": 160, "degats": 14, "vitesse": 45, "xp": 120, "aggro": 7, "taille": 1.5,
+      "loot": [{ "objet": "gemme", "probabilite": 1, "min": 1, "max": 2 }, { "or": true, "probabilite": 1, "min": 60, "max": 90 }],
+      "habitats": ["ruines anciennes (boss unique)"] },
+    { "id": "yeti", "nom": "Yéti", "pv": 60, "degats": 13, "vitesse": 70, "xp": 35, "aggro": 6, "taille": 1.2,
+      "loot": [{ "objet": "peauloup", "probabilite": 0.9, "min": 2, "max": 3 }, { "or": true, "probabilite": 0.6, "min": 10, "max": 20 }],
+      "habitats": ["neige"] },
+    { "id": "necromancien", "nom": "Nécromancien", "pv": 140, "degats": 12, "vitesse": 55, "xp": 150, "aggro": 9, "humanoide": true, "taille": 1.3,
+      "attaqueDistance": { "projectile": "ombre", "porteeTuiles": 7, "cooldown": 1.6, "degatsFacteur": 0.8 },
+      "invoque": "squelette",
+      "loot": [{ "or": true, "probabilite": 1, "min": 80, "max": 120 }, { "objet": "ppm2", "probabilite": 1, "min": 1, "max": 2 }],
+      "habitats": ["crypte (boss unique)"],
+      "notes": "Invoque des squelettes (niveau − 2) près de lui pendant le combat, ~25 % de chance à chaque fin de cooldown de tir, plafonné par la limite globale de mobs." },
+    { "id": "dragon", "nom": "Dragon", "pv": 450, "degats": 22, "vitesse": 65, "xp": 500, "aggro": 10, "taille": 1.6,
+      "attaqueDistance": { "projectile": "crachefeu", "porteeTuiles": 8, "cooldown": 2.0, "degatsFacteur": 0.8, "triple": true },
+      "loot": [{ "objet": "ecaille", "probabilite": 1, "min": 3, "max": 5 }, { "or": true, "probabilite": 1, "min": 400, "max": 600 }, { "objet": "gemme", "probabilite": 1, "min": 2, "max": 3 }],
+      "habitats": ["antre (boss final unique)"],
+      "notes": "Souffle de feu : 3 projectiles en éventail (±0.25 rad). Boss final — sa mort déclenche l'écran de victoire." }
+  ]
+}

@@ -1,0 +1,154 @@
+{
+  "_doc": {
+    "fichier": "quests.json — quête principale et quêtes annexes de Chroniques d'Aldenor",
+    "source": "Extrait de medieval/js/quests.js (G.MQ_TITRES, G.MQ_DESCS, dlgAncien, dlgForgeron, G.onKill, G.genSideQuests) et medieval/js/world.js (placement des lieux).",
+    "note": "Le JSON standard n'autorise pas les commentaires : ce bloc _doc sert de documentation.",
+    "schema": {
+      "quetePrincipale.etapes": "Chaîne linéaire d'étapes. L'état du joueur est un simple index (0 → 6). Champs par étape :",
+      "quetePrincipale.etapes[].id": "Identifiant unique de l'étape.",
+      "quetePrincipale.etapes[].titre": "Titre affiché dans le journal.",
+      "quetePrincipale.etapes[].description": "Texte du journal de quêtes.",
+      "quetePrincipale.etapes[].declencheur": "Comment l'étape démarre (dialogue avec un PNJ, automatique...).",
+      "quetePrincipale.etapes[].objectifs": "Liste d'objectifs : { type: tuer | tuerBoss | rapporterObjet | collecter | parler, cible, quantite }.",
+      "quetePrincipale.etapes[].renduA": "PNJ auquel on rend l'étape pour passer à la suivante.",
+      "quetePrincipale.etapes[].recompenses": "{ or, xp, objets[] } accordés au rendu.",
+      "quetePrincipale.etapes[].suivante": "Id de l'étape suivante (null = fin du jeu).",
+      "quetesAnnexes": "Les quêtes annexes sont GÉNÉRÉES procéduralement à la création du monde (déterministe par seed). Cette section décrit le générateur, pas des instances.",
+      "quetesAnnexes.generation": "Règles de génération par village.",
+      "quetesAnnexes.modeles": "Les 3 modèles de quêtes avec leurs paramètres et formules de récompense. dif = max(1, round(distanceVillageCapitale / 30)) — les villages éloignés paient mieux.",
+      "etatsQuete": "Machine à états d'une quête annexe."
+    }
+  },
+
+  "quetePrincipale": {
+    "nom": "La légende de Vermithrax",
+    "etapes": [
+      {
+        "id": "mq0",
+        "titre": "L'Aube d'Aldenor",
+        "description": "Parlez à Aldric, l'ancien du village d'Aldenor.",
+        "declencheur": "Active dès le début de la partie. Un marqueur pointe vers la capitale.",
+        "objectifs": [{ "type": "parler", "cible": "ancien", "quantite": 1 }],
+        "renduA": "ancien",
+        "recompenses": {},
+        "suivante": "mq1"
+      },
+      {
+        "id": "mq1",
+        "titre": "La meute affamée",
+        "description": "Tuez 5 loups qui rôdent autour du village.",
+        "declencheur": "Acceptée dans le dialogue d'Aldric (étape mq0).",
+        "objectifs": [{ "type": "tuer", "cible": "loup", "quantite": 5 }],
+        "renduA": "ancien",
+        "recompenses": {},
+        "suivante": "mq2",
+        "notes": "Compteur affiché à chaque loup tué (x/5). Notification « Retournez voir Aldric » à 5/5."
+      },
+      {
+        "id": "mq2",
+        "titre": "Le camp des bandits",
+        "description": "Retrouvez le camp des bandits et éliminez Garrok le Balafré.",
+        "declencheur": "Rendu de mq1 chez Aldric.",
+        "objectifs": [
+          { "type": "tuerBoss", "cible": "chefbandit", "quantite": 1 },
+          { "type": "rapporterObjet", "cible": "sceauvole", "quantite": 1, "notes": "L'objet est ajouté à l'inventaire automatiquement à la mort de Garrok." }
+        ],
+        "renduA": "ancien",
+        "recompenses": { "or": 100, "xp": 80, "objets": ["clecrypte"] },
+        "suivante": "mq3",
+        "lieu": "camp de bandits — point d'intérêt à l'est de la capitale (35 à 70 tuiles), marqué sur la carte."
+      },
+      {
+        "id": "mq3",
+        "titre": "La Crypte Oubliée",
+        "description": "Entrez dans la crypte au cimetière et vainquez Malakar le Nécromancien.",
+        "declencheur": "Rendu de mq2 chez Aldric (donne la clé de la crypte).",
+        "objectifs": [
+          { "type": "tuerBoss", "cible": "necromancien", "quantite": 1 },
+          { "type": "rapporterObjet", "cible": "fragment", "quantite": 1, "notes": "Le fragment d'étoile est ajouté automatiquement à la mort de Malakar." }
+        ],
+        "renduA": "forgeron (capitale uniquement)",
+        "recompenses": {},
+        "suivante": "mq4",
+        "prerequis": "Posséder clecrypte pour franchir l'entrée de la crypte (sinon message de verrouillage).",
+        "lieu": "cimetière au sud (45 à 90 tuiles de la capitale), escalier vers le donjon « Crypte Oubliée » (niveau 5, boss niveau 7)."
+      },
+      {
+        "id": "mq4",
+        "titre": "La Lame stellaire",
+        "description": "Apportez 5 minerais de fer et le fragment d'étoile au forgeron d'Aldenor.",
+        "declencheur": "Montrer le fragment au forgeron de la capitale (rendu de mq3).",
+        "objectifs": [
+          { "type": "collecter", "cible": "minerai", "quantite": 5, "notes": "Minable dans les montagnes et surtout dans la Mine de Grisepierre (12 veines). Aussi lâché par les golems et orcs." }
+        ],
+        "renduA": "forgeron (capitale uniquement)",
+        "recompenses": { "xp": 150, "objets": ["epee5"], "notes": "La forge consomme 5 minerais + le fragment. Le compteur de minerai est affiché dans le journal." },
+        "suivante": "mq5"
+      },
+      {
+        "id": "mq5",
+        "titre": "Vermithrax",
+        "description": "Armé de la Lame stellaire, affrontez Vermithrax dans son antre au nord.",
+        "declencheur": "Forge de la Lame stellaire (rendu de mq4).",
+        "objectifs": [{ "type": "tuerBoss", "cible": "dragon", "quantite": 1 }],
+        "renduA": null,
+        "recompenses": { "notes": "Loot du dragon (400-600 or, écailles, gemmes) + coffres de l'antre (tier 4 et 5, dont le Sceau du dragon). Déclenche l'écran de victoire avec statistiques ; le jeu continue ensuite librement." },
+        "suivante": null,
+        "lieu": "antre du dragon — escalier dans les terres gelées/montagnes au nord (80 à 160 tuiles), donjon niveau 11, boss niveau 13."
+      }
+    ]
+  },
+
+  "quetesAnnexes": {
+    "generation": {
+      "quand": "À la création du monde, déterministe à partir de la seed (mêmes quêtes si on recharge la partie).",
+      "parVillage": "2 quêtes par village, 3 pour la capitale.",
+      "donneurs": "Attribuées aux PNJ de rôle villageois, aubergiste ou alchimiste du village.",
+      "difficulte": "dif = max(1, round(distanceVillageCapitale / 30)) — module les récompenses."
+    },
+    "modeles": [
+      {
+        "type": "chasse",
+        "titre": "Chasse : {nomMob}",
+        "description": "{donneur} de {village} vous demande de tuer {n} {nomMob}(s).",
+        "parametres": {
+          "cible": "Mob tiré dans le pool de la RÉGION du village (voir ciblesParRegion).",
+          "n": "aléatoire entier 4 à 8"
+        },
+        "progression": "Chaque mort du mob ciblé incrémente le compteur (notification x/n). À n/n : état « rendre ».",
+        "recompenses": { "or": "20 × dif + n × 6", "xp": "20 × dif + n × 8" },
+        "ciblesParRegion": {
+          "plaines": ["slime", "loup", "gobelin"],
+          "foret": ["loup", "araignee", "bandit"],
+          "desert": ["scorpion", "serpent"],
+          "marais": ["slimetox", "zombi", "fantome"],
+          "neige": ["loupblanc", "yeti"],
+          "montagne": ["golem", "orc"]
+        }
+      },
+      {
+        "type": "collecte",
+        "titre": "Collecte : {nomObjet}",
+        "description": "Rapportez {n} × {nomObjet} à {donneur} ({village}).",
+        "parametres": {
+          "cible": "Objet tiré parmi : gelee, peauloup, croc, os, soie, venin.",
+          "n": "aléatoire entier 3 à 6"
+        },
+        "progression": "Vérifiée sur l'inventaire au moment du dialogue : l'option de rendu apparaît quand le joueur possède n exemplaires. Le rendu CONSOMME les objets.",
+        "recompenses": { "or": "15 × dif + n × 10", "xp": "15 × dif + n × 6" }
+      },
+      {
+        "type": "livraison",
+        "titre": "Livraison : {villageDestination}",
+        "description": "Portez une lettre de {donneur} à {destinataire}, à {villageDestination}.",
+        "parametres": {
+          "destinataire": "L'aubergiste (ou à défaut le premier PNJ) d'un AUTRE village tiré au hasard.",
+          "objetRemis": "lettre (ajoutée à l'inventaire à l'acceptation)"
+        },
+        "progression": "Parler au destinataire remet la lettre (consommée) et passe la quête en état « rendre ». Retour chez le donneur pour la récompense.",
+        "recompenses": { "or": "30 × dif + 20", "xp": "30 × dif" }
+      }
+    ],
+    "etatsQuete": ["dispo (proposée par le donneur, marqueur ?)", "active (acceptée, dans le journal)", "rendre (objectif atteint, marqueur ! sur le PNJ de rendu)", "finie (récompense versée, archivée dans le journal)"]
+  }
+}

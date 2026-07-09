@@ -1,0 +1,113 @@
+{
+  "_doc": {
+    "fichier": "items.json — objets, monnaie et boutiques de Chroniques d'Aldenor",
+    "source": "Extrait de medieval/js/items.js (G.ITEMS, G.SHOPS, G.addItem/removeItem) et medieval/js/ui.js (vente).",
+    "note": "Le JSON standard n'autorise pas les commentaires : ce bloc _doc sert de documentation. Il peut être ignoré au chargement.",
+    "schema": {
+      "monnaie": "Description de la monnaie unique du jeu (l'or).",
+      "reglesInventaire": "Contraintes globales de l'inventaire et de l'économie.",
+      "objets": "Tableau de tous les objets. Champs par objet :",
+      "objets[].id": "Identifiant unique (string), utilisé partout (loot, boutiques, quêtes).",
+      "objets[].nom": "Nom affiché (français).",
+      "objets[].type": "arme | armure | casque | anneau | conso | mat | quete — détermine le slot d'équipement ou l'usage.",
+      "objets[].categorie": "Pour les armes uniquement : melee (corps à corps) | arc (projectile).",
+      "objets[].stats": "Effets passifs quand équipé : atk (attaque), mag (puissance magique), def (défense), pv (PV max bonus), pm (PM max bonus).",
+      "objets[].cooldown": "Armes : délai entre deux attaques, en secondes.",
+      "objets[].effet": "Consommables : soin (PV rendus) et/ou mana (PM rendus) à l'utilisation. L'objet est détruit.",
+      "objets[].prix": "Prix d'achat en or chez un marchand. 0 = introuvable en boutique (objet de quête ou trésor unique).",
+      "objets[].stackMax": "Taille max d'une pile dans un slot d'inventaire. Absent = non empilable (1 par slot).",
+      "objets[].tier": "Palier indicatif de puissance/progression (1 = début de partie).",
+      "objets[].quete": "true = objet lié à la quête principale, impossible à jeter/vendre.",
+      "objets[].description": "Texte d'ambiance affiché dans l'infobulle.",
+      "boutiques": "Stock de chaque type de marchand : liste d'ids d'objets vendus au champ prix."
+    }
+  },
+
+  "monnaie": {
+    "id": "or",
+    "nom": "Pièces d'or",
+    "description": "Monnaie unique. Obtenue en butin sur les monstres (montant × (1 + 0.15 × niveauDuMob)), dans les coffres, et en récompense de quêtes. Le joueur commence avec 30 or. À la mort : perte de 10 % de l'or porté.",
+    "orDepart": 30,
+    "perteALaMort": 0.10
+  },
+
+  "reglesInventaire": {
+    "taille": 24,
+    "slotsEquipement": ["arme", "armure", "casque", "anneau"],
+    "prixVente": "40 % du prix d'achat, arrondi à l'inférieur, minimum 1 or.",
+    "objetsQueteNonJetables": true,
+    "repriseAuberge": "Nuit à l'auberge : 5 or → PV/PM/endurance restaurés + sauvegarde + avance au matin suivant."
+  },
+
+  "objets": [
+    { "id": "epee1", "nom": "Épée rouillée", "type": "arme", "categorie": "melee", "stats": { "atk": 4 }, "cooldown": 0.45, "prix": 25, "tier": 1, "description": "Elle a connu des jours meilleurs.", "notes": "Arme de départ du joueur." },
+    { "id": "epee2", "nom": "Épée de fer", "type": "arme", "categorie": "melee", "stats": { "atk": 8 }, "cooldown": 0.45, "prix": 90, "tier": 2, "description": "Fiable et bien équilibrée." },
+    { "id": "epee3", "nom": "Lame d'acier", "type": "arme", "categorie": "melee", "stats": { "atk": 14 }, "cooldown": 0.42, "prix": 260, "tier": 3, "description": "Forgée par un maître." },
+    { "id": "epee4", "nom": "Épée runique", "type": "arme", "categorie": "melee", "stats": { "atk": 22 }, "cooldown": 0.4, "prix": 700, "tier": 4, "description": "Des runes anciennes luisent sur la lame." },
+    { "id": "epee5", "nom": "Lame stellaire", "type": "arme", "categorie": "melee", "stats": { "atk": 34 }, "cooldown": 0.35, "prix": 0, "tier": 5, "quete": true, "description": "Forgée dans un fragment d'étoile. Seule arme capable de percer les écailles de Vermithrax.", "notes": "Obtenue uniquement via l'étape 4 de la quête principale (forge : 5 minerais + fragment)." },
+    { "id": "hache1", "nom": "Hache de bûcheron", "type": "arme", "categorie": "melee", "stats": { "atk": 6 }, "cooldown": 0.6, "prix": 40, "tier": 1, "description": "Lente mais brutale." },
+    { "id": "hache2", "nom": "Hache de guerre", "type": "arme", "categorie": "melee", "stats": { "atk": 12 }, "cooldown": 0.6, "prix": 180, "tier": 2, "description": "Fend les boucliers comme du bois." },
+    { "id": "hache3", "nom": "Hache berserker", "type": "arme", "categorie": "melee", "stats": { "atk": 19 }, "cooldown": 0.55, "prix": 520, "tier": 3, "description": "Elle réclame du sang." },
+    { "id": "arc1", "nom": "Arc court", "type": "arme", "categorie": "arc", "stats": { "atk": 3 }, "cooldown": 0.55, "prix": 45, "tier": 1, "description": "Attaque à distance.", "notes": "Les arcs tirent un projectile (vitesse 380 px/s, portée ~1.2 s de vol)." },
+    { "id": "arc2", "nom": "Arc long", "type": "arme", "categorie": "arc", "stats": { "atk": 7 }, "cooldown": 0.5, "prix": 160, "tier": 2, "description": "Portée et puissance accrues." },
+    { "id": "arc3", "nom": "Arc elfique", "type": "arme", "categorie": "arc", "stats": { "atk": 13 }, "cooldown": 0.42, "prix": 480, "tier": 3, "description": "Léger comme une plume, mortel comme l'hiver." },
+    { "id": "baton1", "nom": "Bâton de novice", "type": "arme", "categorie": "melee", "stats": { "atk": 3, "mag": 3 }, "cooldown": 0.5, "prix": 50, "tier": 1, "description": "+3 puissance magique." },
+    { "id": "baton2", "nom": "Bâton d'arcane", "type": "arme", "categorie": "melee", "stats": { "atk": 6, "mag": 8 }, "cooldown": 0.5, "prix": 300, "tier": 3, "description": "+8 puissance magique." },
+
+    { "id": "arm1", "nom": "Tunique de cuir", "type": "armure", "stats": { "def": 2 }, "prix": 30, "tier": 1, "description": "Mieux que rien." },
+    { "id": "arm2", "nom": "Cotte de mailles", "type": "armure", "stats": { "def": 5 }, "prix": 120, "tier": 2, "description": "Un millier d'anneaux de fer." },
+    { "id": "arm3", "nom": "Plastron d'acier", "type": "armure", "stats": { "def": 9 }, "prix": 340, "tier": 3, "description": "Armure de chevalier." },
+    { "id": "arm4", "nom": "Armure draconique", "type": "armure", "stats": { "def": 14 }, "prix": 900, "tier": 4, "description": "Faite d'écailles de dragon." },
+
+    { "id": "csq1", "nom": "Capuche de cuir", "type": "casque", "stats": { "def": 1 }, "prix": 20, "tier": 1, "description": "Discrète et confortable." },
+    { "id": "csq2", "nom": "Casque de fer", "type": "casque", "stats": { "def": 3 }, "prix": 80, "tier": 2, "description": "Protège l'essentiel." },
+    { "id": "csq3", "nom": "Heaume d'acier", "type": "casque", "stats": { "def": 6 }, "prix": 260, "tier": 3, "description": "Vision réduite, crâne intact." },
+
+    { "id": "ann1", "nom": "Anneau de vigueur", "type": "anneau", "stats": { "pv": 20 }, "prix": 150, "tier": 2, "description": "+20 PV max." },
+    { "id": "ann2", "nom": "Anneau de sagesse", "type": "anneau", "stats": { "pm": 15 }, "prix": 150, "tier": 2, "description": "+15 PM max." },
+    { "id": "ann3", "nom": "Anneau de force", "type": "anneau", "stats": { "atk": 4 }, "prix": 220, "tier": 3, "description": "+4 attaque." },
+    { "id": "ann4", "nom": "Sceau du dragon", "type": "anneau", "stats": { "atk": 6, "def": 4, "pv": 30 }, "prix": 0, "tier": 5, "description": "Trésor de l'antre de Vermithrax.", "notes": "Uniquement dans le coffre au trésor de l'antre (déblocable après la mort du dragon)." },
+
+    { "id": "ppv1", "nom": "Potion de soin", "type": "conso", "effet": { "soin": 30 }, "prix": 15, "stackMax": 9, "tier": 1, "description": "Rend 30 PV.", "notes": "Le joueur en reçoit 2 en début de partie. Raccourci hotbar 1." },
+    { "id": "ppv2", "nom": "Grande potion de soin", "type": "conso", "effet": { "soin": 80 }, "prix": 45, "stackMax": 9, "tier": 2, "description": "Rend 80 PV." },
+    { "id": "ppm1", "nom": "Potion de mana", "type": "conso", "effet": { "mana": 25 }, "prix": 18, "stackMax": 9, "tier": 1, "description": "Rend 25 PM.", "notes": "Raccourci hotbar 2." },
+    { "id": "ppm2", "nom": "Grande potion de mana", "type": "conso", "effet": { "mana": 60 }, "prix": 50, "stackMax": 9, "tier": 2, "description": "Rend 60 PM." },
+    { "id": "pain", "nom": "Pain de seigle", "type": "conso", "effet": { "soin": 12 }, "prix": 5, "stackMax": 9, "tier": 1, "description": "Rend 12 PV. Croustillant.", "notes": "Le joueur en reçoit 3 en début de partie." },
+    { "id": "viande", "nom": "Gigot rôti", "type": "conso", "effet": { "soin": 25 }, "prix": 12, "stackMax": 9, "tier": 1, "description": "Rend 25 PV." },
+    { "id": "baie", "nom": "Baies sauvages", "type": "conso", "effet": { "soin": 6 }, "prix": 2, "stackMax": 9, "tier": 1, "description": "Rend 6 PV. Cueillies dans les buissons.", "notes": "Récolte : 1 à 3 baies par buisson à baies (interaction monde)." },
+    { "id": "champignon", "nom": "Champignon", "type": "conso", "effet": { "soin": 8, "mana": 5 }, "prix": 4, "stackMax": 9, "tier": 1, "description": "Rend 8 PV et 5 PM.", "notes": "Récolte : champignons du décor (forêts, marais, crypte)." },
+
+    { "id": "gelee", "nom": "Gelée visqueuse", "type": "mat", "prix": 3, "stackMax": 20, "description": "Reste gluant de slime." },
+    { "id": "peauloup", "nom": "Peau de loup", "type": "mat", "prix": 8, "stackMax": 20, "description": "Fourrure épaisse." },
+    { "id": "croc", "nom": "Croc acéré", "type": "mat", "prix": 6, "stackMax": 20, "description": "Encore humide." },
+    { "id": "os", "nom": "Ossements", "type": "mat", "prix": 5, "stackMax": 20, "description": "Ça ferait un bon bouillon. Ou pas." },
+    { "id": "minerai", "nom": "Minerai de fer", "type": "mat", "prix": 12, "stackMax": 20, "description": "Extrait des veines de la montagne.", "notes": "Récolte : veines de minerai (montagnes et donjon mine), 1-2 par veine. Requis ×5 pour l'étape 4 de la quête principale." },
+    { "id": "soie", "nom": "Soie d'araignée", "type": "mat", "prix": 7, "stackMax": 20, "description": "Résistante et légère." },
+    { "id": "essence", "nom": "Essence spectrale", "type": "mat", "prix": 15, "stackMax": 20, "description": "Le souffle d'un fantôme, en bouteille." },
+    { "id": "ecaille", "nom": "Écaille de dragon", "type": "mat", "prix": 60, "stackMax": 20, "description": "Dure comme l'acier." },
+    { "id": "venin", "nom": "Poche de venin", "type": "mat", "prix": 9, "stackMax": 20, "description": "À manipuler avec précaution." },
+    { "id": "plume", "nom": "Plume noire", "type": "mat", "prix": 4, "stackMax": 20, "description": "Tombée d'une aile membraneuse." },
+    { "id": "gemme", "nom": "Gemme brute", "type": "mat", "prix": 40, "stackMax": 20, "description": "Elle brille de mille feux." },
+
+    { "id": "sceauvole", "nom": "Sceau du bourgmestre", "type": "quete", "prix": 0, "description": "Le sceau volé par les bandits.", "notes": "Lâché par le Chef bandit (quête principale étape 2). Remis à Aldric." },
+    { "id": "fragment", "nom": "Fragment d'étoile", "type": "quete", "prix": 0, "description": "Un éclat de métal céleste, chaud au toucher.", "notes": "Lâché par le Nécromancien (étape 3). Consommé à la forge de la Lame stellaire." },
+    { "id": "lettre", "nom": "Lettre scellée", "type": "quete", "prix": 0, "description": "À remettre à son destinataire.", "notes": "Donnée à l'acceptation d'une quête annexe de type livraison." },
+    { "id": "clecrypte", "nom": "Clé de la crypte", "type": "quete", "prix": 0, "description": "Ouvre la crypte oubliée.", "notes": "Donnée par Aldric à la fin de l'étape 2. Requise pour entrer dans la crypte." }
+  ],
+
+  "boutiques": {
+    "marchand": ["ppv1", "ppm1", "pain", "viande", "ppv2", "ppm2", "arc1", "csq1", "ann1", "ann2"],
+    "forgeron": ["epee1", "epee2", "hache1", "hache2", "arm1", "arm2", "csq2", "epee3", "arm3", "csq3", "hache3", "arc2", "ann3"],
+    "alchimiste": ["ppv1", "ppm1", "ppv2", "ppm2", "champignon", "baton1", "baton2", "baie"],
+    "mystique": ["epee4", "arc3", "arm4", "ann3", "ppv2", "ppm2"]
+  },
+
+  "lootCoffres": {
+    "_note": "Coffres du monde : le tier est déterminé par le niveau de zone (clamp(round(niveauZone/3), 1, 4)) sauf tier fixé (ruines=3, coffres de boss=4, trésor de l'antre=5). Or du coffre : aléatoire(10..25) × tier². Puis 1 objet tiré au hasard dans la table du tier.",
+    "1": ["ppv1", "pain", "ppm1", "baie"],
+    "2": ["ppv1", "ppv2", "ppm1", "csq1", "arm1", "gemme"],
+    "3": ["ppv2", "ppm2", "epee3", "arm2", "csq2", "ann1", "ann2", "gemme"],
+    "4": ["epee4", "arm3", "csq3", "ann3", "ppv2", "gemme", "hache3", "arc3"],
+    "5": ["ann4"]
+  }
+}
