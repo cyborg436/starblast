@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chroniques d'Aldenor 3D</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a12; }
+    #app { display: block; width: 100%; height: 100%; }
+
+    /* L'UI vit en DOM par-dessus le canvas WebGL (jamais en 3D) */
+    #ui-root {
+      position: fixed; inset: 0;
+      pointer-events: none; /* les éléments interactifs réactivent pointer-events eux-mêmes */
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #e8dcc0;
+    }
+
+    /* Écran de chargement */
+    #loading {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+      background: radial-gradient(ellipse at 50% 35%, #232030 0%, #0a0a12 75%);
+      transition: opacity .4s ease;
+    }
+    #loading.done { opacity: 0; pointer-events: none; }
+    #loading h1 { color: #e8c860; letter-spacing: 6px; font-size: 28px; font-weight: 600; }
+    #loading .sub { color: #8a8070; letter-spacing: 2px; font-size: 13px; }
+    #loading-bar-track {
+      width: min(420px, 70vw); height: 8px;
+      background: #1a1622; border: 1px solid #4a4058; border-radius: 4px; overflow: hidden;
+    }
+    #loading-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #b08a3a, #e8c860); transition: width .2s; }
+    #loading-status { color: #6a6258; font-size: 12px; min-height: 1em; }
+
+    /* Compteur FPS de debug */
+    #fps {
+      position: fixed; top: 8px; left: 8px; z-index: 50;
+      font: 12px/1.4 monospace; color: #80c880;
+      background: rgba(10, 10, 18, .6); padding: 3px 8px; border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="app"></canvas>
+
+  <div id="ui-root">
+    <div id="fps"></div>
+  </div>
+
+  <div id="loading">
+    <h1>CHRONIQUES D'ALDENOR</h1>
+    <div class="sub">— PHASE 1 : FONDATIONS 3D —</div>
+    <div id="loading-bar-track"><div id="loading-bar"></div></div>
+    <div id="loading-status">Initialisation…</div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

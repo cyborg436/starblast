@@ -1,0 +1,201 @@
+{
+  "_doc": {
+    "fichier": "dialogues.json — tous les dialogues de PNJ de Chroniques d'Aldenor",
+    "source": "Extrait de medieval/js/quests.js (G.startDialogue, dlgAncien, dlgForgeron, dlgVillageois, ajouterOptsQuetes, dormir) et medieval/js/main.js (interactions pancartes/statues).",
+    "note": "Le JSON standard n'autorise pas les commentaires : ce bloc _doc sert de documentation.",
+    "schema": {
+      "structure": "Dialogues organisés par PNJ (clé = rôle du PNJ, les PNJ étant définis dans npcs.json).",
+      "pnj.<role>.affichageNom": "Comment le nom du locuteur est composé à l'écran ({nom} = nom généré du PNJ).",
+      "pnj.<role>.type": "fixe (un seul dialogue) | aleatoire (une ligne tirée au hasard) | etapes (dépend de l'étape de quête principale).",
+      "pnj.<role>.lignes / etapes": "Contenu. Pour type=etapes : clé = id d'étape de quête principale (voir quests.json), avec éventuellement des variantes conditionnelles.",
+      "options": "Choix cliquables du joueur : { texte, action }. Actions possibles : fermer, ouvrirBoutique:<type>, accepterEtape:<id>, rendreEtape:<id>, forger, dormir, et les actions de quêtes annexes (accepterQuete, rendreQuete, remettreLettre).",
+      "optionsCommunes": "Options injectées automatiquement dans tout dialogue selon le contexte (quêtes annexes du PNJ, livraisons dont il est destinataire).",
+      "texteMonde": "Textes d'interaction hors PNJ (pancartes, statues, autels, verrous).",
+      "notifications": "Messages système (toasts) liés à la progression — utiles à re-brancher en 3D.",
+      "variables": "{n} quantités, {donneur}/{village}/{destinataire} champs de la quête, {or} montants."
+    }
+  },
+
+  "pnj": {
+    "ancien": {
+      "affichageNom": "Aldric, ancien d'Aldenor",
+      "type": "etapes",
+      "etapes": {
+        "mq0": {
+          "texte": "Ah, un aventurier ! Les dieux vous envoient. Aldenor traverse des heures sombres : les loups attaquent les fermes, des bandits pillent nos routes, et l'on murmure que Vermithrax, le dragon des légendes, s'est réveillé dans les montagnes du nord.\n\nAiderez-vous notre village ?",
+          "options": [
+            { "texte": "Je vous aiderai. Par où commencer ?", "action": "accepterEtape:mq1" },
+            { "texte": "Je vais y réfléchir.", "action": "fermer" }
+          ],
+          "suiteAcceptation": "Commencez par la meute de loups qui rôde autour du village. Tuez-en cinq, cela les fera fuir un temps. Revenez me voir ensuite."
+        },
+        "mq1": {
+          "enCours": "Les loups rôdent toujours… ({progression}/5 tués). Cherchez-les dans les plaines et les bois alentour.",
+          "objectifAtteint": {
+            "texte": "Les hurlements se sont tus… Vous avez fait du bon travail !\n\nHélas, un mal plus grand nous frappe : des bandits ont volé le sceau du bourgmestre. Sans lui, nous ne pouvons plus commercer. Leur camp est à l'est. Leur chef, Garrok le Balafré, est dangereux — préparez-vous.",
+            "options": [{ "texte": "Garrok est un homme mort.", "action": "accepterEtape:mq2" }]
+          }
+        },
+        "mq2": {
+          "enCours": "Le camp des bandits se trouve à l'est du village. Récupérez notre sceau des mains de Garrok.",
+          "objectifAtteint": {
+            "texte": "Le sceau ! Vous êtes notre héros. Voici 100 pièces d'or.\n\nMais écoutez : pour vaincre Vermithrax, il vous faudra une arme céleste. La légende parle d'un fragment d'étoile gardé par le nécromancien Malakar, dans la crypte au sud. Prenez cette clé — et que l'Aube vous protège.",
+            "options": [{ "texte": "Je reviendrai avec le fragment.", "action": "rendreEtape:mq2" }],
+            "notes": "Le rendu consomme sceauvole, verse 100 or + 80 XP et donne clecrypte."
+          }
+        },
+        "mq3": { "enCours": "La crypte se trouve au cimetière, au sud. Malakar y règne sur les morts. Le fragment d'étoile doit revenir à notre forgeron." },
+        "mq4": { "enCours": "Apportez le fragment et cinq minerais de fer à notre forgeron. La mine de Grisepierre en regorge… si vous survivez à ce qui y grouille." },
+        "mq5": { "enCours": "La Lame stellaire chante entre vos mains… Vermithrax vous attend dans son antre, au nord, dans les terres gelées. Tout Aldenor prie pour vous." },
+        "mq6": { "texte": "Le tueur de dragon ! Les bardes chantent déjà vos exploits. Aldenor vous doit tout." }
+      }
+    },
+
+    "forgeron": {
+      "affichageNom": "{nom}, forgeron",
+      "type": "fixe",
+      "texte": "Le métal ne ment jamais, voyageur. Besoin d'une lame ?",
+      "options": [
+        { "texte": "Voir vos armes et armures.", "action": "ouvrirBoutique:forgeron" },
+        { "texte": "Au revoir.", "action": "fermer" }
+      ],
+      "optionsConditionnelles": [
+        {
+          "condition": "capitale ET etape mq3 ET joueur possède fragment",
+          "option": { "texte": "Montrer le fragment d'étoile.", "action": "rendreEtape:mq3" },
+          "reponse": "Par tous les feux de la forge… un fragment d'étoile ! Avec ça, je peux forger une lame de légende. Apportez-moi 5 minerais de fer — la mine de Grisepierre en est pleine — et je m'y mets sur-le-champ."
+        },
+        {
+          "condition": "capitale ET etape mq4 ET joueur possède 5 minerais + fragment",
+          "option": { "texte": "⚒ Forger la Lame stellaire (5 minerais + fragment).", "action": "forger" },
+          "reponse": "*Le marteau frappe, les étincelles fusent, le métal céleste chante*\n\nVoilà. La Lame stellaire. Je n'ai jamais rien forgé de tel, et je ne le referai jamais. Allez, tuez ce dragon — et revenez me raconter."
+        },
+        {
+          "condition": "capitale ET etape mq4 ET minerais insuffisants",
+          "option": { "texte": "(Il me faut 5 minerais de fer — j'en ai {quantite}.)", "action": "fermer" }
+        }
+      ]
+    },
+
+    "marchand": {
+      "affichageNom": "{nom}, marchand",
+      "type": "fixe",
+      "texte": "Bienvenue dans mon échoppe, voyageur ! J'ai tout ce qu'il faut pour survivre dehors.",
+      "options": [
+        { "texte": "Voir vos marchandises.", "action": "ouvrirBoutique:marchand" },
+        { "texte": "Au revoir.", "action": "fermer" }
+      ]
+    },
+
+    "alchimiste": {
+      "affichageNom": "{nom}, alchimiste",
+      "type": "fixe",
+      "texte": "Hmm ? Ah, un client. Attention où vous mettez les pieds, certaines fioles explosent.",
+      "options": [
+        { "texte": "Voir vos potions.", "action": "ouvrirBoutique:alchimiste" },
+        { "texte": "Au revoir.", "action": "fermer" }
+      ],
+      "notes": "Peut aussi porter des quêtes annexes (voir optionsCommunes)."
+    },
+
+    "aubergiste": {
+      "affichageNom": "{nom}, aubergiste",
+      "type": "fixe",
+      "texte": "Bienvenue à l'auberge ! Une chambre pour la nuit ? Cela vous remettra d'aplomb, et je garderai vos affaires en sécurité.",
+      "options": [
+        { "texte": "Se reposer (5 or) — soigne et sauvegarde.", "action": "dormir" },
+        { "texte": "Au revoir.", "action": "fermer" }
+      ],
+      "reponses": {
+        "orInsuffisant": "Désolé, c'est 5 pièces d'or la nuit. Revenez quand votre bourse sera moins légère.",
+        "apresDormir": "Vous vous réveillez frais et dispos. Partie sauvegardée. (notification — PV/PM/endurance restaurés, temps avancé au matin suivant)"
+      },
+      "notes": "Peut aussi porter des quêtes annexes et être destinataire des livraisons."
+    },
+
+    "mystique": {
+      "affichageNom": "Zephyrine la Mystique",
+      "type": "fixe",
+      "texte": "Peu de mortels trouvent ma tour. Les étoiles m'ont parlé de vous… et de la bête au nord. Mes trésors ne sont pas donnés.",
+      "options": [
+        { "texte": "Voir vos trésors.", "action": "ouvrirBoutique:mystique" },
+        { "texte": "Au revoir.", "action": "fermer" }
+      ]
+    },
+
+    "garde": {
+      "affichageNom": "Garde {nom}",
+      "type": "aleatoire",
+      "lignes": [
+        "Restez sur les routes la nuit, voyageur. Les monstres y sont plus hardis.",
+        "Le nord est infesté de golems. N'y allez pas sans une bonne armure.",
+        "On dit qu'une mystérieuse tour se dresse loin des villages…",
+        "Les marais rendent fou. Ou mort. Souvent les deux."
+      ],
+      "options": [{ "texte": "Au revoir.", "action": "fermer" }]
+    },
+
+    "villageois": {
+      "affichageNom": "{nom}",
+      "type": "aleatoire",
+      "lignes": [
+        "Belle journée, n'est-ce pas ? Enfin, tant que les loups restent loin.",
+        "Mon grand-père disait que les ruines au loin sont maudites.",
+        "Vous avez vu la taille des slimes cette année ? C'est la pluie, je vous dis.",
+        "Un dragon au nord, des bandits partout… où va le monde, je vous le demande.",
+        "Si vous trouvez des baies, gardez-les. On ne sait jamais."
+      ],
+      "options": [{ "texte": "Au revoir.", "action": "fermer" }],
+      "notes": "Porteur principal des quêtes annexes (voir optionsCommunes)."
+    }
+  },
+
+  "optionsCommunes": {
+    "description": "Options injectées automatiquement dans le dialogue de tout PNJ concerné par une quête annexe (villageois, aubergiste, alchimiste).",
+    "queteDisponible": {
+      "option": "[Quête] {titre}",
+      "reponse": "{description de la quête}\n\nRécompense : {or} or, {xp} XP.",
+      "confirmation": { "texte": "J'accepte.", "effet": "quête → active ; si livraison : remise de l'objet lettre" }
+    },
+    "queteEnCours": { "option": "(En cours) {titre}", "reponse": "{description de la quête}" },
+    "rendreChasse": { "option": "[Rendre] {titre}" },
+    "rendreCollecte": { "option": "[Rendre] {titre} ({n} × {nomObjet})", "effet": "consomme les objets" },
+    "rendreLivraison": { "option": "[Rendre] {titre} — lettre remise." },
+    "remettreLettre": {
+      "condition": "le PNJ est le destinataire d'une livraison active",
+      "option": "Remettre la lettre de {donneur}.",
+      "reponse": "Une lettre pour moi ? Merci infiniment ! Dites à {donneur} que la réponse est oui. Repassez le voir, il saura vous récompenser."
+    },
+    "recompenseVersee": "Merveilleux travail ! Voici votre dû : {or} pièces d'or."
+  },
+
+  "texteMonde": {
+    "pancarteVillage": "— {nomVillage} —\n{capitale ? « Capitale de la région. Que l'Aube vous garde. » : « Village paisible d'Aldenor. »}",
+    "pancarteMine": "Mine de Grisepierre.\nDANGER : infestée depuis l'Effondrement.",
+    "pancarteAntre": "ANTRE DE VERMITHRAX.\nFuyez, pauvres fous.",
+    "statue": "Une statue érodée par les siècles. Ses yeux de pierre semblent vous suivre. (option : « Reculer lentement. »)",
+    "crypteVerrouillee": "La grille est verrouillée. Il faut la clé de la crypte.",
+    "coffreScelle": "Le coffre est scellé par une magie puissante… (tant que le boss gardien n'est pas vaincu)",
+    "autelBenediction": "L'autel vous accorde sa bénédiction : PV et PM restaurés ! (une fois par demi-journée)",
+    "autelSilencieux": "L'autel reste silencieux. Revenez plus tard.",
+    "puits": "L'eau est fraîche et claire. (si PV pleins ; sinon +15 PV)"
+  },
+
+  "notifications": {
+    "debutPartie": ["Bienvenue à Aldenor ! Parlez à l'ancien du village (marqueur sur la carte).", "Appuyez sur H pour l'aide."],
+    "progressionLoups": "Loups tués : {n}/5",
+    "loupsTermine": "Retournez voir Aldric à Aldenor.",
+    "sceauRecupere": "Vous récupérez le sceau du bourgmestre. Retournez voir Aldric.",
+    "fragmentRecupere": "Un fragment d'étoile ! Apportez-le au forgeron d'Aldenor.",
+    "bossVaincu": "☠ {nomBoss} est vaincu !",
+    "niveauGagne": "✨ Niveau {n} !",
+    "sortAppris": ["Sort appris : Boule de feu (touche 3)", "Sort appris : Soin (touche 4)", "Sort appris : Éclair (touche 5)"],
+    "queteProgression": "{titre} : {n}/{total}",
+    "queteARendre": "Retournez voir {donneur} ({village}).",
+    "coffreOuvert": "Coffre : {nomObjet} + {or} or !",
+    "minerai": "Vous extrayez du minerai de fer.",
+    "pluie": "La pluie se met à tomber…",
+    "entreeDonjon": "— {nomDonjon} —",
+    "sortieDonjon": "Vous retrouvez l'air libre."
+  }
+}

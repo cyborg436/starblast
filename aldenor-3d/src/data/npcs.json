@@ -1,0 +1,134 @@
+{
+  "_doc": {
+    "fichier": "npcs.json — PNJ de Chroniques d'Aldenor : rôles, placement logique, comportement, quêtes associées",
+    "source": "Extrait de medieval/js/world.js (buildVillage, placePOIs, G.nomPerso, G.nomVillage), medieval/js/entities.js (NPC_PAL, G.instancierNPCs, G.updateNPCs) et medieval/js/quests.js (G.genSideQuests).",
+    "note": "Le JSON standard n'autorise pas les commentaires : ce bloc _doc sert de documentation. Les PNJ concrets sont générés procéduralement (noms + positions dérivés de la seed) : ce fichier décrit les RÔLES (gabarits) et les règles de peuplement, qui suffisent à recréer le monde en 3D.",
+    "schema": {
+      "generationNoms": "Syllabes de génération des noms de PNJ et de villages (concaténation d'une syllabe de chaque liste).",
+      "roles": "Tableau des gabarits de PNJ. Champs :",
+      "roles[].role": "Identifiant du rôle (clé de liaison vers dialogues.json).",
+      "roles[].fonction": "Fonction de gameplay (boutique, quêtes, repos...).",
+      "roles[].boutique": "Type de stock vendu (clé de items.json → boutiques). null = ne vend rien.",
+      "roles[].quetes": "Rapport aux quêtes : principale (étapes concernées), annexes (peut en porter), ou aucune.",
+      "roles[].positionLogique": "Où ce PNJ est placé dans le monde à la génération.",
+      "roles[].nomFixe": "Nom imposé (sinon nom généré par generationNoms).",
+      "roles[].apparence": "Palette du sprite humanoïde (peau, cheveux, haut, bas) + options (robe, coiffe). Réinterprétable librement en 3D.",
+      "comportement": "IA commune à tous les PNJ.",
+      "peuplement": "Composition des villages et lieux à la génération du monde.",
+      "marqueurs": "Indicateurs au-dessus de la tête (! et ?) selon l'état des quêtes."
+    }
+  },
+
+  "generationNoms": {
+    "pnjSyllabe1": ["Bel", "Mor", "Ald", "Var", "Thor", "Gal", "Ren", "Osk", "Bram", "Cael", "Dun", "Fen"],
+    "pnjSyllabe2": ["ric", "wen", "dor", "mir", "gan", "wyn", "ald", "nor", "iel", "mund", "bert", "ra"],
+    "villagePrefixe": ["Pont", "Val", "Mont", "Bois", "Clair", "Haut", "Roche", "Vert"],
+    "villageSuffixe": ["brume", "doré", "les-Eaux", "fontaine", "lune", "ferme", "garde", "colline"],
+    "exemples": ["Belric", "Thorwen", "Pont-brume", "Val-doré"],
+    "capitale": "La capitale s'appelle toujours « Aldenor » (village le plus proche du centre de la carte)."
+  },
+
+  "roles": [
+    {
+      "role": "ancien",
+      "nomFixe": "Aldric",
+      "fonction": "Donneur de la quête principale (étapes mq0 → mq3), personnage-pivot de l'histoire.",
+      "boutique": null,
+      "quetes": { "principale": ["mq0", "mq1", "mq2"], "annexes": false },
+      "positionLogique": "Capitale uniquement — sur la place du village, 3 tuiles au nord du puits central.",
+      "apparence": { "peau": "#e0c0a0", "cheveux": "#e8e4dc", "haut": "#6a5a7a", "bas": "#4a4058", "robe": true }
+    },
+    {
+      "role": "forgeron",
+      "fonction": "Vend armes et armures ; forge la Lame stellaire (quête principale étapes mq3-mq4, version capitale uniquement).",
+      "boutique": "forgeron",
+      "quetes": { "principale": ["mq3", "mq4"], "annexes": false },
+      "positionLogique": "Toujours dans la capitale ; ~50 % des autres villages (choix aléatoire forgeron/alchimiste). Devant la porte de sa forge (bâtiment avec enclume et tonneau).",
+      "apparence": { "peau": "#c08858", "cheveux": "#3a2a1a", "haut": "#7a3020", "bas": "#3a3028" }
+    },
+    {
+      "role": "marchand",
+      "fonction": "Vend consommables et équipement léger ; rachète les objets du joueur (40 % du prix).",
+      "boutique": "marchand",
+      "quetes": { "principale": [], "annexes": false },
+      "positionLogique": "Tous les villages. Devant la porte de son échoppe (bâtiment avec tonneau et table).",
+      "apparence": { "peau": "#e8b088", "cheveux": "#8a5a2a", "haut": "#3a6a4a", "bas": "#4a3a2a", "coiffe": "chapeau" }
+    },
+    {
+      "role": "alchimiste",
+      "fonction": "Vend potions et bâtons de magie.",
+      "boutique": "alchimiste",
+      "quetes": { "principale": [], "annexes": true },
+      "positionLogique": "Capitale ; ~50 % des autres villages (alternative au forgeron). Devant sa boutique (bâtiment avec champignons et table).",
+      "apparence": { "peau": "#d8a888", "cheveux": "#5a3a6a", "haut": "#5a3a7a", "bas": "#3a2a4a", "robe": true, "coiffe": "capuche" }
+    },
+    {
+      "role": "aubergiste",
+      "fonction": "Repos payant (5 or) : restaure PV/PM/endurance, sauvegarde la partie, avance le temps au matin suivant. Destinataire privilégié des quêtes de livraison.",
+      "boutique": null,
+      "quetes": { "principale": [], "annexes": true, "destinataireLivraisons": true },
+      "positionLogique": "Tous les villages. Devant l'auberge (grand bâtiment avec 2 lits et une table).",
+      "apparence": { "peau": "#e8b890", "cheveux": "#a8682a", "haut": "#8a5a30", "bas": "#5a4630" }
+    },
+    {
+      "role": "garde",
+      "fonction": "Ambiance et indices d'exploration (lignes aléatoires pointant vers le nord, la tour, les marais...). Aucun gameplay.",
+      "boutique": null,
+      "quetes": { "principale": [], "annexes": false },
+      "positionLogique": "Capitale uniquement — 2 gardes au sud de la place (entrée du village).",
+      "apparence": { "peau": "#d8a878", "cheveux": "#4a3a2a", "haut": "#7a8a9a", "bas": "#4a5060", "coiffe": "casque" }
+    },
+    {
+      "role": "villageois",
+      "fonction": "Ambiance + porteurs principaux des quêtes annexes générées.",
+      "boutique": null,
+      "quetes": { "principale": [], "annexes": true },
+      "positionLogique": "1-2 par village : dans les maisons sans fonction et près de la place.",
+      "apparence": {
+        "notes": "Palette tirée aléatoirement (déterministe par nom) :",
+        "peau": ["#e8b088", "#d8a078", "#c08858", "#e8c0a0"],
+        "cheveux": ["#3a2a1a", "#8a5a2a", "#c8a040", "#1a140e", "#a04028"],
+        "haut": ["#7a4a3a", "#4a6a3a", "#3a5a7a", "#8a7040", "#6a3a5a"],
+        "bas": ["#4a3a5a", "#3a3028", "#5a4630"]
+      }
+    },
+    {
+      "role": "mystique",
+      "nomFixe": "Zephyrine",
+      "fonction": "Marchande de fin de jeu (équipement tier 4) dans un lieu caché à découvrir.",
+      "boutique": "mystique",
+      "quetes": { "principale": [], "annexes": false },
+      "positionLogique": "La tour de la mystique — point d'intérêt isolé (70 à 130 tuiles de la capitale, jamais près d'un village), petite tour de pierre avec 2 cristaux lumineux.",
+      "apparence": { "peau": "#c8b8d8", "cheveux": "#d8d0e8", "haut": "#2a4a8a", "bas": "#1a2a5a", "robe": true, "coiffe": "capuche" }
+    }
+  ],
+
+  "comportement": {
+    "errance": "Marche lente (30 px/s, soit ~23 % de la vitesse du joueur) dans un rayon de 3 tuiles autour de son point d'ancrage ; pauses fréquentes ; change de direction toutes les 2 à 6 s.",
+    "faceAuJoueur": "À moins de 48 px du joueur : s'arrête et se tourne vers lui.",
+    "gel": "Aucune mise à jour à plus de 20 tuiles du joueur.",
+    "invulnerable": "Les PNJ ne peuvent être ni attaqués ni blessés ; les mobs les ignorent.",
+    "interaction": "Touche E à moins de ~52 px → ouvre le dialogue (dialogues.json). Le PNJ le plus proche est prioritaire sur les objets interactifs."
+  },
+
+  "peuplement": {
+    "nombreVillages": 6,
+    "placementVillages": "Sites sur herbe praticable, à ≥ 52 tuiles les uns des autres, à ≥ 40 tuiles des bords. Le plus central devient la capitale Aldenor. Routes générées de chaque village vers le plus proche déjà placé (ponts sur l'eau).",
+    "compositionCapitale": {
+      "batiments": ["forge", "échoppe de marchand", "auberge", "boutique d'alchimiste", "2 maisons"],
+      "pnjs": ["ancien (Aldric)", "forgeron", "marchand", "alchimiste", "aubergiste", "2 villageois (maisons)", "2 gardes"]
+    },
+    "compositionVillage": {
+      "batiments": ["échoppe de marchand", "auberge", "forge OU alchimiste (aléatoire)", "1 maison"],
+      "pnjs": ["marchand", "aubergiste", "forgeron OU alchimiste", "1-2 villageois"]
+    },
+    "decorCommunVillage": "Place pavée avec puits central (interaction : +15 PV), torches, pancarte au nom du village, petite ferme clôturée au sud.",
+    "lieuxAvecPnjHorsVillage": [{ "lieu": "tour de la mystique", "pnj": "mystique" }]
+  },
+
+  "marqueurs": {
+    "?": "Le PNJ a une quête annexe disponible (état « dispo »).",
+    "!": "Il y a quelque chose à rendre ou à faire avancer : étape de quête principale prête (ancien/forgeron selon conditions), quête annexe à rendre, objectif de collecte atteint, ou destinataire d'une lettre à remettre.",
+    "animation": "Le marqueur flotte au-dessus de la tête (oscillation verticale)."
+  }
+}
