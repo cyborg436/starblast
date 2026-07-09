@@ -2,6 +2,10 @@
 
 Jeu de tir spatial vertical en HTML5 Canvas — Vanilla JS, zéro dépendance.
 
+> 🆕 **[Chroniques d'Aldenor](medieval/README.md)** — open world médiéval 2D
+> rétro (génération procédurale, quêtes, donjons, boss) dans le dossier
+> [`medieval/`](medieval/). Ouvrir `medieval/index.html` pour jouer.
+
 ## Démarrage rapide
 
 ```bash

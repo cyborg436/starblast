@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chroniques d'Aldenor — Open World Médiéval</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="hudbars">
+      <div class="barwrap"><div id="barpv" class="bar pv"></div><span id="txtpv" class="bartxt"></span></div>
+      <div class="barwrap"><div id="barpm" class="bar pm"></div><span id="txtpm" class="bartxt"></span></div>
+      <div class="barwrap small"><div id="barxp" class="bar xp"></div><span id="txtxp" class="bartxt"></span></div>
+    </div>
+    <div id="hudinfo">
+      <span id="hudlvl"></span>
+      <span id="hudor"></span>
+      <span id="hudclock"></span>
+    </div>
+    <div id="hudzone"></div>
+  </div>
+
+  <canvas id="minimap" width="176" height="176" class="hidden"></canvas>
+
+  <div id="hotbar" class="hidden">
+    <div class="hslot" data-slot="0"><span class="hkey">1</span><canvas width="32" height="32"></canvas><span class="hqty"></span></div>
+    <div class="hslot" data-slot="1"><span class="hkey">2</span><canvas width="32" height="32"></canvas><span class="hqty"></span></div>
+    <div class="hslot" data-slot="2"><span class="hkey">3</span><canvas width="32" height="32"></canvas><span class="hqty"></span></div>
+    <div class="hslot" data-slot="3"><span class="hkey">4</span><canvas width="32" height="32"></canvas><span class="hqty"></span></div>
+    <div class="hslot" data-slot="4"><span class="hkey">5</span><canvas width="32" height="32"></canvas><span class="hqty"></span></div>
+  </div>
+
+  <div id="bosshud" class="hidden"><div id="bossname"></div><div class="barwrap boss"><div id="barboss" class="bar boss"></div></div></div>
+
+  <!-- Panneaux -->
+  <div id="inv" class="panel hidden">
+    <h3>Inventaire <span class="pclose" data-close="inv">✕</span></h3>
+    <div id="equiprow">
+      <div class="eslot" data-eslot="arme"><label>Arme</label><canvas width="32" height="32"></canvas></div>
+      <div class="eslot" data-eslot="armure"><label>Armure</label><canvas width="32" height="32"></canvas></div>
+      <div class="eslot" data-eslot="casque"><label>Casque</label><canvas width="32" height="32"></canvas></div>
+      <div class="eslot" data-eslot="anneau"><label>Anneau</label><canvas width="32" height="32"></canvas></div>
+    </div>
+    <div id="invgrid"></div>
+    <div id="invhint">Clic : équiper / utiliser · Clic droit : jeter</div>
+  </div>
+
+  <div id="perso" class="panel hidden">
+    <h3>Personnage <span class="pclose" data-close="perso">✕</span></h3>
+    <div id="persobody"></div>
+  </div>
+
+  <div id="quetes" class="panel hidden">
+    <h3>Journal de quêtes <span class="pclose" data-close="quetes">✕</span></h3>
+    <div id="quetesbody"></div>
+  </div>
+
+  <div id="boutique" class="panel hidden">
+    <h3 id="shoptitle">Boutique <span class="pclose" data-close="boutique">✕</span></h3>
+    <div id="shoptabs"><button id="tabacheter" class="ton">Acheter</button><button id="tabvendre">Vendre</button></div>
+    <div id="shopbody"></div>
+  </div>
+
+  <div id="carte" class="panel wide hidden">
+    <h3>Carte d'Aldenor <span class="pclose" data-close="carte">✕</span></h3>
+    <canvas id="bigmap" width="576" height="576"></canvas>
+    <div id="maplegend"></div>
+  </div>
+
+  <div id="aide" class="panel hidden">
+    <h3>Aide <span class="pclose" data-close="aide">✕</span></h3>
+    <div id="aidebody">
+      <p><b>ZQSD / WASD / Flèches</b> — se déplacer</p>
+      <p><b>Espace / Clic</b> — attaquer (arme équipée)</p>
+      <p><b>E</b> — parler / ouvrir / interagir</p>
+      <p><b>Maj</b> — ruée (endurance)</p>
+      <p><b>1-5</b> — raccourcis (potions & sorts)</p>
+      <p><b>I</b> inventaire · <b>C</b> personnage · <b>J</b> quêtes · <b>M</b> carte</p>
+      <p><b>H</b> — cette aide · <b>P / Échap</b> — pause</p>
+      <p>Reposez-vous à l'auberge pour sauvegarder et récupérer.</p>
+    </div>
+  </div>
+
+  <!-- Dialogue -->
+  <div id="dlg" class="hidden">
+    <div id="dlgname"></div>
+    <div id="dlgtext"></div>
+    <div id="dlgopts"></div>
+  </div>
+
+  <div id="toasts"></div>
+  <div id="tooltip" class="hidden"></div>
+
+  <!-- Écran titre -->
+  <div id="title">
+    <div id="titleinner">
+      <h1>CHRONIQUES<br>D'ALDENOR</h1>
+      <p class="subtitle">Un monde ouvert médiéval</p>
+      <button id="btnnew" class="bigbtn">⚔ Nouvelle partie</button>
+      <button id="btncontinue" class="bigbtn hidden">📜 Continuer</button>
+      <p id="titlehint">ZQSD pour se déplacer · E pour interagir · H pour l'aide</p>
+    </div>
+  </div>
+
+  <!-- Mort / victoire / pause -->
+  <div id="death" class="overlay hidden">
+    <h2>Vous êtes mort…</h2>
+    <p id="deathtxt"></p>
+    <button id="btnrespawn" class="bigbtn">Renaître au village</button>
+  </div>
+  <div id="victory" class="overlay hidden">
+    <h2>🐉 VERMITHRAX EST VAINCU !</h2>
+    <p>Aldenor est libre. Les bardes chanteront votre nom pendant mille ans.</p>
+    <p id="victorystats"></p>
+    <button id="btnfree" class="bigbtn">Continuer l'aventure</button>
+  </div>
+  <div id="pause" class="overlay hidden">
+    <h2>Pause</h2>
+    <button id="btnresume" class="bigbtn">Reprendre</button>
+    <button id="btnsave" class="bigbtn">Sauvegarder</button>
+    <button id="btnmusic" class="bigbtn">Musique : ON</button>
+    <button id="btnquit" class="bigbtn">Menu principal</button>
+  </div>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/items.js"></script>
+<script src="js/world.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/quests.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

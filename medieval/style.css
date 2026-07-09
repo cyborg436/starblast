@@ -1,0 +1,119 @@
+/* Chroniques d'Aldenor — style rétro pixel */
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:100%; height:100%; overflow:hidden; background:#0a0a12; }
+body { font-family:'Courier New', monospace; color:#e8dcc0; user-select:none; }
+
+#wrap { position:relative; width:100vw; height:100vh; }
+#game { position:absolute; inset:0; width:100%; height:100%; image-rendering:pixelated; image-rendering:crisp-edges; background:#000; }
+
+.hidden { display:none !important; }
+
+/* ---------- HUD ---------- */
+#hud { position:absolute; top:10px; left:10px; z-index:5; }
+.barwrap { position:relative; width:220px; height:18px; background:#1a1410; border:2px solid #5c4a2e; margin-bottom:4px; }
+.barwrap.small { height:10px; width:220px; }
+.bar { height:100%; transition:width .15s; }
+.bar.pv { background:linear-gradient(#d84a3a,#8c2018); }
+.bar.pm { background:linear-gradient(#3a6ad8,#20348c); }
+.bar.xp { background:linear-gradient(#d8b83a,#8c7018); }
+.bar.boss { background:linear-gradient(#c02040,#601020); }
+.bartxt { position:absolute; inset:0; text-align:center; font-size:11px; line-height:16px; color:#fff; text-shadow:1px 1px 0 #000; font-weight:bold; }
+#hudinfo { display:flex; gap:14px; font-size:13px; font-weight:bold; text-shadow:1px 1px 0 #000; margin-top:2px; }
+#hudzone { font-size:12px; color:#c8b890; text-shadow:1px 1px 0 #000; margin-top:2px; font-style:italic; }
+
+#minimap { position:absolute; top:10px; right:10px; z-index:5; border:3px solid #5c4a2e; background:#000; image-rendering:pixelated; }
+
+#bosshud { position:absolute; top:12px; left:50%; transform:translateX(-50%); z-index:6; text-align:center; }
+#bossname { font-weight:bold; color:#ff8080; text-shadow:1px 1px 0 #000; margin-bottom:3px; font-size:14px; }
+.barwrap.boss { width:360px; }
+
+/* ---------- Hotbar ---------- */
+#hotbar { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; gap:6px; z-index:5; }
+.hslot { position:relative; width:44px; height:44px; background:rgba(20,16,10,.85); border:2px solid #5c4a2e; cursor:pointer; }
+.hslot canvas { position:absolute; left:4px; top:4px; image-rendering:pixelated; }
+.hkey { position:absolute; top:-2px; left:2px; font-size:10px; color:#d8b83a; font-weight:bold; z-index:1; text-shadow:1px 1px 0 #000; }
+.hqty { position:absolute; bottom:0; right:2px; font-size:10px; color:#fff; font-weight:bold; text-shadow:1px 1px 0 #000; }
+.hslot.cd::after { content:''; position:absolute; inset:0; background:rgba(0,0,0,.6); }
+
+/* ---------- Panneaux ---------- */
+.panel { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#181009; border:3px solid #6c5432; box-shadow:0 0 0 3px #2a1e10, 6px 8px 0 rgba(0,0,0,.5); padding:14px; z-index:20; min-width:340px; max-height:86vh; overflow-y:auto; }
+.panel.wide { min-width:620px; }
+.panel h3 { font-size:16px; color:#e8c860; border-bottom:2px solid #5c4a2e; padding-bottom:6px; margin-bottom:10px; letter-spacing:2px; }
+.pclose { float:right; cursor:pointer; color:#a08050; } .pclose:hover { color:#fff; }
+
+#equiprow { display:flex; gap:10px; margin-bottom:10px; }
+.eslot { text-align:center; }
+.eslot label { display:block; font-size:10px; color:#a08050; margin-bottom:2px; }
+.eslot canvas { width:40px; height:40px; background:#241a10; border:2px solid #5c4a2e; image-rendering:pixelated; cursor:pointer; }
+.eslot canvas:hover { border-color:#d8b83a; }
+
+#invgrid { display:grid; grid-template-columns:repeat(6, 46px); gap:5px; }
+.islot { position:relative; width:46px; height:46px; background:#241a10; border:2px solid #4c3a22; cursor:pointer; }
+.islot:hover { border-color:#d8b83a; }
+.islot canvas { position:absolute; left:5px; top:5px; image-rendering:pixelated; }
+.islot .qty { position:absolute; bottom:1px; right:3px; font-size:10px; color:#fff; font-weight:bold; text-shadow:1px 1px 0 #000; }
+#invhint { font-size:10px; color:#907850; margin-top:8px; }
+
+#persobody p, #aidebody p { font-size:13px; margin:5px 0; }
+#persobody b, #aidebody b { color:#e8c860; }
+
+#quetesbody { font-size:12px; max-width:420px; }
+.quete { border-bottom:1px dashed #4c3a22; padding:7px 0; }
+.quete .qtitre { color:#e8c860; font-weight:bold; }
+.quete .qtitre.main { color:#ff9840; }
+.quete .qdesc { color:#c8b890; margin:2px 0; }
+.quete .qprog { color:#80c880; }
+.quete.done .qtitre { color:#60a060; }
+
+#shoptabs { margin-bottom:8px; }
+#shoptabs button { background:#241a10; border:2px solid #4c3a22; color:#c8b890; font-family:inherit; padding:4px 12px; cursor:pointer; }
+#shoptabs button.ton { border-color:#d8b83a; color:#e8c860; }
+#shopbody { max-height:340px; overflow-y:auto; min-width:360px; }
+.shoprow { display:flex; align-items:center; gap:8px; padding:4px; border-bottom:1px solid #2a1e10; cursor:pointer; font-size:12px; }
+.shoprow:hover { background:#241a10; }
+.shoprow canvas { image-rendering:pixelated; }
+.shoprow .sname { flex:1; }
+.shoprow .sprix { color:#e8c860; font-weight:bold; }
+
+#bigmap { image-rendering:pixelated; border:2px solid #4c3a22; display:block; }
+#maplegend { font-size:11px; color:#c8b890; margin-top:6px; }
+
+/* ---------- Dialogue ---------- */
+#dlg { position:absolute; bottom:70px; left:50%; transform:translateX(-50%); width:min(620px, 90vw); background:#181009; border:3px solid #6c5432; box-shadow:0 0 0 3px #2a1e10; padding:12px 16px; z-index:25; }
+#dlgname { color:#e8c860; font-weight:bold; font-size:14px; margin-bottom:6px; }
+#dlgtext { font-size:13px; line-height:1.5; color:#e8dcc0; margin-bottom:8px; white-space:pre-line; }
+#dlgopts div { padding:4px 8px; cursor:pointer; font-size:13px; color:#d8b83a; }
+#dlgopts div:hover { background:#2a1e10; color:#fff; }
+#dlgopts div::before { content:'▸ '; }
+
+/* ---------- Toasts ---------- */
+#toasts { position:absolute; bottom:70px; left:14px; z-index:15; pointer-events:none; }
+.toast { background:rgba(24,16,9,.9); border-left:3px solid #d8b83a; padding:5px 10px; margin-top:4px; font-size:12px; max-width:340px; animation:toastin .2s; }
+.toast.combat { border-left-color:#d84a3a; }
+.toast.quest { border-left-color:#ff9840; color:#ffcf90; }
+@keyframes toastin { from { transform:translateX(-20px); opacity:0; } }
+
+#tooltip { position:absolute; z-index:50; background:#100c06; border:2px solid #6c5432; padding:7px 10px; font-size:11px; max-width:240px; pointer-events:none; line-height:1.45; }
+#tooltip .tname { color:#e8c860; font-weight:bold; font-size:12px; }
+#tooltip .tstat { color:#80c880; }
+#tooltip .tdesc { color:#a09070; font-style:italic; }
+#tooltip .tprix { color:#d8b83a; }
+
+/* ---------- Écrans ---------- */
+#title { position:absolute; inset:0; background:radial-gradient(ellipse at 50% 30%, #2a2438 0%, #0a0a12 70%); z-index:100; display:flex; align-items:center; justify-content:center; }
+#titleinner { text-align:center; }
+#title h1 { font-size:52px; letter-spacing:8px; color:#e8c860; text-shadow:4px 4px 0 #6c3410, 8px 8px 0 rgba(0,0,0,.6); margin-bottom:8px; line-height:1.15; }
+.subtitle { color:#a08050; letter-spacing:4px; margin-bottom:38px; }
+#titlehint { color:#605040; font-size:12px; margin-top:30px; }
+
+.bigbtn { display:block; margin:10px auto; width:280px; padding:12px; background:#241a10; border:3px solid #6c5432; color:#e8c860; font-family:inherit; font-size:16px; font-weight:bold; letter-spacing:2px; cursor:pointer; }
+.bigbtn:hover { background:#3a2a18; border-color:#d8b83a; }
+
+.overlay { position:absolute; inset:0; background:rgba(4,2,8,.82); z-index:90; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.overlay h2 { font-size:34px; color:#e8c860; text-shadow:3px 3px 0 #000; margin-bottom:14px; letter-spacing:3px; }
+#death h2 { color:#d84a3a; }
+.overlay p { color:#c8b890; margin-bottom:10px; max-width:480px; }
+
+::-webkit-scrollbar { width:10px; }
+::-webkit-scrollbar-track { background:#181009; }
+::-webkit-scrollbar-thumb { background:#5c4a2e; }
