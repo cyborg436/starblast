@@ -14,36 +14,50 @@ npm run preview   # sert le build
 npm run lint      # ESLint sur src/
 ```
 
-## État actuel — Phase 1 : fondations techniques
+## État actuel — Phase 2 : monde ouvert
 
-Base qui tourne à 60 fps, sans gameplay :
+Direction artistique **stylisée/cartoon** (low-poly, flat shading,
+couleurs saturées). Base Phase 1 : boucle `THREE.Clock` delta borné,
+renderer ACES Filmic/sRGB/PCFSoftShadowMap, caméra FOV 60 (0.1/2000),
+AssetManager (GLTFLoader + barre de chargement), resize, ESLint.
 
-- Boucle de jeu `requestAnimationFrame` avec `THREE.Clock`, delta borné
-  (indépendant du framerate)
-- Renderer WebGL : tone mapping **ACES Filmic**, sortie **sRGB**, ombres
-  **PCFSoftShadowMap**
-- Caméra perspective FOV 60, near/far 0.1/2000 + OrbitControls de debug
-- Éclairage : soleil directionnel avec ombres + hemisphere light, **hook
-  jour/nuit fonctionnel** (`world.setTimeOfDay(0..1)`, cycle de 8 min
-  actif par défaut, ciel physique `Sky` synchronisé)
-- Sol plat 1000×1000 + grille de debug + cube témoin animé (ombres)
-- Resize propre, pixel ratio plafonné à 2
-- `AssetManager` centralisé (GLTFLoader + LoadingManager) avec écran de
-  chargement HTML et barre de progression
-- Compteur FPS (HUD DOM)
+- **Terrain procédural** (`WorldGen`) : heightmap simplex multi-octaves
+  (relief général + détail fin + crêtes ridged + dunes + cuvettes→lacs),
+  cartes climat (température/humidité) basse fréquence → régions
+- **5 biomes** (prairie, forêt, désert, neige/montagne, marais) : poids
+  gaussiens dans l'espace climat → **transitions progressives** de la
+  hauteur, des couleurs (vertex colors), de la densité de props et du
+  brouillard ; hook musique d'ambiance par biome (`world.onBiomeChange`)
+- **Props instanciés** : arbres/rochers/cactus/roseaux… low-poly
+  procéduraux, `THREE.InstancedMesh` par type et par chunk, placement
+  déterministe par seed (grille hashée de 4 m — pas de chevauchement),
+  filtré par pente/altitude/POI
+- **Chunk streaming** : dalles de 100 m (50×50 segments, normales
+  analytiques → aucune couture), rayon de charge 3 chunks (~350 m),
+  1 génération max/frame, déchargement au-delà de 4 — même seed →
+  même monde au retour ; `world.getHeightAt(x, z)` en API publique
+- **POI** (`data/pois.json`, définis à la main) : ruines, campements,
+  autel, grotte — aplanissement progressif du terrain, exclusion des
+  props, décor stylisé par type
+- **Cycle jour/nuit 20 min** : arc solaire + couleurs/intensités, ciel
+  **dégradé en shader** (zénith/horizon + disque et halo solaires),
+  brouillard assombri la nuit, zone d'ombre qui suit le joueur
+- **Eau stylisée** : plan par chunk au niveau 0, shader vagues de vertex
+  + fresnel rive/profondeur + reflet du soleil (pas de réflexion)
 
 ## Architecture
 
 ```
 src/
   core/      Game (boucle), Renderer, SceneManager, AssetManager
-  world/     World (sol, futur terrain/chunks), Lighting (soleil + hook jour/nuit), Sky
+  world/     World (orchestration), Biomes (WorldGen), TerrainSystem (streaming),
+             Chunk, Props (InstancedMesh), Water, POIManager, Lighting, Sky, Noise
   entities/  Entity (classe de base) — Player/Enemy/Npc à venir
   systems/   combat, quêtes, inventaire, dialogue, économie (à venir, voir README)
   input/     InputManager (clavier/souris, manette prévue)
   ui/        HUD & menus en DOM par-dessus le canvas (jamais en 3D)
   assets/    modèles .glb, textures, sons
-  data/      JSON de la Phase 0 (quêtes, dialogues, objets, mobs, PNJ)
+  data/      JSON de la Phase 0 (quêtes, dialogues, objets, mobs, PNJ) + pois.json
 ```
 
 Principes :

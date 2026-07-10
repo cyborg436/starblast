@@ -8,5 +8,6 @@ import dialogues from './dialogues.json';
 import items from './items.json';
 import mobs from './mobs.json';
 import npcs from './npcs.json';
+import pois from './pois.json';
 
-export const DATA = Object.freeze({ quests, dialogues, items, mobs, npcs });
+export const DATA = Object.freeze({ quests, dialogues, items, mobs, npcs, pois });

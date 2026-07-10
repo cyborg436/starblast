@@ -1,0 +1,24 @@
+{
+  "_doc": {
+    "fichier": "pois.json — points d'intérêt placés À LA MAIN dans le monde généré",
+    "note": "Indépendant de la génération procédurale : ces lieux existent quel que soit le bruit. Le terrain s'adapte localement autour de chaque POI (aplanissement progressif sur la zone tampon). Les props procéduraux sont exclus du rayon.",
+    "schema": {
+      "pois[].id": "Identifiant unique.",
+      "pois[].type": "ruines | campement | autel | grotte — détermine le décor construit par POIManager.",
+      "pois[].nom": "Nom affiché (futur : marqueur de carte, découverte).",
+      "pois[].x, z": "Position monde en mètres.",
+      "pois[].rayon": "Rayon de la zone aplanie/réservée (m).",
+      "pois[].tampon": "Largeur de la transition douce vers le terrain naturel (m). Défaut 18.",
+      "pois[].aplanir": "1 = plateau plat, 0 = terrain naturel conservé, valeurs intermédiaires = adoucissement partiel.",
+      "pois[].description": "Note de design (futur : lien quêtes/spawns)."
+    }
+  },
+  "pois": [
+    { "id": "camp_bandits", "type": "campement", "nom": "Camp des bandits", "x": 170, "z": 60, "rayon": 16, "aplanir": 1, "description": "Cible de la quête principale étape 2 — spawns de bandits + Garrok à terme." },
+    { "id": "ruines_aldenor", "type": "ruines", "nom": "Ruines anciennes", "x": -240, "z": 140, "rayon": 20, "aplanir": 0.85, "description": "Boss Gardien des Ruines + coffre tier 3." },
+    { "id": "autel_aube", "type": "autel", "nom": "Autel de l'Aube", "x": 80, "z": -200, "rayon": 12, "aplanir": 1, "description": "Bénédiction : restauration PV/PM (une fois par demi-journée)." },
+    { "id": "grotte_grisepierre", "type": "grotte", "nom": "Grotte de Grisepierre", "x": 380, "z": -120, "rayon": 14, "aplanir": 0.6, "description": "Entrée du futur donjon mine." },
+    { "id": "camp_est", "type": "campement", "nom": "Campement de chasseurs", "x": 450, "z": 310, "rayon": 13, "aplanir": 1, "description": "Camp neutre — PNJ chasseurs, quêtes annexes de chasse." },
+    { "id": "ruines_gelees", "type": "ruines", "nom": "Sanctuaire englouti", "x": -150, "z": -420, "rayon": 18, "aplanir": 0.8, "description": "Ruines des terres froides — loot tier 3-4." }
+  ]
+}

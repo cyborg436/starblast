@@ -1,121 +1,99 @@
 import * as THREE from 'three';
 import { Lighting } from './Lighting.js';
 import { SkyDome } from './Sky.js';
+import { WorldGen } from './Biomes.js';
+import { TerrainSystem } from './TerrainSystem.js';
+import { POIManager } from './POIManager.js';
+import { waterUniforms } from './Water.js';
 
 /**
- * World — le monde 3D.
- * Phase 1 : sol plat + grille de debug + un cube témoin, pour valider
- * renderer / ombres / boucle. Ce fichier accueillera ensuite le terrain
- * par heightmap, les biomes et le streaming de chunks.
+ * World — orchestre le monde ouvert :
+ * génération (WorldGen), streaming de chunks (TerrainSystem),
+ * points d'intérêt (POIManager), ciel/éclairage/cycle jour-nuit,
+ * ambiance par biome (brouillard progressif + hook musique).
  */
 export class World {
-  constructor(scene, _assets, maxAnisotropy = 4) {
+  constructor(scene, _assets, _maxAnisotropy, seed = 1337) {
     this.scene = scene;
-    this.maxAnisotropy = maxAnisotropy;
 
+    this.gen = new WorldGen(seed);
+    this.pois = new POIManager(this.gen); // branche l'aplanissement AVANT le premier chunk
+    this.terrain = new TerrainSystem(scene, this.gen, this.pois);
     this.lighting = new Lighting(scene);
     this.sky = new SkyDome(scene);
 
-    // Heure de départ : matin (0 = minuit, 0.5 = midi) — même convention
-    // que le cycle jour/nuit du jeu 2D.
+    /** Point suivi par le streaming (référence vive : la cible caméra, puis le joueur). */
+    this.focus = new THREE.Vector3();
+
+    /** Cycle jour/nuit : 0 = minuit, 0.5 = midi. Un jour = 20 min réelles. */
     this.timeOfDay = 0.35;
-    /** Durée d'un jour complet en secondes (8 min, comme en 2D). Mettre 0 pour figer. */
-    this.dayLength = 480;
-    this._applyTimeOfDay();
+    this.dayLength = 1200;
 
-    this._buildGround();
-    this._buildDebugProps();
+    /** Hook musique d'ambiance : appelé à chaque changement de biome dominant. */
+    this.onBiomeChange = (biome) => console.info(`[ambiance] biome : ${biome.nom} → musique "${biome.musique}"`);
+    this._biome = null;
+
+    this._fogCible = { couleur: new THREE.Color(), near: 90, far: 380 };
+    scene.fog = new THREE.Fog(0xcfe8d8, 90, 380);
+
+    // zone de spawn générée immédiatement (le reste streame à la volée)
+    this.terrain.warmup(0, 0, 1);
+    this.pois.build(scene);
   }
 
-  _buildGround() {
-    // Sol temporaire 1000×1000 — sera remplacé par le terrain streamé.
-    // La grille de debug est DANS la texture du sol (et non une GridHelper) :
-    // pas de z-fighting possible, anti-aliasing par mipmaps, et les
-    // primitives lignes WebGL sont mal rastérisées par certains renderers
-    // logiciels (SwiftShader).
-    const geo = new THREE.PlaneGeometry(1000, 1000);
-    const mat = new THREE.MeshStandardMaterial({
-      map: this._makeGridTexture(),
-      roughness: 1.0,
-      metalness: 0,
-    });
-    this.ground = new THREE.Mesh(geo, mat);
-    this.ground.rotation.x = -Math.PI / 2;
-    this.ground.receiveShadow = true;
-    this.scene.add(this.ground);
+  /** Suit une cible vivante (Vector3 muté ailleurs : cible caméra ou joueur). */
+  track(target) {
+    this._tracked = target;
   }
 
-  /**
-   * Texture de grille : une tuile = 100 m, subdivisée en cases de 10 m.
-   * Lignes mineures discrètes, ligne majeure marquée tous les 100 m.
-   */
-  _makeGridTexture() {
-    const SIZE = 1024;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = SIZE;
-    const ctx = canvas.getContext('2d');
-
-    ctx.fillStyle = '#4a7a38';
-    ctx.fillRect(0, 0, SIZE, SIZE);
-
-    // lignes mineures (10 m)
-    ctx.strokeStyle = 'rgba(240, 228, 160, 0.22)';
-    ctx.lineWidth = 3;
-    const step = SIZE / 10;
-    ctx.beginPath();
-    for (let i = 1; i < 10; i++) {
-      ctx.moveTo(i * step, 0); ctx.lineTo(i * step, SIZE);
-      ctx.moveTo(0, i * step); ctx.lineTo(SIZE, i * step);
-    }
-    ctx.stroke();
-
-    // ligne majeure (100 m) sur les bords de la tuile
-    ctx.strokeStyle = 'rgba(240, 228, 160, 0.5)';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(0, 0, SIZE, SIZE);
-
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(10, 10); // 10 tuiles de 100 m sur les 1000 m du sol
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = this.maxAnisotropy;
-    return tex;
+  getHeightAt(x, z) {
+    return this.terrain.heightAt(x, z);
   }
 
-  _buildDebugProps() {
-    // Cube témoin : valide les ombres portées et l'animation de la boucle.
-    const cube = new THREE.Mesh(
-      new THREE.BoxGeometry(2, 2, 2),
-      new THREE.MeshStandardMaterial({ color: 0xb08a3a, roughness: 0.5 }),
-    );
-    cube.position.set(0, 1.6, 0);
-    cube.castShadow = true;
-    cube.receiveShadow = true;
-    this.scene.add(cube);
-    this.debugCube = cube;
-  }
+  update(dt, elapsed) {
+    if (this._tracked) this.focus.copy(this._tracked);
 
-  update(dt, _elapsed) {
-    // Cycle jour/nuit : avance l'heure et met à jour soleil + ciel.
-    if (this.dayLength > 0) {
-      this.timeOfDay = (this.timeOfDay + dt / this.dayLength) % 1;
-      this._applyTimeOfDay();
-    }
+    // --- cycle jour/nuit ---
+    if (this.dayLength > 0) this.timeOfDay = (this.timeOfDay + dt / this.dayLength) % 1;
+    const sun = this.lighting.setTimeOfDay(this.timeOfDay, this.focus);
+    this.sky.updateFromSun(sun.dir, sun.day, sun.dusk, this.focus);
 
-    if (this.debugCube) {
-      this.debugCube.rotation.y += dt * 0.6;
-      this.debugCube.position.y = 1.6 + Math.sin(_elapsed * 1.5) * 0.3;
+    // --- eau ---
+    waterUniforms.uTime.value = elapsed;
+    waterUniforms.uSunDir.value.copy(sun.dir);
+    waterUniforms.uLight.value = Math.max(sun.day, 0.12);
+
+    // --- streaming de chunks ---
+    this.terrain.update(this.focus);
+
+    // --- ambiance de biome : brouillard progressif + hook musique ---
+    this.gen.ambianceAt(this.focus.x, this.focus.z, this._fogCible);
+    const fog = this.scene.fog;
+    const lum = THREE.MathUtils.lerp(0.14, 1, sun.day); // brouillard assombri la nuit
+    const k = Math.min(dt * 1.5, 1);
+    fog.color.lerp(this._fogCibleCouleurNuit(lum), k);
+    fog.near += (this._fogCible.near - fog.near) * k;
+    fog.far += (this._fogCible.far - fog.far) * k;
+
+    const biome = this.gen.dominantAt(this.focus.x, this.focus.z);
+    if (biome !== this._biome) {
+      this._biome = biome;
+      if (this.onBiomeChange) this.onBiomeChange(biome);
     }
   }
 
-  /** Force une heure (0..1). Hook central du futur cycle jour/nuit complet. */
+  _fogCibleCouleurNuit(lum) {
+    if (!this._tmpFog) this._tmpFog = new THREE.Color();
+    return this._tmpFog.copy(this._fogCible.couleur).multiplyScalar(lum);
+  }
+
+  /** Force une heure (0..1) — debug & futurs événements scénarisés. */
   setTimeOfDay(t) {
     this.timeOfDay = ((t % 1) + 1) % 1;
-    this._applyTimeOfDay();
   }
 
-  _applyTimeOfDay() {
-    const sunDir = this.lighting.setTimeOfDay(this.timeOfDay);
-    this.sky.setSunDirection(sunDir, this.timeOfDay);
+  /** Infos de debug pour le HUD. */
+  get debugInfo() {
+    return `${this._biome ? this._biome.nom : '…'} · ${this.terrain.loadedCount} chunks`;
   }
 }

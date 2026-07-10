@@ -46,16 +46,22 @@ export class Game {
     this.world = new World(this.scenes.scene, this.assets, this.renderer.capabilities.getMaxAnisotropy());
     this.updatables.push(this.world, this.hud);
 
-    // Caméra libre de debug (Phase 1) — remplacée plus tard par la caméra
-    // troisième personne accrochée au joueur.
+    // Caméra libre de debug — remplacée plus tard par la caméra troisième
+    // personne accrochée au joueur. Le streaming de terrain suit sa cible.
     const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+    const h0 = this.world.getHeightAt(0, 0);
     this.controls = new OrbitControls(this.scenes.camera, this.canvas);
-    this.controls.target.set(0, 1.5, 0);
+    this.controls.target.set(0, h0 + 2, 0);
+    this.scenes.camera.position.set(35, h0 + 28, 55);
     this.controls.enableDamping = true;
-    this.controls.maxPolarAngle = Math.PI / 2 - 0.02; // ne pas passer sous le sol
-    this.controls.maxDistance = 300;
+    this.controls.maxPolarAngle = Math.PI / 2 - 0.02;
+    this.controls.maxDistance = 400;
+    this.controls.panSpeed = 1.6;
+    this.controls.screenSpacePanning = false; // le pan glisse sur le plan du sol
     this.updatables.push({ update: () => this.controls.update() });
+    this.world.track(this.controls.target);
 
+    this.hud.attachWorld(this.world);
     this.loading.hide();
   }
 

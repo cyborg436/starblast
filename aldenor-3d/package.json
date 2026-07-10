@@ -10,6 +10,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "simplex-noise": "^4.0.3",
     "three": "^0.170.0"
   },
   "devDependencies": {

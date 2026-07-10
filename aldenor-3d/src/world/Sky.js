@@ -1,44 +1,80 @@
 import * as THREE from 'three';
-import { Sky } from 'three/addons/objects/Sky.js';
 
 /**
- * SkyDome — ciel physique (shader Sky de three.js, diffusion Rayleigh/Mie).
- * Rend le lever/coucher de soleil crédible avec le tone mapping ACES.
- * La couleur du brouillard de la scène est synchronisée sur l'heure.
+ * SkyDome — dôme de ciel en shader dégradé (zénith → horizon) avec
+ * disque solaire et halo. Léger et stylisé — remplace la skybox.
+ * Les couleurs sont pilotées par le cycle jour/nuit (updateFromSun).
  */
+
+const KEY = {
+  jour:  { haut: new THREE.Color('#3a9de8'), horizon: new THREE.Color('#bfe6f2') },
+  crepuscule: { haut: new THREE.Color('#37447e'), horizon: new THREE.Color('#ff9a5a') },
+  nuit:  { haut: new THREE.Color('#0a1030'), horizon: new THREE.Color('#182848') },
+};
+
 export class SkyDome {
   constructor(scene) {
-    this.scene = scene;
+    this.uniforms = {
+      uHaut: { value: KEY.jour.haut.clone() },
+      uHorizon: { value: KEY.jour.horizon.clone() },
+      uSunDir: { value: new THREE.Vector3(0, 1, 0) },
+      uSunColor: { value: new THREE.Color('#fff2c8') },
+      uSunGlow: { value: 1.0 },
+    };
 
-    this.sky = new Sky();
-    this.sky.scale.setScalar(4500); // à l'intérieur du far de la caméra (2000 × ... le shader est en espace clip, l'échelle importe peu)
-    scene.add(this.sky);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      side: THREE.BackSide,
+      depthWrite: false,
+      fog: false,
+      vertexShader: /* glsl */ `
+        varying vec3 vDir;
+        void main() {
+          vDir = normalize(position);
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_Position = projectionMatrix * mv;
+          gl_Position.z = gl_Position.w; // toujours à la profondeur max
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uHaut;
+        uniform vec3 uHorizon;
+        uniform vec3 uSunDir;
+        uniform vec3 uSunColor;
+        uniform float uSunGlow;
+        varying vec3 vDir;
 
-    const u = this.sky.material.uniforms;
-    u.turbidity.value = 6;
-    u.rayleigh.value = 1.8;
-    u.mieCoefficient.value = 0.004;
-    u.mieDirectionalG.value = 0.8;
+        void main() {
+          vec3 d = normalize(vDir);
+          float h = clamp(d.y, 0.0, 1.0);
+          vec3 col = mix(uHorizon, uHaut, pow(h, 0.55));
 
-    this._fogDay = new THREE.Color(0xbfd5e8);
-    this._fogDusk = new THREE.Color(0xd8a068);
-    this._fogNight = new THREE.Color(0x0e1424);
+          float s = dot(d, normalize(uSunDir));
+          col += uSunColor * smoothstep(0.9993, 0.9998, s) * 2.0 * uSunGlow;  // disque
+          col += uSunColor * pow(clamp(s, 0.0, 1.0), 24.0) * 0.28 * uSunGlow; // halo
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+    });
+
+    this.mesh = new THREE.Mesh(new THREE.SphereGeometry(1500, 24, 12), mat);
+    this.mesh.frustumCulled = false;
+    scene.add(this.mesh);
   }
 
-  /** Aligne le ciel sur la direction du soleil ; teinte le brouillard selon l'heure. */
-  setSunDirection(dir, timeOfDay) {
-    this.sky.material.uniforms.sunPosition.value.copy(dir);
+  /** Met à jour couleurs et soleil depuis l'état du cycle (Lighting). */
+  updateFromSun(sunDir, day, dusk, focus) {
+    this.uniforms.uSunDir.value.copy(sunDir);
+    this.uniforms.uSunGlow.value = Math.max(day, dusk * 0.8);
 
-    if (this.scene.fog) {
-      const elev = dir.y;
-      const day = THREE.MathUtils.clamp(elev * 3, 0, 1);
-      const dusk = THREE.MathUtils.clamp(1 - Math.abs(elev) * 5, 0, 1);
-      this.scene.fog.color
-        .copy(this._fogNight)
-        .lerp(this._fogDay, day)
-        .lerp(this._fogDusk, dusk * 0.7);
-    }
-    // timeOfDay disponible pour de futurs effets (étoiles, lune…)
-    void timeOfDay;
+    const u = this.uniforms;
+    // nuit → jour, puis injection du crépuscule
+    u.uHaut.value.copy(KEY.nuit.haut).lerp(KEY.jour.haut, day).lerp(KEY.crepuscule.haut, dusk * 0.8);
+    u.uHorizon.value.copy(KEY.nuit.horizon).lerp(KEY.jour.horizon, day).lerp(KEY.crepuscule.horizon, dusk * 0.9);
+    u.uSunColor.value.setHSL(0.11, 0.7 * dusk + 0.15, 0.92 - dusk * 0.25);
+
+    // le dôme suit le joueur : l'horizon est toujours à l'infini
+    if (focus) this.mesh.position.set(focus.x, 0, focus.z);
   }
 }
