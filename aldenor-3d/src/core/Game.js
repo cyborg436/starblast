@@ -44,24 +44,21 @@ export class Game {
     ]);
 
     this.world = new World(this.scenes.scene, this.assets, this.renderer.capabilities.getMaxAnisotropy());
-    this.updatables.push(this.world, this.hud);
 
-    // Caméra libre de debug — remplacée plus tard par la caméra troisième
-    // personne accrochée au joueur. Le streaming de terrain suit sa cible.
-    const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
-    const h0 = this.world.getHeightAt(0, 0);
-    this.controls = new OrbitControls(this.scenes.camera, this.canvas);
-    this.controls.target.set(0, h0 + 2, 0);
-    this.scenes.camera.position.set(35, h0 + 28, 55);
-    this.controls.enableDamping = true;
-    this.controls.maxPolarAngle = Math.PI / 2 - 0.02;
-    this.controls.maxDistance = 400;
-    this.controls.panSpeed = 1.6;
-    this.controls.screenSpacePanning = false; // le pan glisse sur le plan du sol
-    this.updatables.push({ update: () => this.controls.update() });
-    this.world.track(this.controls.target);
+    // Joueur + caméra troisième personne (le streaming de terrain suit le joueur)
+    const { Player } = await import('../entities/Player.js');
+    const { CameraController } = await import('./CameraController.js');
+    this.player = new Player(this.world, this.input);
+    this.player.addTo(this.scenes.scene);
+    this.cameraCtrl = new CameraController(this.scenes.camera, this.canvas, this.input, this.world, this.player.position);
+    this.player.cameraCtrl = this.cameraCtrl;
+    this.world.track(this.player.position);
+
+    // ordre d'une frame : joueur → caméra → monde (streaming/ambiance) → HUD
+    this.updatables.push(this.player, this.cameraCtrl, this.world, this.hud);
 
     this.hud.attachWorld(this.world);
+    this.hud.attachPlayer(this.player);
     this.loading.hide();
   }
 

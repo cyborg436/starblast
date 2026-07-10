@@ -46,6 +46,12 @@
       font: 11px/1.4 monospace; color: #c8bfa0;
       background: rgba(10, 10, 18, .55); padding: 2px 8px; border-radius: 3px;
     }
+    #hint {
+      position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 50;
+      font: 11px/1.4 monospace; color: #b0a890;
+      background: rgba(10, 10, 18, .55); padding: 3px 10px; border-radius: 3px;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -54,6 +60,7 @@
   <div id="ui-root">
     <div id="fps"></div>
     <div id="info"></div>
+    <div id="hint">ZQSD/WASD se déplacer · Clic capturer la souris (Échap libérer) · Molette zoom · Maj sprint · Espace saut</div>
   </div>
 
   <div id="loading">

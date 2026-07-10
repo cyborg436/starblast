@@ -16,6 +16,10 @@ export class Hud {
     this._world = world;
   }
 
+  attachPlayer(player) {
+    this._player = player;
+  }
+
   update(dt, _elapsed) {
     this._frames++;
     this._acc += dt;
@@ -26,7 +30,12 @@ export class Hud {
       if (this._world && this.infoEl) {
         const h = Math.floor(this._world.timeOfDay * 24);
         const mn = Math.floor((this._world.timeOfDay * 24 % 1) * 60);
-        this.infoEl.textContent = `${this._world.debugInfo} · ${String(h).padStart(2, '0')}h${String(mn).padStart(2, '0')}`;
+        let txt = `${this._world.debugInfo} · ${String(h).padStart(2, '0')}h${String(mn).padStart(2, '0')}`;
+        if (this._player) {
+          const p = this._player.position;
+          txt += ` · (${Math.round(p.x)}, ${Math.round(p.z)})${this._player.swimming ? ' · 🏊' : ''}`;
+        }
+        this.infoEl.textContent = txt;
       }
       this._frames = 0;
       this._acc = 0;

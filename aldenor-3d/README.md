@@ -14,7 +14,19 @@ npm run preview   # sert le build
 npm run lint      # ESLint sur src/
 ```
 
-## État actuel — Phase 2 : monde ouvert
+## État actuel — Phase 3 : joueur jouable
+
+- **Héros low-poly procédural** (`entities/Player.js`) : modèle articulé
+  (jambes/bras/tête pivotés), épée dans le dos, animations procédurales
+  (marche, sprint, idle respiration, saut, brasse)
+- **Contrôleur** : ZQSD/WASD relatifs à la caméra, sprint (Maj 9,5 m/s),
+  saut avec gravité, collé au terrain via `getHeightAt`, **nage**
+  automatique dans les lacs (flottaison, vitesse réduite)
+- **Caméra 3ᵉ personne** (`core/CameraController.js`) : pointer lock au
+  clic (ou glisser-clic), tangage borné, zoom molette 2,5–16 m, jamais
+  sous le terrain, suivi amorti — le streaming de chunks suit le joueur
+
+## Phase 2 : monde ouvert
 
 Direction artistique **stylisée/cartoon** (low-poly, flat shading,
 couleurs saturées). Base Phase 1 : boucle `THREE.Clock` delta borné,
