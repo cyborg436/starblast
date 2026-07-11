@@ -28,7 +28,9 @@ export class CameraController {
     this._shake = 0;
 
     // pointer lock au clic (Échap pour libérer — géré par le navigateur)
+    // jamais pendant une UI modale : on garde le curseur pour cliquer.
     canvas.addEventListener('click', () => {
+      if (input.uiActive) return;
       if (document.pointerLockElement !== canvas) canvas.requestPointerLock();
     });
   }
@@ -46,7 +48,8 @@ export class CameraController {
     const m = this.input.mouse;
 
     // rotation : pointer lock, ou bouton gauche maintenu en secours
-    if (this.locked || m.buttons.has(0)) {
+    // (gelée pendant une UI modale)
+    if (!this.input.uiActive && (this.locked || m.buttons.has(0))) {
       this.yaw -= m.dx * 0.0028;
       this.pitch += m.dy * 0.0022;
       this.pitch = THREE.MathUtils.clamp(this.pitch, -0.35, 1.25);

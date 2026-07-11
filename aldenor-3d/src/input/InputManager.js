@@ -34,6 +34,10 @@ export class InputManager {
 
     this.mouse = { x: 0, y: 0, dx: 0, dy: 0, buttons: new Set(), wheel: 0 };
 
+    /** true quand une UI modale (dialogue/journal) a le focus : gèle le
+     *  gameplay (déplacement, actions de combat), pas la nav menu (raw). */
+    this.uiActive = false;
+
     this.bindings = structuredClone(DEFAULT_BINDINGS);
 
     this._down = (code) => {
@@ -69,8 +73,9 @@ export class InputManager {
 
   /* ---------- couche d'actions ---------- */
 
-  /** L'action est-elle maintenue ? */
+  /** L'action est-elle maintenue ? (gelée quand une UI modale est active) */
   isActionDown(action) {
+    if (this.uiActive) return false;
     const binds = this.bindings[action];
     if (!binds) return false;
     for (const code of binds) if (this.keys.has(code)) return true;
@@ -79,6 +84,7 @@ export class InputManager {
 
   /** L'action vient-elle d'être déclenchée cette frame (front montant) ? */
   wasActionPressed(action) {
+    if (this.uiActive) return false;
     const binds = this.bindings[action];
     if (!binds) return false;
     for (const code of binds) if (this.pressed.has(code)) return true;
@@ -102,6 +108,7 @@ export class InputManager {
 
   /** Axe de déplacement normalisé [-1..1] — ZQSD + WASD + flèches. */
   moveAxes() {
+    if (this.uiActive) return { x: 0, z: 0 };
     let x = 0, z = 0;
     if (this.isDown('KeyA') || this.isDown('KeyQ') || this.isDown('ArrowLeft')) x -= 1;
     if (this.isDown('KeyD') || this.isDown('ArrowRight')) x += 1;

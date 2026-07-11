@@ -1,0 +1,79 @@
+{
+  "_doc": {
+    "fichier": "questDefs.json — définitions de quêtes 3D, dérivées de data/quests.json (Phase 0)",
+    "note": "La quête principale de quests.json (mq0→mq5) suppose donjons et boss pas encore présents en 3D. Ici : le début de la chaîne, jouable dès maintenant, plus des annexes couvrant tous les types d'objectif. Les étapes donjon/boss (crypte, dragon) se brancheront quand ces contenus existeront — mêmes titres que quests.json.",
+    "objectifs": {
+      "talk":    "{ type:'talk', cible:<role|npcId> } — parler à un PNJ",
+      "kill":    "{ type:'kill', cible:<mobId>, n } — tuer n mobs d'un type",
+      "collect": "{ type:'collect', cible:<itemId>, n } — posséder n objets",
+      "reach":   "{ type:'reach', poi:<poiId> | x,z,rayon } — atteindre un lieu",
+      "escort":  "{ type:'escort', npc:<npcId>, poi:<poiId> } — mener un PNJ à destination"
+    },
+    "champs": {
+      "type":     "principale | annexe",
+      "renduA":   "role du PNJ où rendre la quête une fois les objectifs faits (optionnel)",
+      "next":     "id de la quête débloquée à la complétion (chaînage)",
+      "autoStart":"true = démarre d'elle-même quand disponible",
+      "recompenses": "{ xp, or, items:[{id,n}] }"
+    }
+  },
+
+  "quests": {
+    "mq0": {
+      "titre": "L'Aube d'Aldenor", "type": "principale", "autoStart": true,
+      "resume": "Un aventurier arrive à Aldenor en des temps sombres.",
+      "objectifs": [{ "type": "talk", "cible": "ancien", "desc": "Parler à Aldric, l'ancien du village" }],
+      "recompenses": {}, "next": "mq1"
+    },
+    "mq1": {
+      "titre": "La meute affamée", "type": "principale",
+      "resume": "Les loups menacent les fermes d'Aldenor.",
+      "objectifs": [{ "type": "kill", "cible": "loup", "n": 5, "desc": "Chasser les loups" }],
+      "renduA": "ancien",
+      "recompenses": { "xp": 80, "or": 40, "items": [{ "id": "ppv1", "n": 2 }] },
+      "next": "mq2"
+    },
+    "mq2": {
+      "titre": "Le camp des bandits", "type": "principale",
+      "resume": "Des bandits ont volé le sceau du bourgmestre. Leur camp est à l'est.",
+      "objectifs": [
+        { "type": "reach", "poi": "camp_bandits", "desc": "Repérer le camp des bandits" },
+        { "type": "kill", "cible": "bandit", "n": 3, "desc": "Disperser les bandits" }
+      ],
+      "renduA": "ancien",
+      "recompenses": { "xp": 150, "or": 100, "items": [{ "id": "epee2", "n": 1 }] },
+      "next": "mq3"
+    },
+    "mq3": {
+      "titre": "L'appel de la forge", "type": "principale",
+      "resume": "Le forgeron a besoin de minerai pour armer le village.",
+      "objectifs": [{ "type": "collect", "cible": "minerai", "n": 3, "desc": "Rapporter du minerai de fer" }],
+      "renduA": "forgeron",
+      "recompenses": { "xp": 120, "or": 60, "items": [{ "id": "arm1", "n": 1 }] },
+      "next": null,
+      "note": "Placeholder de la chaîne mq3→mq5 (crypte, Lame stellaire, Vermithrax) à brancher avec les donjons."
+    },
+
+    "sq_alchimiste": {
+      "titre": "Gelée pour l'alchimiste", "type": "annexe",
+      "resume": "L'alchimiste réclame de la gelée de slime fraîche.",
+      "objectifs": [{ "type": "collect", "cible": "gelee", "n": 4, "desc": "Récolter de la gelée sur les slimes" }],
+      "giver": "alchimiste", "renduA": "alchimiste",
+      "recompenses": { "xp": 60, "or": 45, "items": [{ "id": "ppm1", "n": 2 }] }
+    },
+    "sq_garde": {
+      "titre": "Patrouille écourtée", "type": "annexe",
+      "resume": "Un garde veut savoir ce qui rôde à l'orée du bois.",
+      "objectifs": [{ "type": "kill", "cible": "gobelin", "n": 4, "desc": "Éliminer les gobelins" }],
+      "giver": "garde", "renduA": "garde",
+      "recompenses": { "xp": 70, "or": 55 }
+    },
+    "sq_escorte": {
+      "titre": "Retour à la maison", "type": "annexe",
+      "resume": "Un villageois s'est aventuré trop loin et veut rentrer sain et sauf.",
+      "objectifs": [{ "type": "escort", "npc": "villageois_egare", "poi": "village_centre", "desc": "Escorter le villageois jusqu'au village" }],
+      "giver": "egare", "renduA": "egare",
+      "recompenses": { "xp": 90, "or": 70 }
+    }
+  }
+}

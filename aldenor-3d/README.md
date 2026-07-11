@@ -14,7 +14,37 @@ npm run preview   # sert le build
 npm run lint      # ESLint sur src/
 ```
 
-## État actuel — Phase 4 : système de combat complet
+## État actuel — Phase 5 : PNJ, dialogues et quêtes
+
+Construit sur les données extraites en Phase 0 (`data/npcs.json`,
+`data/dialogues.json`, `data/quests.json`).
+
+- **PNJ 3D** (`entities/Npc.js`, `systems/NpcManager.js`) : village de
+  départ peuplé selon `npcs.json` (8 rôles, apparences par rôle, noms
+  fixes Aldric/Zephyrine), modèles low-poly, idle + « talk » (se tourne
+  vers le joueur, hoche la tête), escorte. Pipeline Mixamo réutilisable
+  (drop `public/models/npc_<role>.glb`)
+- **Dialogue arborescent** (`systems/DialogueSystem.js`,
+  `data/dialogueTrees.json`) : nœuds texte + choix, conditions
+  (état de quête / inventaire / drapeaux), actions (démarrer/rendre une
+  quête, donner un objet, repos, drapeau). UI HTML/CSS, sélection
+  souris ou clavier (1-4)
+- **Interaction de proximité** (`systems/Interaction.js`) : invite « F »
+  au-dessus du PNJ visé — distance < 4 m **ET** regard (dot > 0.55)
+  **ET** ligne de vue dégagée (raycast terrain) → pas de déclenchement à
+  travers une colline
+- **Quêtes** (`systems/QuestSystem.js`, `data/questDefs.json`) : 5 types
+  d'objectif (talk, kill, collect, reach, escort), suivi de progression,
+  rendu chez un PNJ, **enchaînement** (mq0→mq1→mq2→mq3), récompenses
+  (or/objets/XP), sauvegarde localStorage (`systems/SaveSystem.js`,
+  auto ~20 s + à la fermeture)
+- **Journal** (`ui/QuestJournal.js`, touche J) : quêtes actives/rendues/
+  terminées avec progression et tags ; **tracker HUD** de l'objectif
+  pisté + **marqueur d'objectif 3D** projeté (distance)
+- **Marqueurs 3D** : billboard sprite au-dessus des PNJ — `!` (quête à
+  prendre/rendre), `?` (annexe disponible)
+
+## Phase 4 : système de combat complet
 
 Tout vit dans `src/systems/combat/` (un fichier par système, valeurs
 numériques commentées pour être retouchées) :

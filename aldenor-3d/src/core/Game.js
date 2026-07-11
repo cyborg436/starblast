@@ -73,11 +73,67 @@ export class Game {
     this.player.combat = this.combat;
     this.cameraCtrl.combat = this.combat;
 
-    // ordre d'une frame : physique → joueur → combat → caméra → monde → HUD
+    // ---- Phase 5 : PNJ, dialogues, quêtes, sauvegarde ----
+    const { Inventory } = await import('../systems/Inventory.js');
+    const { NpcManager } = await import('../systems/NpcManager.js');
+    const { QuestSystem } = await import('../systems/QuestSystem.js');
+    const { DialogueSystem } = await import('../systems/DialogueSystem.js');
+    const { Interaction } = await import('../systems/Interaction.js');
+    const { SaveSystem } = await import('../systems/SaveSystem.js');
+    const { QuestJournal } = await import('../ui/QuestJournal.js');
+
+    this.flags = {};
+    this.inventory = new Inventory();
+    this.npcs = new NpcManager(this.scenes.scene, this.world);
+    this.quests = new QuestSystem({ player: this.player, world: this.world, inventory: this.inventory, npcs: this.npcs });
+    this.npcs.quests = this.quests;
+    this.inventory.onChange = (id) => { if (id !== 'or') this.quests.notifyCollect(id); };
+    this.dialogue = new DialogueSystem({ quests: this.quests, inventory: this.inventory, flags: this.flags, player: this.player });
+    this.interaction = new Interaction({
+      input: this.input, camera: this.scenes.camera, player: this.player,
+      npcs: this.npcs, physics: this.physics, dialogue: this.dialogue,
+    });
+    this.journal = new QuestJournal(this.quests, this.scenes.camera);
+    this.dialogue.onToast = (t) => this.journal.toast(t);
+    this.dialogue.onRest = () => { this.player.pv = this.player.pvmax; this.combat.stamina.val = this.combat.stamina.max; this.journal.toast('Vous vous reposez : PV et endurance restaurés.', 'quete'); };
+
+    // butin à la mort d'un ennemi + progression des quêtes de chasse
+    this.combat.onKill = (e) => { this.inventory.rollLoot(e.id); this.quests.notifyKill(e.id); };
+
+    // sauvegarde
+    this.save = new SaveSystem({ quests: this.quests, inventory: this.inventory, flags: this.flags, player: this.player });
+    if (this.save.hasSave()) { this.save.load(); this.journal.toast('Partie chargée.', 'quete'); }
+
+    // routage clavier UI (journal J, fermeture/choix de dialogue) +
+    // synchro du gel gameplay. Placé EN TÊTE de frame.
+    const uiInput = {
+      update: () => {
+        // ouverture/fermeture du journal (bloquée si un dialogue est ouvert)
+        if (this.input.wasPressed('KeyJ') && !this.dialogue.active) this.journal.toggle();
+        // routage des touches vers le dialogue actif
+        if (this.dialogue.active) {
+          for (const code of this.input.pressed) this.dialogue.key(code);
+        } else if (this.input.wasPressed('Escape') && this.journal.open) {
+          this.journal.toggle();
+        }
+        // gèle le gameplay tant qu'une UI modale est ouverte
+        this.input.uiActive = this.dialogue.active || this.journal.open;
+      },
+    };
+
+    // ordre d'une frame : uiInput → physique → joueur → combat → PNJ →
+    // interaction → quêtes → caméra → monde → journal → sauvegarde → HUD
     this.updatables.push(
+      uiInput,
       { update: (dt) => this.physics.step(dt) },
-      this.player, this.combat, this.cameraCtrl, this.world, this.hud,
+      this.player, this.combat,
+      { update: (dt, el) => this.npcs.update(dt, el, this.player) },
+      this.interaction, this.quests, this.cameraCtrl, this.world,
+      this.journal, this.save, this.hud,
     );
+
+    // sauvegarde à la fermeture de l'onglet
+    window.addEventListener('beforeunload', () => this.save.save());
 
     this.hud.attachWorld(this.world);
     this.hud.attachPlayer(this.player);

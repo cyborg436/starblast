@@ -1,0 +1,229 @@
+{
+  "_doc": {
+    "fichier": "dialogueTrees.json — arbres de dialogue par rôle, dérivés de data/dialogues.json (Phase 0)",
+    "format": {
+      "arbre": "un objet par rôle : { nom, rules, nodes }",
+      "rules": "liste évaluée dans l'ordre → premier match donne le nœud d'entrée : { cond, node }",
+      "cond": "objet de conditions (ET) : { quest:'id', state:'active|readyToTurnIn|completed|available', hasItem:'id', minItem:n, flag:'nom' }. Absent = toujours vrai.",
+      "nodes": "{ id: { text, choices:[ { text, cond?, action?, next? } ] } }",
+      "action": "effet(s) au choix : { accept:'questId', turnin:'questId', give:{id,n}, flag:'nom', toast:'texte' }",
+      "next": "id du nœud suivant, ou null pour fermer"
+    }
+  },
+
+  "ancien": {
+    "nom": "Aldric, ancien d'Aldenor",
+    "rules": [
+      { "cond": { "quest": "mq0", "state": "active" }, "node": "mq0" },
+      { "cond": { "quest": "mq1", "state": "readyToTurnIn" }, "node": "mq1_rendu" },
+      { "cond": { "quest": "mq1", "state": "active" }, "node": "mq1_encours" },
+      { "cond": { "quest": "mq2", "state": "readyToTurnIn" }, "node": "mq2_rendu" },
+      { "cond": { "quest": "mq2", "state": "active" }, "node": "mq2_encours" },
+      { "cond": { "quest": "mq3", "state": "active" }, "node": "mq3_encours" },
+      { "node": "defaut" }
+    ],
+    "nodes": {
+      "mq0": {
+        "text": "Ah, un aventurier ! Les dieux vous envoient. Aldenor traverse des heures sombres : les loups attaquent les fermes, des bandits pillent nos routes, et l'on murmure que Vermithrax, le dragon des légendes, s'est réveillé au nord.\n\nAiderez-vous notre village ?",
+        "choices": [
+          { "text": "Je vous aiderai. Par où commencer ?", "action": { "talk": "ancien" }, "next": "mq0_suite" },
+          { "text": "Je vais y réfléchir.", "next": null }
+        ]
+      },
+      "mq0_suite": {
+        "text": "Commencez par la meute de loups qui rôde autour du village. Tuez-en cinq, cela les fera fuir un temps. Revenez me voir ensuite.",
+        "choices": [{ "text": "C'est comme si c'était fait.", "next": null }]
+      },
+      "mq1_encours": {
+        "text": "Les loups rôdent toujours… Cherchez-les dans les plaines et les bois alentour.",
+        "choices": [{ "text": "J'y retourne.", "next": null }]
+      },
+      "mq1_rendu": {
+        "text": "Les hurlements se sont tus… Vous avez fait du bon travail ! Voici votre dû.\n\nHélas, un mal plus grand nous frappe : des bandits ont volé le sceau du bourgmestre. Leur camp est à l'est. Dispersez-les.",
+        "choices": [{ "text": "Je m'en occupe.", "action": { "turnin": "mq1" }, "next": null }]
+      },
+      "mq2_encours": {
+        "text": "Le camp des bandits se trouve à l'est. Récupérez notre honneur — et notre sceau.",
+        "choices": [{ "text": "En route.", "next": null }]
+      },
+      "mq2_rendu": {
+        "text": "Le camp est dispersé ! Aldenor vous doit beaucoup. Prenez cette lame, vous en aurez l'usage.\n\nAllez voir notre forgeron à présent : il prépare de quoi affronter ce qui nous attend.",
+        "choices": [{ "text": "Merci, Aldric.", "action": { "turnin": "mq2" }, "next": null }]
+      },
+      "mq3_encours": {
+        "text": "Le forgeron a besoin de minerai. La montagne en regorge, si vous survivez à ce qui y grouille.",
+        "choices": [{ "text": "Je vais le trouver.", "next": null }]
+      },
+      "defaut": {
+        "text": "Que l'Aube vous garde, aventurier. Aldenor ne vous oubliera pas.",
+        "choices": [{ "text": "Au revoir.", "next": null }]
+      }
+    }
+  },
+
+  "forgeron": {
+    "nom": "Bramald, forgeron",
+    "rules": [
+      { "cond": { "quest": "mq3", "state": "readyToTurnIn" }, "node": "mq3_rendu" },
+      { "cond": { "quest": "mq3", "state": "active" }, "node": "mq3_attente" },
+      { "node": "defaut" }
+    ],
+    "nodes": {
+      "mq3_attente": {
+        "text": "Le métal ne ment jamais, voyageur. Rapportez-moi trois minerais de fer et je vous forge une armure digne de ce nom.",
+        "choices": [{ "text": "Je reviendrai chargé.", "next": null }]
+      },
+      "mq3_rendu": {
+        "text": "Du beau minerai ! *le marteau chante sur l'enclume* … Et voilà. Endossez ça, elle vaut mieux que votre chemise.",
+        "choices": [{ "text": "Superbe travail.", "action": { "turnin": "mq3" }, "next": null }]
+      },
+      "defaut": {
+        "text": "Besoin d'une lame ou d'un plastron ? Repassez quand ma forge sera chaude.",
+        "choices": [{ "text": "Au revoir.", "next": null }]
+      }
+    }
+  },
+
+  "marchand": {
+    "nom": "Renwyn, marchand",
+    "rules": [{ "node": "accueil" }],
+    "nodes": {
+      "accueil": {
+        "text": "Bienvenue dans mon échoppe ! J'ai tout ce qu'il faut pour survivre dehors. Tenez, un petit cadeau de bienvenue.",
+        "choices": [
+          { "text": "Merci !", "cond": { "flagNot": "cadeau_marchand" }, "action": { "give": { "id": "pain", "n": 2 }, "flag": "cadeau_marchand" }, "next": null },
+          { "text": "Une autre fois.", "next": null }
+        ]
+      }
+    }
+  },
+
+  "alchimiste": {
+    "nom": "Fenwyn, alchimiste",
+    "rules": [
+      { "cond": { "quest": "sq_alchimiste", "state": "readyToTurnIn" }, "node": "sq_rendu" },
+      { "cond": { "quest": "sq_alchimiste", "state": "active" }, "node": "sq_attente" },
+      { "cond": { "quest": "sq_alchimiste", "state": "available" }, "node": "sq_offre" },
+      { "node": "defaut" }
+    ],
+    "nodes": {
+      "sq_offre": {
+        "text": "Hmm ? Ah, un client. J'ai besoin de gelée de slime bien fraîche pour mes potions — quatre devraient suffire. Ça vous tente ?",
+        "choices": [
+          { "text": "J'accepte.", "action": { "accept": "sq_alchimiste" }, "next": null },
+          { "text": "Pas aujourd'hui.", "next": null }
+        ]
+      },
+      "sq_attente": {
+        "text": "Alors, cette gelée ? Les slimes des plaines en débordent.",
+        "choices": [{ "text": "J'y travaille.", "next": null }]
+      },
+      "sq_rendu": {
+        "text": "Parfait, tout gluant comme il faut ! Voici de quoi vous remercier.",
+        "choices": [{ "text": "Merci.", "action": { "turnin": "sq_alchimiste" }, "next": null }]
+      },
+      "defaut": {
+        "text": "Attention où vous mettez les pieds, certaines de mes fioles explosent.",
+        "choices": [{ "text": "Au revoir.", "next": null }]
+      }
+    }
+  },
+
+  "aubergiste": {
+    "nom": "Osmund, aubergiste",
+    "rules": [{ "node": "accueil" }],
+    "nodes": {
+      "accueil": {
+        "text": "Bienvenue à l'auberge ! Une chambre pour la nuit ? Cela vous remettra d'aplomb.",
+        "choices": [
+          { "text": "Me reposer.", "action": { "rest": true }, "next": null },
+          { "text": "Plus tard.", "next": null }
+        ]
+      }
+    }
+  },
+
+  "garde": {
+    "nom": "Garde Dungan",
+    "rules": [
+      { "cond": { "quest": "sq_garde", "state": "readyToTurnIn" }, "node": "sq_rendu" },
+      { "cond": { "quest": "sq_garde", "state": "active" }, "node": "sq_attente" },
+      { "cond": { "quest": "sq_garde", "state": "available" }, "node": "sq_offre" },
+      { "node": "defaut" }
+    ],
+    "nodes": {
+      "sq_offre": {
+        "text": "Halte. Des gobelins traînent à l'orée du bois et je n'ai pas d'ordre pour m'éloigner du poste. Vous, vous pourriez en découdre ?",
+        "choices": [
+          { "text": "Comptez sur moi.", "action": { "accept": "sq_garde" }, "next": null },
+          { "text": "Débrouillez-vous.", "next": null }
+        ]
+      },
+      "sq_attente": {
+        "text": "Ces gobelins courent toujours ? Filez-leur une leçon.",
+        "choices": [{ "text": "J'y vais.", "next": null }]
+      },
+      "sq_rendu": {
+        "text": "Beau nettoyage. Tenez, pour la peine — et gardez ça pour vous, je ne suis pas censé donner la solde.",
+        "choices": [{ "text": "Entendu.", "action": { "turnin": "sq_garde" }, "next": null }]
+      },
+      "defaut": {
+        "text": "Restez sur les routes la nuit, voyageur. Les monstres y sont plus hardis.",
+        "choices": [{ "text": "Au revoir.", "next": null }]
+      }
+    }
+  },
+
+  "villageois": {
+    "nom": "Villageois",
+    "rules": [{ "node": "papotage" }],
+    "nodes": {
+      "papotage": {
+        "text": "Belle journée, n'est-ce pas ? Enfin, tant que les loups restent loin. On raconte qu'un des nôtres s'est perdu au sud-est… le pauvre.",
+        "choices": [{ "text": "Au revoir.", "next": null }]
+      }
+    }
+  },
+
+  "egare": {
+    "nom": "Villageois égaré",
+    "rules": [
+      { "cond": { "quest": "sq_escorte", "state": "readyToTurnIn" }, "node": "sq_rendu" },
+      { "cond": { "quest": "sq_escorte", "state": "active" }, "node": "sq_attente" },
+      { "cond": { "quest": "sq_escorte", "state": "available" }, "node": "sq_offre" },
+      { "node": "defaut" }
+    ],
+    "nodes": {
+      "sq_offre": {
+        "text": "Dieu merci, un aventurier ! J'ai eu la sottise de m'éloigner et je n'ose plus rentrer seul avec tous ces monstres. Me raccompagneriez-vous au village ?",
+        "choices": [
+          { "text": "Suivez-moi, je vous couvre.", "action": { "accept": "sq_escorte" }, "next": null },
+          { "text": "Débrouillez-vous.", "next": null }
+        ]
+      },
+      "sq_attente": {
+        "text": "Je vous suis ! Restez près de moi, surtout… le village est par là ?",
+        "choices": [{ "text": "Restez derrière moi.", "next": null }]
+      },
+      "sq_rendu": {
+        "text": "Chez moi, enfin ! Vous m'avez sauvé la mise. Tenez, prenez ma bourse, c'est bien peu pour ma vie.",
+        "choices": [{ "text": "De rien.", "action": { "turnin": "sq_escorte" }, "next": null }]
+      },
+      "defaut": {
+        "text": "Merci encore, l'ami. Je ne m'éloignerai plus jamais autant !",
+        "choices": [{ "text": "Au revoir.", "next": null }]
+      }
+    }
+  },
+
+  "mystique": {
+    "nom": "Zephyrine la Mystique",
+    "rules": [{ "node": "accueil" }],
+    "nodes": {
+      "accueil": {
+        "text": "Peu de mortels trouvent ma tour. Les étoiles m'ont parlé de vous… et de la bête au nord. Revenez quand vous serez prêt à affronter votre destin.",
+        "choices": [{ "text": "Je m'en souviendrai.", "next": null }]
+      }
+    }
+  }
+}
