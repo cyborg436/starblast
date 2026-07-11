@@ -20,10 +20,12 @@ export class CameraController {
     this.distance = 7;
     this.minDistance = 2.5;
     this.maxDistance = 16;
+    this.combat = null;    // fourni par Game — lock-on + shake
 
     this._pos = new THREE.Vector3();
     this._lookAt = new THREE.Vector3();
     this._first = true;
+    this._shake = 0;
 
     // pointer lock au clic (Échap pour libérer — géré par le navigateur)
     canvas.addEventListener('click', () => {
@@ -35,6 +37,11 @@ export class CameraController {
     return document.pointerLockElement === this.canvas;
   }
 
+  /** Secousse d'écran (juice) : amplitude cumulable, décroissance rapide. */
+  addShake(amp) {
+    this._shake = Math.min(this._shake + amp, 1.2);
+  }
+
   update(dt) {
     const m = this.input.mouse;
 
@@ -43,6 +50,19 @@ export class CameraController {
       this.yaw -= m.dx * 0.0028;
       this.pitch += m.dy * 0.0022;
       this.pitch = THREE.MathUtils.clamp(this.pitch, -0.35, 1.25);
+    }
+
+    // lock-on : léger biais du yaw vers la cible, renforcé pendant une
+    // attaque — la souris garde toujours la main (biais additif doux)
+    const cible = this.combat?.lockOn?.target;
+    if (cible) {
+      const vx = this.target.x - cible.position.x;
+      const vz = this.target.z - cible.position.z;
+      const yawCible = Math.atan2(vx, vz);
+      let d = yawCible - this.yaw;
+      d = ((d + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+      const force = this.combat.lock ? 3.2 : 1.1;
+      this.yaw += d * Math.min(dt * force, 1);
     }
     // zoom molette
     if (m.wheel !== 0) {
@@ -84,5 +104,14 @@ export class CameraController {
 
     this._lookAt.set(this.target.x, focusY, this.target.z);
     this.camera.lookAt(this._lookAt);
+
+    // screen shake : bruit décroissant appliqué après le lookAt
+    if (this._shake > 0.005) {
+      this._shake *= Math.exp(-dt * 7);
+      const a = this._shake * 0.22;
+      this.camera.position.x += (Math.random() - 0.5) * a;
+      this.camera.position.y += (Math.random() - 0.5) * a;
+      this.camera.rotation.z += (Math.random() - 0.5) * this._shake * 0.02;
+    } else this._shake = 0;
   }
 }

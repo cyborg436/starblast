@@ -17,7 +17,10 @@ export const DEFAULT_BINDINGS = {
   dodge:        ['ControlLeft', 'ControlRight', 'KeyC'],
   attack_light: ['Mouse0'],
   attack_heavy: ['Mouse2'],
-  interact:     ['KeyE'],
+  skill:        ['KeyE'],           // compétence élémentaire
+  ultimate:     ['KeyR'],           // ultime (jauge d'énergie pleine)
+  lockon:       ['Mouse1', 'Tab'],  // verrouillage de cible (clic molette / Tab)
+  interact:     ['KeyF'],
 };
 
 export class InputManager {
@@ -40,7 +43,10 @@ export class InputManager {
     this._up = (code) => this.keys.delete(code);
 
     this._handlers = [
-      ['keydown', (e) => this._down(e.code)],
+      ['keydown', (e) => {
+        if (e.code === 'Tab' || e.code === 'Space') e.preventDefault(); // pas de défocus / scroll
+        this._down(e.code);
+      }],
       ['keyup', (e) => this._up(e.code)],
       ['blur', () => { this.keys.clear(); this.mouse.buttons.clear(); }],
     ];

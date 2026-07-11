@@ -52,6 +52,22 @@
       background: rgba(10, 10, 18, .55); padding: 3px 10px; border-radius: 3px;
       white-space: nowrap;
     }
+    #pv-wrap {
+      position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%); z-index: 50;
+      width: 260px; height: 10px; background: rgba(10, 10, 18, .6);
+      border-radius: 5px; padding: 1px;
+    }
+    #pv { width: 100%; height: 100%; border-radius: 4px;
+      background: linear-gradient(90deg, #e05648, #ff8a60); transition: width .12s; }
+    #energie-wrap {
+      position: fixed; bottom: 54px; left: 50%; transform: translateX(-50%); z-index: 50;
+      width: 260px; height: 5px; background: rgba(10, 10, 18, .6);
+      border-radius: 3px; padding: 1px;
+    }
+    #energie { width: 0%; height: 100%; border-radius: 2px;
+      background: linear-gradient(90deg, #d8a830, #ffe27a); transition: width .15s; }
+    #energie.pleine { animation: pulseor 0.9s infinite alternate; }
+    @keyframes pulseor { from { filter: brightness(1); } to { filter: brightness(1.7); } }
     #stamina-wrap {
       position: fixed; bottom: 42px; left: 50%; transform: translateX(-50%); z-index: 50;
       width: 220px; height: 7px; background: rgba(10, 10, 18, .55);
@@ -61,6 +77,59 @@
       width: 100%; height: 100%; border-radius: 3px;
       background: linear-gradient(90deg, #6ac46a, #b8e86a); transition: width .1s;
     }
+    #charge-wrap {
+      position: fixed; bottom: 82px; left: 50%; transform: translateX(-50%); z-index: 50;
+      width: 160px; height: 8px; background: rgba(10, 10, 18, .65);
+      border-radius: 4px; padding: 1px; display: none;
+    }
+    #charge { width: 0%; height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, #e8a030, #ff5a30); }
+    #skill-box, #ult-box {
+      position: fixed; right: 18px; z-index: 50;
+      display: flex; align-items: center; gap: 7px;
+      font: 12px/1.3 monospace; color: #d8d0b8;
+      background: rgba(10, 10, 18, .6); padding: 6px 10px; border-radius: 5px;
+    }
+    #skill-box { bottom: 58px; }
+    #ult-box { bottom: 18px; opacity: .45; }
+    #ult-box.pret { opacity: 1; box-shadow: 0 0 12px #ffd24a80; color: #ffe27a; }
+    .kbd {
+      display: inline-block; min-width: 18px; text-align: center;
+      border: 1px solid #6a6252; border-radius: 4px; padding: 1px 4px;
+      font-weight: bold; color: #ffe9b0; background: #201c14;
+    }
+    #skill-cd { color: #8a8270; min-width: 34px; text-align: right; }
+    #target-wrap {
+      position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 50;
+      text-align: center; display: none;
+    }
+    #target-nom { font: bold 13px monospace; color: #ffd8c0; text-shadow: 1px 1px 0 #000; margin-bottom: 3px; }
+    #target-bar-wrap { width: 260px; height: 7px; background: rgba(10,10,18,.65); border-radius: 4px; padding: 1px; }
+    #target-bar { width: 100%; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #c03a3a, #ff7a50); transition: width .1s; }
+    #reticle {
+      position: fixed; z-index: 55; display: none; pointer-events: none;
+      width: 26px; height: 26px; margin: -13px 0 0 -13px;
+      border: 2px solid #ffd24a; border-radius: 50%;
+      box-shadow: 0 0 8px #ffd24a90, inset 0 0 5px #ffd24a60;
+      animation: retpulse 1s infinite alternate;
+    }
+    @keyframes retpulse { from { transform: scale(1); } to { transform: scale(1.15); } }
+    #dmg-root { position: fixed; inset: 0; z-index: 54; pointer-events: none; overflow: hidden; }
+    .dmg {
+      position: absolute; transform: translate(-50%, -50%);
+      font: bold 17px monospace; text-shadow: 2px 2px 0 #000;
+      opacity: 1; transition: transform .85s ease-out, opacity .85s;
+      white-space: nowrap;
+    }
+    .dmg.gros { font-size: 24px; }
+    .dmg.go { transform: translate(-50%, calc(-50% - 54px)); opacity: 0; }
+    #annonce {
+      position: fixed; top: 20%; left: 50%; transform: translateX(-50%); z-index: 60;
+      font: bold 16px monospace; color: #ffe9b0; text-shadow: 2px 2px 0 #000;
+      background: rgba(10,10,18,.7); padding: 6px 16px; border-radius: 6px;
+      opacity: 0; transition: opacity .25s; pointer-events: none;
+    }
+    #annonce.on { opacity: 1; }
   </style>
 </head>
 <body>
@@ -69,8 +138,17 @@
   <div id="ui-root">
     <div id="fps"></div>
     <div id="info"></div>
+    <div id="pv-wrap"><div id="pv"></div></div>
+    <div id="energie-wrap"><div id="energie"></div></div>
     <div id="stamina-wrap"><div id="stamina"></div></div>
-    <div id="hint">ZQSD/WASD déplacer · Clic capturer souris · Molette zoom · Maj sprint · Espace saut · Clic G/D attaques · Ctrl esquive</div>
+    <div id="charge-wrap"><div id="charge"></div></div>
+    <div id="skill-box"><span class="kbd">E</span><span id="skill-nom"></span><span id="skill-cd"></span></div>
+    <div id="ult-box"><span class="kbd">R</span><span id="ult-etat"></span></div>
+    <div id="target-wrap"><div id="target-nom"></div><div id="target-bar-wrap"><div id="target-bar"></div></div></div>
+    <div id="reticle"></div>
+    <div id="dmg-root"></div>
+    <div id="annonce"></div>
+    <div id="hint">ZQSD déplacer · Maj sprint · Espace saut · Clic G combo · Clic D (maintenu) lourde · Ctrl esquive · E compétence · R ultime · Tab lock-on · 1-4 élément</div>
   </div>
 
   <div id="loading">

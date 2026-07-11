@@ -14,7 +14,36 @@ npm run preview   # sert le build
 npm run lint      # ESLint sur src/
 ```
 
-## État actuel — Phase 3 : personnage jouable (physique)
+## État actuel — Phase 4 : système de combat complet
+
+Tout vit dans `src/systems/combat/` (un fichier par système, valeurs
+numériques commentées pour être retouchées) :
+
+- **ComboSystem** : combo léger ×3 (fenêtre = derniers 40 % de l'anim,
+  input buffering 0,15 s, coup 3 plus fort + knockback) ; **lourde
+  chargée** au clic droit maintenu (barre de charge, dégâts 30→80 et
+  stagger scalés, cap 1,5 s, coût stamina, non annulable)
+- **DodgeSystem** : esquive directionnelle (arrière par défaut),
+  **i-frames sur les 60 % centraux**, coût 20 stamina, **essoufflement**
+  si insuffisant, **dodge cancel** des attaques légères uniquement
+- **StaminaSystem** : sprint/esquive/lourde, régén plus rapide hors combat
+- **SkillSystem** : compétence élémentaire (E, cooldown affiché) — 4
+  éléments interchangeables (touches 1-4) dont la Chaîne d'éclairs qui
+  saute sur 3 cibles ; **énergie** chargée en frappant/subissant →
+  **ultime** (R) : nova de zone
+- **elementalReactions** : table déclarative — Vaporisation (feu↔eau,
+  ×2), Surcharge (eau↔foudre, AoE), Diffusion (élément+vent, propage)
+- **HitDetection** : fenêtres de hitbox synchronisées aux timestamps de
+  chaque animation, sphere-cast balayé le long du couloir de la lame
+- **EnemyAI + StaggerSystem** : patrol → aggro → attack (télégraphe
+  0,55 s) → staggered (jauge de poise, ×1,5 dégâts) → dead ; ennemis du
+  bestiaire 2D (`mobs.json`), spawn par biome
+- **LockOn** : Tab/clic molette, réticule projeté, cycle de cible,
+  biais caméra doux (renforcé pendant les attaques)
+- **Juice** : hit-stop 70-130 ms (timeScale 0.07), screen shake, damage
+  numbers DOM flottants, particules élémentaires (THREE.Points, pool 512)
+
+## Phase 3 : personnage jouable (physique)
 
 - **Modèle du héros** (`entities/HeroModel.js`) : charge un `.glb` riggé
   **Mixamo** depuis `public/models/hero.glb` (auto-échelle 1,80 m,

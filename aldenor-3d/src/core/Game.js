@@ -27,6 +27,9 @@ export class Game {
 
     this.clock = new THREE.Clock();
     this.running = false;
+    /** Hit-stop : timeScale global très bas pendant quelques ms à l'impact. */
+    this.timeScale = 1;
+    this._hitStopT = 0;
     /** Systèmes mis à jour chaque frame : tout objet avec une méthode update(dt, elapsed). */
     this.updatables = [];
 
@@ -61,14 +64,24 @@ export class Game {
     this.player.cameraCtrl = this.cameraCtrl;
     this.world.track(this.player.position);
 
-    // ordre d'une frame : physique → joueur → caméra → monde → HUD
+    // système de combat (ennemis, combo, esquive, compétences, lock-on, juice)
+    const { CombatSystem } = await import('../systems/combat/CombatSystem.js');
+    this.combat = new CombatSystem({
+      game: this, scene: this.scenes.scene, camera: this.scenes.camera,
+      world: this.world, player: this.player, input: this.input,
+    });
+    this.player.combat = this.combat;
+    this.cameraCtrl.combat = this.combat;
+
+    // ordre d'une frame : physique → joueur → combat → caméra → monde → HUD
     this.updatables.push(
       { update: (dt) => this.physics.step(dt) },
-      this.player, this.cameraCtrl, this.world, this.hud,
+      this.player, this.combat, this.cameraCtrl, this.world, this.hud,
     );
 
     this.hud.attachWorld(this.world);
     this.hud.attachPlayer(this.player);
+    this.hud.attachCombat(this.combat);
     this.loading.hide();
   }
 
@@ -84,9 +97,22 @@ export class Game {
     this.renderer.setAnimationLoop(null);
   }
 
+  /** Micro-ralenti d'impact (60-130 ms) — donne du poids aux coups. */
+  hitStop(ms = 70) {
+    this._hitStopT = Math.max(this._hitStopT, ms / 1000);
+  }
+
   _tick() {
     // Delta borné : évite les téléportations après un onglet en arrière-plan.
-    const dt = Math.min(this.clock.getDelta(), 0.05);
+    const raw = Math.min(this.clock.getDelta(), 0.05);
+    // hit-stop : ralenti à 7 % puis retour souple à 1
+    if (this._hitStopT > 0) {
+      this._hitStopT -= raw;
+      this.timeScale = 0.07;
+    } else {
+      this.timeScale += (1 - this.timeScale) * Math.min(raw * 18, 1);
+    }
+    const dt = raw * this.timeScale;
     const elapsed = this.clock.elapsedTime;
 
     for (const u of this.updatables) u.update(dt, elapsed);

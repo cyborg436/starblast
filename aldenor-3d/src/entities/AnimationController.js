@@ -17,11 +17,11 @@ import * as THREE from 'three';
 export const ANIM_STATES = [
   'idle', 'walk', 'run', 'jump', 'fall', 'swim',
   'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy',
-  'dodge', 'hit', 'dead',
+  'charge', 'dodge', 'hit', 'tired', 'dead',
 ];
 
 /** États joués une seule fois (non bouclés) → onFinished. */
-const ONCE = new Set(['jump', 'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy', 'dodge', 'hit', 'dead']);
+const ONCE = new Set(['jump', 'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy', 'dodge', 'hit', 'tired', 'dead']);
 
 export class AnimationController {
   constructor(backend) {
@@ -68,8 +68,10 @@ const CLIP_ALIASES = {
   attack_light_2: ['attack_light_2', 'attack2', 'slash2'],
   attack_light_3: ['attack_light_3', 'attack3', 'slash3'],
   attack_heavy: ['attack_heavy', 'heavy', 'smash', 'strong'],
+  charge: ['charge', 'windup', 'chargeloop'],
   dodge: ['dodge', 'roll', 'dive'],
   hit: ['hit', 'impact', 'react'],
+  tired: ['tired', 'exhaust', 'catchbreath'],
   dead: ['dead', 'death', 'dying'],
 };
 
@@ -77,7 +79,8 @@ const CLIP_ALIASES = {
 const FALLBACKS = {
   walk: 'run', run: 'walk', fall: 'jump', swim: 'idle',
   attack_light_2: 'attack_light_1', attack_light_3: 'attack_light_1',
-  attack_heavy: 'attack_light_1', dodge: 'jump', hit: 'idle', dead: 'idle',
+  attack_heavy: 'attack_light_1', charge: 'idle', dodge: 'jump',
+  hit: 'idle', tired: 'hit', dead: 'idle',
 };
 
 export class MixerBackend {
@@ -139,7 +142,7 @@ export class MixerBackend {
 
 const DUREES = {
   jump: 0.5, attack_light_1: 0.42, attack_light_2: 0.42, attack_light_3: 0.6,
-  attack_heavy: 0.85, dodge: 0.42, hit: 0.3, dead: 1.1,
+  attack_heavy: 0.85, dodge: 0.42, hit: 0.3, tired: 0.5, dead: 1.1,
 };
 
 export class ProceduralBackend {
@@ -248,10 +251,23 @@ export class ProceduralBackend {
         to(armL, 'x', -0.9); to(armR, 'x', -0.9);
         break;
       }
+      case 'charge': { // lourde en charge : arquée, épée levée qui tremble
+        const tremble = Math.sin(t * 30) * Math.min(t * 0.06, 0.08);
+        to(armL, 'x', -2.7 + tremble); to(armR, 'x', -2.7 - tremble);
+        to(model, 'x', 0.12);
+        to(legL, 'x', 0.25); to(legR, 'x', -0.25);
+        break;
+      }
       case 'hit':
         to(model, 'x', -0.25);
         to(armL, 'x', -0.8); to(armR, 'x', -0.8);
         break;
+      case 'tired': { // essoufflement : plié en deux, souffle court
+        to(model, 'x', 0.5);
+        const souffle = Math.sin(t * 14) * 0.15;
+        to(armL, 'x', 0.6 + souffle); to(armR, 'x', 0.6 + souffle);
+        break;
+      }
       case 'dead': {
         const p = Math.min(t / 1.1, 1);
         model.rotation.x = -p * Math.PI / 2;
