@@ -7,6 +7,8 @@ export class Hud {
   constructor() {
     this.fpsEl = document.getElementById('fps');
     this.infoEl = document.getElementById('info');
+    this.staminaWrap = document.getElementById('stamina-wrap');
+    this.staminaEl = document.getElementById('stamina');
     this._frames = 0;
     this._acc = 0;
     this._world = null;
@@ -21,6 +23,13 @@ export class Hud {
   }
 
   update(dt, _elapsed) {
+    // barre de stamina : chaque frame (réactivité), visible seulement si entamée
+    if (this._player && this.staminaEl) {
+      const s = this._player.stamina;
+      this.staminaEl.style.width = `${(s.val / s.max) * 100}%`;
+      this.staminaWrap.style.opacity = s.val < s.max - 0.5 ? '1' : '0';
+    }
+
     this._frames++;
     this._acc += dt;
     if (this._acc >= 0.5) {

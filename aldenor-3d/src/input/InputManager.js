@@ -1,30 +1,47 @@
 /**
- * InputManager — état clavier/souris interrogeable à chaque frame.
- * (Support manette prévu plus tard via l'API Gamepad : même interface,
- * les systèmes de jeu ne liront que isDown()/wasPressed()/axes.)
+ * InputManager — entrées clavier/souris avec COUCHE D'ACTIONS abstraite.
+ *
+ * Les systèmes de jeu n'interrogent jamais une touche en dur : ils
+ * demandent `isActionDown('sprint')` / `wasActionPressed('dodge')`.
+ * Les liaisons vivent dans un seul mapping rebindable (`rebind()`),
+ * prêt pour un futur écran d'options et le support manette (l'API
+ * Gamepad alimentera les mêmes actions).
+ *
+ * Les boutons souris sont des codes virtuels 'Mouse0' (gauche),
+ * 'Mouse1' (molette), 'Mouse2' (droit), traités comme des touches.
  */
+
+export const DEFAULT_BINDINGS = {
+  jump:         ['Space'],
+  sprint:       ['ShiftLeft', 'ShiftRight'],
+  dodge:        ['ControlLeft', 'ControlRight', 'KeyC'],
+  attack_light: ['Mouse0'],
+  attack_heavy: ['Mouse2'],
+  interact:     ['KeyE'],
+};
+
 export class InputManager {
   constructor(domElement) {
     this.domElement = domElement;
 
-    /** Touches maintenues (par e.code : 'KeyW', 'Space'…). */
+    /** Touches/boutons maintenus (par code). */
     this.keys = new Set();
-    /** Touches pressées durant CETTE frame (vidé par endFrame()). */
+    /** Fronts montants de CETTE frame (vidé par endFrame()). */
     this.pressed = new Set();
 
-    this.mouse = {
-      x: 0, y: 0,          // position en pixels
-      dx: 0, dy: 0,        // delta depuis la dernière frame
-      buttons: new Set(),  // 0 = gauche, 1 = molette, 2 = droit
-      wheel: 0,
+    this.mouse = { x: 0, y: 0, dx: 0, dy: 0, buttons: new Set(), wheel: 0 };
+
+    this.bindings = structuredClone(DEFAULT_BINDINGS);
+
+    this._down = (code) => {
+      if (!this.keys.has(code)) this.pressed.add(code);
+      this.keys.add(code);
     };
+    this._up = (code) => this.keys.delete(code);
 
     this._handlers = [
-      ['keydown', (e) => {
-        if (!this.keys.has(e.code)) this.pressed.add(e.code);
-        this.keys.add(e.code);
-      }],
-      ['keyup', (e) => this.keys.delete(e.code)],
+      ['keydown', (e) => this._down(e.code)],
+      ['keyup', (e) => this._up(e.code)],
       ['blur', () => { this.keys.clear(); this.mouse.buttons.clear(); }],
     ];
     for (const [ev, fn] of this._handlers) window.addEventListener(ev, fn);
@@ -36,20 +53,43 @@ export class InputManager {
         this.mouse.x = e.clientX;
         this.mouse.y = e.clientY;
       }],
-      ['mousedown', (e) => this.mouse.buttons.add(e.button)],
-      ['mouseup', (e) => this.mouse.buttons.delete(e.button)],
+      ['mousedown', (e) => { this.mouse.buttons.add(e.button); this._down('Mouse' + e.button); }],
+      ['mouseup', (e) => { this.mouse.buttons.delete(e.button); this._up('Mouse' + e.button); }],
       ['wheel', (e) => { this.mouse.wheel += e.deltaY; }],
       ['contextmenu', (e) => e.preventDefault()],
     ];
     for (const [ev, fn] of this._domHandlers) domElement.addEventListener(ev, fn);
   }
 
-  /** Touche maintenue ? */
+  /* ---------- couche d'actions ---------- */
+
+  /** L'action est-elle maintenue ? */
+  isActionDown(action) {
+    const binds = this.bindings[action];
+    if (!binds) return false;
+    for (const code of binds) if (this.keys.has(code)) return true;
+    return false;
+  }
+
+  /** L'action vient-elle d'être déclenchée cette frame (front montant) ? */
+  wasActionPressed(action) {
+    const binds = this.bindings[action];
+    if (!binds) return false;
+    for (const code of binds) if (this.pressed.has(code)) return true;
+    return false;
+  }
+
+  /** Re-lie une action à d'autres touches (futur écran d'options). */
+  rebind(action, codes) {
+    this.bindings[action] = [...codes];
+  }
+
+  /* ---------- accès bas niveau (mouvement, caméra) ---------- */
+
   isDown(code) {
     return this.keys.has(code);
   }
 
-  /** Touche pressée cette frame (front montant) ? */
   wasPressed(code) {
     return this.pressed.has(code);
   }
@@ -65,7 +105,7 @@ export class InputManager {
     return { x, z };
   }
 
-  /** À appeler en fin de frame : remet à zéro les deltas et les fronts. */
+  /** À appeler en fin de frame : purge deltas souris et fronts montants. */
   endFrame() {
     this.pressed.clear();
     this.mouse.dx = 0;

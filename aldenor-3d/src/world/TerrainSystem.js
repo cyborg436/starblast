@@ -12,10 +12,11 @@ const LOAD_RADIUS = 3;   // chunks chargés : (2×3+1)² = 49 → ~350 m de vue
 const UNLOAD_RADIUS = 4; // marge anti-oscillation avant déchargement
 
 export class TerrainSystem {
-  constructor(scene, gen, poiManager) {
+  constructor(scene, gen, poiManager, physics = null) {
     this.scene = scene;
     this.gen = gen;
     this.poiManager = poiManager;
+    this.physics = physics;
     this.chunks = new Map(); // "cx,cz" → Chunk
     this._queue = [];
   }
@@ -65,7 +66,7 @@ export class TerrainSystem {
   _load(cx, cz) {
     const key = cx + ',' + cz;
     if (this.chunks.has(key)) return;
-    const chunk = new Chunk(this.gen, cx, cz, this.poiManager);
+    const chunk = new Chunk(this.gen, cx, cz, this.poiManager, this.physics);
     chunk.addTo(this.scene);
     this.chunks.set(key, chunk);
   }

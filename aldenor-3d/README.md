@@ -14,17 +14,30 @@ npm run preview   # sert le build
 npm run lint      # ESLint sur src/
 ```
 
-## État actuel — Phase 3 : joueur jouable
+## État actuel — Phase 3 : personnage jouable (physique)
 
-- **Héros low-poly procédural** (`entities/Player.js`) : modèle articulé
-  (jambes/bras/tête pivotés), épée dans le dos, animations procédurales
-  (marche, sprint, idle respiration, saut, brasse)
-- **Contrôleur** : ZQSD/WASD relatifs à la caméra, sprint (Maj 9,5 m/s),
-  saut avec gravité, collé au terrain via `getHeightAt`, **nage**
-  automatique dans les lacs (flottaison, vitesse réduite)
-- **Caméra 3ᵉ personne** (`core/CameraController.js`) : pointer lock au
-  clic (ou glisser-clic), tangage borné, zoom molette 2,5–16 m, jamais
-  sous le terrain, suivi amorti — le streaming de chunks suit le joueur
+- **Modèle du héros** (`entities/HeroModel.js`) : charge un `.glb` riggé
+  **Mixamo** depuis `public/models/hero.glb` (auto-échelle 1,80 m,
+  animations en clips) ; **fallback** héros low-poly procédural si absent
+  (voir `public/models/README.md` pour préparer l'export)
+- **State machine d'animations** (`entities/AnimationController.js`) :
+  états `idle/walk/run/jump/fall/swim/attack_light_1-3/attack_heavy/
+  dodge/hit/dead`, crossfade 0,18 s, API unique `play(état, options)` ;
+  deux backends interchangeables (`MixerBackend` .glb / `ProceduralBackend`)
+- **Contrôleur physique** (`entities/Player.js`, `core/Physics.js`) :
+  capsule cinématique **rapier3d** + `KinematicCharacterController`
+  (autostep marches ≤ 55 cm, pente max 52°, snap-to-ground) sur des
+  colliders **trimesh par chunk** identiques au maillage de rendu →
+  suivi exact du relief, **0 clipping** ; déplacement relatif caméra,
+  saut/gravité, sprint & esquive à **stamina**, nage
+- **Combat de base** : combo attaque légère ×3 (avec buffering
+  d'enchaînement), attaque lourde, esquive-roulade avec **i-frames**
+- **Caméra 3ᵉ personne** (`core/CameraController.js`) : orbite type
+  Genshin/BOTW, pointer lock, zoom molette 2,5–16 m, **collision par
+  raycast physique** (se rapproche si le terrain coupe la vue), suivi amorti
+- **Entrées rebindables** (`input/InputManager.js`) : couche d'actions
+  `isActionDown('sprint')` / `wasActionPressed('dodge')` + `rebind()`,
+  boutons souris virtualisés — aucune touche codée en dur dans le gameplay
 
 ## Phase 2 : monde ouvert
 

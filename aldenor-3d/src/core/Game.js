@@ -43,19 +43,29 @@ export class Game {
       // { type: 'gltf', name: 'player', url: new URL('../assets/models/player.glb', import.meta.url).href },
     ]);
 
-    this.world = new World(this.scenes.scene, this.assets, this.renderer.capabilities.getMaxAnisotropy());
+    // physique rapier3d (WASM) — avant le monde : les chunks enregistrent
+    // leur collider trimesh à la génération
+    const { Physics } = await import('./Physics.js');
+    this.physics = await Physics.create();
 
-    // Joueur + caméra troisième personne (le streaming de terrain suit le joueur)
+    this.world = new World(this.scenes.scene, this.assets, this.physics);
+
+    // Joueur (capsule + character controller) + caméra 3e personne avec collision
+    const { loadHeroModel } = await import('../entities/HeroModel.js');
     const { Player } = await import('../entities/Player.js');
     const { CameraController } = await import('./CameraController.js');
-    this.player = new Player(this.world, this.input);
+    const hero = await loadHeroModel(this.assets);
+    this.player = new Player(this.world, this.input, this.physics, hero);
     this.player.addTo(this.scenes.scene);
-    this.cameraCtrl = new CameraController(this.scenes.camera, this.canvas, this.input, this.world, this.player.position);
+    this.cameraCtrl = new CameraController(this.scenes.camera, this.canvas, this.input, this.world, this.player.position, this.physics);
     this.player.cameraCtrl = this.cameraCtrl;
     this.world.track(this.player.position);
 
-    // ordre d'une frame : joueur → caméra → monde (streaming/ambiance) → HUD
-    this.updatables.push(this.player, this.cameraCtrl, this.world, this.hud);
+    // ordre d'une frame : physique → joueur → caméra → monde → HUD
+    this.updatables.push(
+      { update: (dt) => this.physics.step(dt) },
+      this.player, this.cameraCtrl, this.world, this.hud,
+    );
 
     this.hud.attachWorld(this.world);
     this.hud.attachPlayer(this.player);

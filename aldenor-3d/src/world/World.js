@@ -13,12 +13,12 @@ import { waterUniforms } from './Water.js';
  * ambiance par biome (brouillard progressif + hook musique).
  */
 export class World {
-  constructor(scene, _assets, _maxAnisotropy, seed = 1337) {
+  constructor(scene, _assets, physics = null, seed = 1337) {
     this.scene = scene;
 
     this.gen = new WorldGen(seed);
     this.pois = new POIManager(this.gen); // branche l'aplanissement AVANT le premier chunk
-    this.terrain = new TerrainSystem(scene, this.gen, this.pois);
+    this.terrain = new TerrainSystem(scene, this.gen, this.pois, physics);
     this.lighting = new Lighting(scene);
     this.sky = new SkyDome(scene);
 

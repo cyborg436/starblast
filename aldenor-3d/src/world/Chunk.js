@@ -22,9 +22,10 @@ const terrainMaterial = new THREE.MeshStandardMaterial({
 });
 
 export class Chunk {
-  constructor(gen, cx, cz, poiManager) {
+  constructor(gen, cx, cz, poiManager, physics = null) {
     this.cx = cx;
     this.cz = cz;
+    this.physics = physics;
     this.group = new THREE.Group();
     this.group.name = `chunk_${cx}_${cz}`;
 
@@ -91,6 +92,9 @@ export class Chunk {
     this.terrain.castShadow = false;
     this.group.add(this.terrain);
 
+    // collider physique : le MÊME maillage que le rendu (fidélité exacte)
+    this.terrainCollider = physics ? physics.addTerrainMesh(positions, new Uint32Array(idx)) : null;
+
     // --- eau ---
     this.water = makeWaterTile(cx, cz, size, minH);
     if (this.water) this.group.add(this.water);
@@ -107,6 +111,7 @@ export class Chunk {
 
   dispose(scene) {
     scene.remove(this.group);
+    if (this.physics) this.physics.removeCollider(this.terrainCollider);
     this.terrain.geometry.dispose();
     if (this.water) this.water.geometry.dispose();
     for (const im of this.props) im.dispose(); // géométries de props partagées : non disposées

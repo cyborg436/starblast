@@ -3,10 +3,16 @@ import { Entity } from './Entity.js';
 import { WATER_LEVEL } from '../world/Biomes.js';
 
 /**
- * Player — le héros : modèle low-poly stylisé 100 % procédural,
- * déplacement relatif à la caméra (ZQSD/WASD), sprint, saut avec
- * gravité, nage dans les lacs, animation de marche procédurale.
- * Collé au terrain via world.getHeightAt (aucune physique lourde).
+ * Player — contrôleur de personnage physique :
+ *  - capsule cinématique rapier3d + KinematicCharacterController
+ *    (autostep : marches, pente max 52°, snap-to-ground : aucun
+ *    flottement ni clipping sur le terrain streamé)
+ *  - déplacement relatif à la caméra, sprint (stamina), saut, nage
+ *  - actions de combat branchées sur la state machine d'animations :
+ *    combo attaque légère ×3, attaque lourde, esquive-roulade (i-frames)
+ *
+ * Toutes les entrées passent par la couche d'actions de l'InputManager
+ * (isActionDown/wasActionPressed) — aucune touche codée en dur ici.
  */
 
 const VITESSE_MARCHE = 5.5;
@@ -14,197 +20,218 @@ const VITESSE_SPRINT = 9.5;
 const VITESSE_NAGE = 3.2;
 const GRAVITE = -28;
 const IMPULSION_SAUT = 9.5;
-const NIVEAU_NAGE = WATER_LEVEL - 0.75; // le corps flotte sous la surface
+const NIVEAU_NAGE = WATER_LEVEL - 0.75;
 
-function flat(color) {
-  return new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 1 });
-}
+const COUT_ESQUIVE = 20;
+const COUT_SPRINT_PAR_S = 12;
+const REGEN_STAMINA_PAR_S = 16;
+
+const DUREE_ATTAQUES = { attack_light_1: 0.42, attack_light_2: 0.42, attack_light_3: 0.6, attack_heavy: 0.85 };
 
 export class Player extends Entity {
-  constructor(world, input) {
+  constructor(world, input, physics, hero) {
     super('joueur');
     this.world = world;
     this.input = input;
-    this.cameraCtrl = null; // fourni par Game (le déplacement suit le yaw caméra)
+    this.physics = physics;
+    this.cameraCtrl = null; // fourni par Game
+
+    // visuel : object3d (pieds) → facing (orientation) → modèle animé
+    this.hero = hero;
+    this.anim = hero.anim;
+    this.facing = new THREE.Group();
+    this.facing.add(hero.group);
+    this.object3d.add(this.facing);
+
+    // physique : capsule cinématique
+    const h = world.getHeightAt(0, 0);
+    const phy = physics.createPlayerBody(0, h + 1.2, 0);
+    this.body = phy.body;
+    this.collider = phy.collider;
+    this.controller = phy.controller;
+    this.capsuleOffset = phy.capsuleOffset;
 
     this.velY = 0;
     this.grounded = true;
     this.swimming = false;
-    this.speed = 0;          // vitesse horizontale courante (pour l'animation)
+    this.speed = 0;
+    this.invincible = false;              // i-frames de l'esquive (utilisé par le combat en Phase 4)
+    this.stamina = { val: 100, max: 100 };
+    this._staminaDelai = 0;
+
+    this.state = 'idle';
+    this._lock = null;                    // action en cours qui verrouille le mouvement
+    this._combo = 0;                      // étape du combo d'attaque légère
+    this._comboFenetre = 0;               // temps restant pour enchaîner
+    this._bufferAttaque = false;
+    this._dodgeT = 0;
+    this._dodgeDir = new THREE.Vector3();
     this._dir = new THREE.Vector3();
+    this._desired = new THREE.Vector3();
     this._targetAngle = 0;
-    this._animT = 0;
 
-    this._buildModel();
-
-    const h = world.getHeightAt(0, 0);
+    this.anim.play('idle');
     this.position.set(0, h, 0);
-  }
-
-  /* ---------- modèle : héros low-poly articulé ---------- */
-  _buildModel() {
-    const PEAU = '#f2c18e', TUNIQUE = '#3a7bd8', PANTALON = '#5a4632',
-      CHEVEUX = '#8a5a2a', CUIR = '#7a5230', METAL = '#c8d2dc';
-
-    this.model = new THREE.Group();
-    this.object3d.add(this.model);
-
-    // jambes (pivot à la hanche)
-    this.legL = new THREE.Group(); this.legL.position.set(-0.13, 0.85, 0);
-    this.legR = new THREE.Group(); this.legR.position.set(0.13, 0.85, 0);
-    for (const leg of [this.legL, this.legR]) {
-      const cuisse = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.09, 0.75, 6), flat(PANTALON));
-      cuisse.position.y = -0.38;
-      const botte = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, 0.3), flat(CUIR));
-      botte.position.set(0, -0.78, 0.05);
-      leg.add(cuisse, botte);
-      this.model.add(leg);
-    }
-
-    // torse + ceinture
-    const torse = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.72, 7), flat(TUNIQUE));
-    torse.position.y = 1.24;
-    const ceinture = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.255, 0.1, 7), flat(CUIR));
-    ceinture.position.y = 0.95;
-    this.model.add(torse, ceinture);
-
-    // bras (pivot à l'épaule)
-    this.armL = new THREE.Group(); this.armL.position.set(-0.3, 1.52, 0);
-    this.armR = new THREE.Group(); this.armR.position.set(0.3, 1.52, 0);
-    for (const arm of [this.armL, this.armR]) {
-      const manche = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.6, 6), flat(TUNIQUE));
-      manche.position.y = -0.28;
-      const main = new THREE.Mesh(new THREE.SphereGeometry(0.075, 6, 5), flat(PEAU));
-      main.position.y = -0.6;
-      arm.add(manche, main);
-      this.model.add(arm);
-    }
-
-    // tête + cheveux
-    this.head = new THREE.Group(); this.head.position.y = 1.78;
-    const crane = new THREE.Mesh(new THREE.IcosahedronGeometry(0.21, 1), flat(PEAU));
-    crane.position.y = 0.1;
-    const cheveux = new THREE.Mesh(new THREE.SphereGeometry(0.22, 7, 5, 0, Math.PI * 2, 0, Math.PI * 0.55), flat(CHEVEUX));
-    cheveux.position.y = 0.14;
-    cheveux.scale.set(1.05, 1, 1.05);
-    this.head.add(crane, cheveux);
-    this.model.add(this.head);
-
-    // épée dans le dos (décorative pour l'instant — le combat viendra)
-    const epee = new THREE.Group();
-    const lame = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.85, 0.012), flat(METAL));
-    lame.position.y = 0.45;
-    const garde = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.04), flat(CUIR));
-    const poignee = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.16, 5), flat(CUIR));
-    poignee.position.y = -0.1;
-    epee.add(lame, garde, poignee);
-    epee.position.set(0, 1.35, -0.28);
-    epee.rotation.z = 0.45;
-    this.model.add(epee);
-
-    this.object3d.traverse(o => { if (o.isMesh) o.castShadow = true; });
   }
 
   /* ---------- boucle ---------- */
   update(dt, _elapsed) {
-    const input = this.input, pos = this.position;
+    const input = this.input;
+    const t = this.body.translation();
     const yaw = this.cameraCtrl ? this.cameraCtrl.yaw : 0;
 
-    // axe d'entrée → direction monde relative à la caméra
-    // (avant du joueur = opposé de la caméra ; droite = cross(vue, up))
+    /* --- stamina --- */
+    this._staminaDelai = Math.max(0, this._staminaDelai - dt);
+    if (this._staminaDelai <= 0) {
+      this.stamina.val = Math.min(this.stamina.max, this.stamina.val + REGEN_STAMINA_PAR_S * dt);
+    }
+
+    /* --- entrées de déplacement (relatif caméra) --- */
     const { x: ax, z: az } = input.moveAxes();
     const s = Math.sin(yaw), c = Math.cos(yaw);
     this._dir.set(s * az + c * ax, 0, c * az - s * ax);
-    const bouge = this._dir.lengthSq() > 0.001;
+    const bouge = this._dir.lengthSq() > 0.001 && !this._lock;
+    if (bouge) this._dir.normalize();
 
-    const groundH = this.world.getHeightAt(pos.x, pos.z);
-    this.swimming = groundH < NIVEAU_NAGE - 0.2;
+    /* --- nage ? --- */
+    const fond = this.world.getHeightAt(t.x, t.z);
+    this.swimming = fond < NIVEAU_NAGE - 0.2;
 
-    // vitesse cible
-    const sprint = input.isDown('ShiftLeft') || input.isDown('ShiftRight');
-    const cible = bouge ? (this.swimming ? VITESSE_NAGE : sprint ? VITESSE_SPRINT : VITESSE_MARCHE) : 0;
-    this.speed += (cible - this.speed) * Math.min(dt * 10, 1);
+    /* --- actions : esquive / attaques / saut --- */
+    if (!this._lock && !this.swimming) {
+      if (input.wasActionPressed('dodge') && this.grounded && this.stamina.val >= COUT_ESQUIVE) {
+        this._startDodge(bouge);
+      } else if (input.wasActionPressed('attack_light') && this.grounded) {
+        this._startAttack(false);
+      } else if (input.wasActionPressed('attack_heavy') && this.grounded) {
+        this._startAttack(true);
+      }
+    } else if (this._lock && this._lock.startsWith('attack_light') && input.wasActionPressed('attack_light')) {
+      this._bufferAttaque = true; // enchaîne le combo à la fin du coup courant
+    }
+    this._comboFenetre = Math.max(0, this._comboFenetre - dt);
+    if (this._comboFenetre <= 0 && !this._lock) this._combo = 0;
 
-    if (bouge) {
-      this._dir.normalize();
-      pos.x += this._dir.x * this.speed * dt;
-      pos.z += this._dir.z * this.speed * dt;
-      // le modèle se tourne vers la direction de déplacement
+    /* --- vitesse horizontale --- */
+    let cible = 0;
+    if (this._lock === 'dodge') {
+      this._dodgeT -= dt;
+      cible = 11 * Math.max(this._dodgeT / 0.42, 0.15); // roulade décélérante
+      this._dir.copy(this._dodgeDir);
+    } else if (this._lock && this._lock.startsWith('attack')) {
+      cible = 1.6; // léger pas en avant pendant le coup
+      this._dir.set(Math.sin(this._targetAngle), 0, Math.cos(this._targetAngle));
+    } else if (bouge) {
+      const veutSprinter = input.isActionDown('sprint') && this.grounded && this.stamina.val > 0;
+      if (veutSprinter) {
+        this.stamina.val = Math.max(0, this.stamina.val - COUT_SPRINT_PAR_S * dt);
+        this._staminaDelai = 0.8;
+      }
+      cible = this.swimming ? VITESSE_NAGE : veutSprinter ? VITESSE_SPRINT : VITESSE_MARCHE;
       this._targetAngle = Math.atan2(this._dir.x, this._dir.z);
     }
-    // rotation douce (chemin le plus court)
-    let dA = this._targetAngle - this.model.rotation.y;
+    this.speed += (cible - this.speed) * Math.min(dt * 10, 1);
+
+    /* --- rotation douce du modèle vers la direction --- */
+    let dA = this._targetAngle - this.facing.rotation.y;
     dA = ((dA + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
-    this.model.rotation.y += dA * Math.min(dt * 12, 1);
+    this.facing.rotation.y += dA * Math.min(dt * 12, 1);
 
-    // pentes trop raides : on glisse vers le bas (pas d'escalade verticale)
-    const newGroundH = this.world.getHeightAt(pos.x, pos.z);
-
+    /* --- vertical : gravité / saut / flottaison --- */
+    let dy;
     if (this.swimming) {
-      // nage : flotte au niveau de l'eau, pas de gravité ni de saut
       this.velY = 0;
       this.grounded = false;
-      pos.y += (NIVEAU_NAGE - pos.y) * Math.min(dt * 6, 1);
+      const cibleY = NIVEAU_NAGE + this.capsuleOffset;
+      dy = (cibleY - t.y) * Math.min(dt * 6, 1);
     } else {
-      // gravité + saut
-      if (this.grounded && input.wasPressed('Space')) {
+      if (this.grounded && !this._lock && input.wasActionPressed('jump')) {
         this.velY = IMPULSION_SAUT;
         this.grounded = false;
+        this.anim.play('jump');
       }
       this.velY += GRAVITE * dt;
-      pos.y += this.velY * dt;
-      if (pos.y <= newGroundH) {
-        pos.y = newGroundH;
-        this.velY = 0;
-        this.grounded = true;
-      }
+      if (this.grounded && this.velY < -2) this.velY = -2; // colle au sol
+      dy = this.velY * dt;
     }
 
-    this._animate(dt, bouge);
+    /* --- résolution physique (capsule vs terrain) --- */
+    this._desired.set(this._dir.x * this.speed * dt, dy, this._dir.z * this.speed * dt);
+    this.controller.computeColliderMovement(this.collider, this._desired);
+    const move = this.controller.computedMovement();
+    this.body.setNextKinematicTranslation({ x: t.x + move.x, y: t.y + move.y, z: t.z + move.z });
+
+    if (!this.swimming) {
+      const wasGrounded = this.grounded;
+      this.grounded = this.controller.computedGrounded();
+      if (this.grounded && !wasGrounded) this.velY = 0; // atterrissage
+      // plafonne la vitesse verticale résiduelle contre les plafonds/pentes
+      if (move.y < dy - 0.001 && this.velY > 0) this.velY = 0;
+    }
+
+    /* --- synchronisation visuelle (pieds de la capsule) --- */
+    this.position.set(t.x + move.x, t.y + move.y - this.capsuleOffset, t.z + move.z);
+
+    /* --- choix de l'état d'animation --- */
+    if (!this._lock) {
+      let etat;
+      if (this.swimming) etat = 'swim';
+      else if (!this.grounded) etat = this.velY > 1 ? 'jump' : 'fall';
+      else if (this.speed > 0.3) etat = (cible >= VITESSE_SPRINT - 0.5) ? 'run' : 'walk';
+      else etat = 'idle';
+      this.anim.play(etat);
+      this.state = etat;
+    }
+    this.anim.update(dt, { speed: this.speed });
   }
 
-  /* ---------- animation procédurale ---------- */
-  _animate(dt, bouge) {
-    const k = this.speed / VITESSE_MARCHE;
-    this._animT += dt * (4 + this.speed * 1.4);
-    const t = this._animT;
+  /* ---------- actions ---------- */
+  _startDodge(bouge) {
+    this._lock = 'dodge';
+    this.state = 'dodge';
+    this._dodgeT = 0.42;
+    this.invincible = true;
+    this.stamina.val -= COUT_ESQUIVE;
+    this._staminaDelai = 0.8;
+    // roulade dans la direction d'entrée, sinon vers l'avant du perso
+    if (bouge) this._dodgeDir.copy(this._dir);
+    else this._dodgeDir.set(Math.sin(this.facing.rotation.y), 0, Math.cos(this.facing.rotation.y));
+    this._targetAngle = Math.atan2(this._dodgeDir.x, this._dodgeDir.z);
+    this.anim.play('dodge', { force: true, onFinished: () => this._unlock() });
+  }
 
-    if (this.swimming) {
-      // brasse stylisée
-      const s = Math.sin(t * 0.8);
-      this.model.rotation.x = 0.9;
-      this.armL.rotation.x = -1.2 + s * 0.8;
-      this.armR.rotation.x = -1.2 - s * 0.8;
-      this.legL.rotation.x = s * 0.5;
-      this.legR.rotation.x = -s * 0.5;
-      this.position.y += Math.sin(t * 0.5) * 0.01;
-      return;
-    }
-    this.model.rotation.x = 0;
-
-    if (!this.grounded) {
-      // saut : bras levés, jambes fléchies
-      this.armL.rotation.x = -2.4;
-      this.armR.rotation.x = -2.4;
-      this.legL.rotation.x = 0.5;
-      this.legR.rotation.x = -0.3;
-      return;
-    }
-    if (bouge && k > 0.05) {
-      const swing = Math.sin(t) * Math.min(k, 1.4) * 0.8;
-      this.legL.rotation.x = swing;
-      this.legR.rotation.x = -swing;
-      this.armL.rotation.x = -swing * 0.8;
-      this.armR.rotation.x = swing * 0.8;
-      this.model.position.y = Math.abs(Math.sin(t)) * 0.06 * k;
+  _startAttack(lourde) {
+    let etat;
+    if (lourde) {
+      etat = 'attack_heavy';
+      this._combo = 0;
     } else {
-      // idle : respiration
-      const b = Math.sin(t * 0.4) * 0.03;
-      this.legL.rotation.x += (0 - this.legL.rotation.x) * Math.min(dt * 8, 1);
-      this.legR.rotation.x += (0 - this.legR.rotation.x) * Math.min(dt * 8, 1);
-      this.armL.rotation.x += (b - this.armL.rotation.x) * Math.min(dt * 8, 1);
-      this.armR.rotation.x += (b - this.armR.rotation.x) * Math.min(dt * 8, 1);
-      this.model.position.y *= 0.9;
+      this._combo = this._comboFenetre > 0 ? (this._combo % 3) + 1 : 1;
+      etat = `attack_light_${this._combo}`;
     }
+    this._lock = etat;
+    this.state = etat;
+    // le coup part face à la caméra
+    if (this.cameraCtrl) this._targetAngle = this.cameraCtrl.yaw + Math.PI;
+    this.anim.play(etat, {
+      force: true,
+      onFinished: () => {
+        this._comboFenetre = 0.55;
+        this._unlock();
+        if (this._bufferAttaque) {
+          this._bufferAttaque = false;
+          this._startAttack(false);
+        }
+      },
+    });
+    // durée de secours si le backend ne notifie pas (clip manquant)
+    const duree = DUREE_ATTAQUES[etat] ?? 0.5;
+    clearTimeout(this._lockTimer);
+    this._lockTimer = setTimeout(() => { if (this._lock === etat) { this._comboFenetre = 0.55; this._unlock(); } }, duree * 1000 + 250);
+  }
+
+  _unlock() {
+    this._lock = null;
+    this.invincible = false;
   }
 }

@@ -7,11 +7,12 @@ import * as THREE from 'three';
  * suivi amorti. Remplace les OrbitControls de debug.
  */
 export class CameraController {
-  constructor(camera, canvas, input, world, target) {
+  constructor(camera, canvas, input, world, target, physics = null) {
     this.camera = camera;
     this.canvas = canvas;
     this.input = input;
     this.world = world;
+    this.physics = physics;
     this.target = target; // Vector3 vivant (position du joueur)
 
     this.yaw = Math.PI;    // caméra derrière le joueur au départ (regarde vers -Z... voir Player)
@@ -51,18 +52,33 @@ export class CameraController {
     // position idéale sur l'orbite
     const focusY = this.target.y + 1.7;
     const cosP = Math.cos(this.pitch);
-    const px = this.target.x + Math.sin(this.yaw) * cosP * this.distance;
-    const pz = this.target.z + Math.cos(this.yaw) * cosP * this.distance;
-    const py = focusY + Math.sin(this.pitch) * this.distance;
+    const ox = Math.sin(this.yaw) * cosP, oz = Math.cos(this.yaw) * cosP, oy = Math.sin(this.pitch);
 
-    this._pos.set(px, py, pz);
+    // collision : raycast tête du joueur → position idéale ; si le
+    // terrain (colline, falaise) coupe la ligne, la caméra se rapproche
+    let dist = this.distance;
+    let collision = false;
+    if (this.physics) {
+      const hit = this.physics.raycastTerrain(
+        { x: this.target.x, y: focusY, z: this.target.z },
+        { x: ox, y: oy, z: oz },
+        this.distance + 0.4,
+      );
+      if (hit !== null && hit < this.distance) {
+        dist = Math.max(0.9, hit - 0.35);
+        collision = true;
+      }
+    }
 
-    // ne jamais passer sous le terrain (ni sous l'eau de justesse)
-    const sol = this.world.getHeightAt(px, pz);
-    if (this._pos.y < sol + 0.5) this._pos.y = sol + 0.5;
+    this._pos.set(this.target.x + ox * dist, focusY + oy * dist, this.target.z + oz * dist);
 
-    // amortissement (téléportation instantanée à la première frame)
-    const k = this._first ? 1 : Math.min(dt * 10, 1);
+    // filet de sécurité : jamais sous la surface du terrain
+    const sol = this.world.getHeightAt(this._pos.x, this._pos.z);
+    if (this._pos.y < sol + 0.4) this._pos.y = sol + 0.4;
+
+    // amortissement — plus nerveux quand la caméra évite un obstacle,
+    // instantané à la première frame
+    const k = this._first ? 1 : Math.min(dt * (collision ? 22 : 10), 1);
     this._first = false;
     this.camera.position.lerp(this._pos, k);
 
