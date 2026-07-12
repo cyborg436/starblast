@@ -20,6 +20,15 @@ const IMPULSION_SAUT = 9.5;
 const NIVEAU_NAGE = WATER_LEVEL - 0.75;
 const PV_MAX = 100;
 
+// Escalade (climbing)
+const CLIMB_ANGLE_MIN = 70; // degrés : parois ≥ 70° de la verticale
+const CLIMB_STAMINA_DRAIN = 30; // stamina/sec en escalade
+const CLIMB_SPEED = 4; // vitesse verticale d'ascension
+
+// Planeur (gliding)
+const GLIDE_MIN_HEIGHT = 2; // hauteur minimale pour activer le planeur
+const GLIDE_DRAG = 0.15; // ralentissement vertical en planeur
+
 export class Player extends Entity {
   constructor(world, input, physics, hero) {
     super('joueur');
@@ -54,11 +63,15 @@ export class Player extends Entity {
     this.velY = 0;
     this.grounded = true;
     this.swimming = false;
+    this.climbing = false;
+    this.gliding = false;
     this.speed = 0;
     this.inputDir = new THREE.Vector3(); // direction d'entrée monde (lue par DodgeSystem)
     this._kb = new THREE.Vector3();
     this._desired = new THREE.Vector3();
     this._targetAngle = 0;
+    this._climbNormal = new THREE.Vector3(); // normale de la paroi
+    this._jumpStart = 0; // position Y au saut pour déterminer hauteur
 
     this.anim.play('idle');
     this.position.set(0, h, 0);
@@ -70,6 +83,40 @@ export class Player extends Entity {
 
   applyKnockback(vx, vz) {
     this._kb.set(vx, 0, vz);
+  }
+
+  _detectWall() {
+    if (this.grounded || this.swimming) return null;
+    const t = this.body.translation();
+    const rayDir = new THREE.Vector3(this.inputDir.x, 0, this.inputDir.z).normalize();
+    const hit = this.physics.raycastTerrainNormal(
+      { x: t.x, y: t.y, z: t.z },
+      { x: rayDir.x, y: 0, z: rayDir.z },
+      0.5 // courte portée pour tester la paroi adjacente
+    );
+    if (!hit) return null;
+    const angle = Math.acos(Math.abs(hit.normal.y)) * (180 / Math.PI);
+    return angle >= CLIMB_ANGLE_MIN ? { hit, angle } : null;
+  }
+
+  _startClimbing(wall) {
+    this.climbing = true;
+    this._climbNormal.set(wall.hit.normal.x, wall.hit.normal.y, wall.hit.normal.z);
+    this.velY = 0;
+    this.grounded = false;
+  }
+
+  _stopClimbing() {
+    this.climbing = false;
+  }
+
+  _startGliding() {
+    this.gliding = true;
+    this.anim.play('glide');
+  }
+
+  _stopGliding() {
+    this.gliding = false;
   }
 
   die() {
@@ -153,10 +200,43 @@ export class Player extends Entity {
         this.velY = IMPULSION_SAUT;
         this.grounded = false;
         this.anim.play('jump');
+        this._jumpStart = t.y;
       }
-      this.velY += GRAVITE * dt;
-      if (this.grounded && this.velY < -2) this.velY = -2;
+
+      /* --- escalade --- */
+      if (this.climbing) {
+        const upInput = bouge && this.inputDir.z > 0.3; // input forward = climb
+        if (upInput) {
+          this.velY = CLIMB_SPEED;
+          if (this.combat) this.combat.stamina.drain(dt * CLIMB_STAMINA_DRAIN);
+        } else {
+          this.velY = -CLIMB_SPEED * 0.4; // descendre lentement si pas d'input
+        }
+        const wall = this._detectWall();
+        if (!wall) this._stopClimbing();
+      } else {
+        /* --- planeur --- */
+        const heightGain = Math.max(0, this._jumpStart - t.y);
+        if (!this.grounded && !this.gliding && heightGain > GLIDE_MIN_HEIGHT &&
+            input.isActionDown('jump') && this.velY < 0) {
+          this._startGliding();
+        }
+        if (this.gliding) {
+          this.velY = Math.max(this.velY + GRAVITE * dt, -CLIMB_SPEED * 0.5);
+          if (this.grounded) this._stopGliding();
+        } else {
+          this.velY += GRAVITE * dt;
+        }
+      }
+
+      if (this.grounded && !this.climbing && this.velY < -2) this.velY = -2;
       dy = this.velY * dt;
+
+      /* --- tentative d'escalade (si pas déjà en escalade) --- */
+      if (!this.climbing && !this.grounded && this.inputDir.lengthSq() > 0.001) {
+        const wall = this._detectWall();
+        if (wall) this._startClimbing(wall);
+      }
     }
 
     /* --- résolution physique --- */
@@ -180,6 +260,8 @@ export class Player extends Entity {
     if (!(this.combat && this.combat.lock)) {
       let etat;
       if (this.swimming) etat = 'swim';
+      else if (this.climbing) etat = 'climb';
+      else if (this.gliding) etat = 'glide';
       else if (!this.grounded) etat = this.velY > 1 ? 'jump' : 'fall';
       else if (this.speed > 0.3) etat = cible >= VITESSE_SPRINT - 0.5 ? 'run' : 'walk';
       else etat = 'idle';
