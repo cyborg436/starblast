@@ -15,7 +15,7 @@ import * as THREE from 'three';
  */
 
 export const ANIM_STATES = [
-  'idle', 'walk', 'run', 'jump', 'fall', 'swim',
+  'idle', 'walk', 'run', 'jump', 'fall', 'swim', 'climb', 'glide',
   'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy',
   'charge', 'dodge', 'hit', 'tired', 'dead',
 ];
@@ -64,6 +64,8 @@ const CLIP_ALIASES = {
   jump: ['jump'],
   fall: ['fall', 'falling'],
   swim: ['swim', 'tread'],
+  climb: ['climb', 'climbing'],
+  glide: ['glide', 'gliding', 'fly'],
   attack_light_1: ['attack_light_1', 'attack1', 'slash1', 'slash', 'attack'],
   attack_light_2: ['attack_light_2', 'attack2', 'slash2'],
   attack_light_3: ['attack_light_3', 'attack3', 'slash3'],
@@ -77,7 +79,7 @@ const CLIP_ALIASES = {
 
 /** Si un clip manque, on retombe sur un voisin plausible. */
 const FALLBACKS = {
-  walk: 'run', run: 'walk', fall: 'jump', swim: 'idle',
+  walk: 'run', run: 'walk', fall: 'jump', swim: 'idle', climb: 'idle', glide: 'fall',
   attack_light_2: 'attack_light_1', attack_light_3: 'attack_light_1',
   attack_heavy: 'attack_light_1', charge: 'idle', dodge: 'jump',
   hit: 'idle', tired: 'hit', dead: 'idle',
@@ -279,6 +281,20 @@ export class ProceduralBackend {
         model.rotation.x = 0.9;
         armL.rotation.x = -1.2 + s * 0.8; armR.rotation.x = -1.2 - s * 0.8;
         legL.rotation.x = s * 0.5; legR.rotation.x = -s * 0.5;
+        break;
+      }
+      case 'climb': { // agrippé à la paroi : bras qui montent en alternance
+        const s = Math.sin(t * 4);
+        model.rotation.x = -0.15;
+        armL.rotation.x = -2.4 + s * 0.6; armR.rotation.x = -2.4 - s * 0.6;
+        legL.rotation.x = -s * 0.4; legR.rotation.x = s * 0.4;
+        break;
+      }
+      case 'glide': { // planeur : corps penché, bras écartés
+        model.rotation.x = 0.55;
+        to(armL, 'x', -1.5); to(armR, 'x', -1.5);
+        armL.rotation.z = 0.5; armR.rotation.z = -0.5;
+        to(legL, 'x', -0.2); to(legR, 'x', -0.2);
         break;
       }
     }

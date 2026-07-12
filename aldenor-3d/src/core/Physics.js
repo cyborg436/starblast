@@ -52,6 +52,17 @@ export class Physics {
     return hit ? hit.timeOfImpact : null;
   }
 
+  /**
+   * Raycast terrain avec NORMALE de surface (pour l'escalade : détecter
+   * une paroi et son orientation). Retourne { toi, normal:{x,y,z} } ou null.
+   */
+  raycastTerrainNormal(origin, dir, maxToi) {
+    this._ray.origin = origin;
+    this._ray.dir = dir;
+    const hit = this.world.castRayAndGetNormal(this._ray, maxToi, true, undefined, groups(0xffff, G_TERRAIN));
+    return hit ? { toi: hit.timeOfImpact, normal: hit.normal } : null;
+  }
+
   /** Capsule cinématique + character controller pour le joueur. */
   createPlayerBody(x, y, z, halfHeight = 0.55, radius = 0.35) {
     const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z);
