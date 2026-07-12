@@ -14,7 +14,30 @@ npm run preview   # sert le build
 npm run lint      # ESLint sur src/
 ```
 
-## État actuel — Phase 5 : PNJ, dialogues et quêtes
+## État actuel — Phase 6 : inventaire, équipement, loot, boutiques
+
+Construit sur `data/items.json` (objets, stats, prix, boutiques).
+
+- **Inventaire** (`ui/InventoryUI.js`, touche I) : grille d'objets
+  empilables avec icônes dessinées au canvas (`ui/ItemIcons.js`), clic =
+  équiper / consommer, stats du personnage, or. HTML/CSS, sans drag & drop
+- **Monnaie** : l'or (repris de la 2D), affiché en permanence au HUD
+- **Équipement** (`systems/Equipment.js`) : 4 emplacements (arme, armure,
+  casque, anneau) dont les stats de `items.json` modifient RÉELLEMENT le
+  combat (Phase 4) : atk → multiplicateur de dégâts, pv → PV max, pm →
+  stamina max, def → réduction des dégâts + **résistance élémentaire**
+- **Loot au sol** (`systems/LootSystem.js`) : à la mort d'un mob, tirage
+  dans sa table (`mobs.json`) → objets physiques flottants, ramassés au
+  contact (aimant de proximité) ; l'or en pièces
+- **Boutiques** (`systems/ShopSystem.js`) : marchand & forgeron ouvrent
+  une boutique depuis le dialogue (Phase 5), onglets Acheter/Vendre,
+  stocks de `items.json`, revente à 40 %
+- **Amélioration d'arme** : montée de niveau de l'arme équipée contre
+  minerai + or (à la forge dans l'inventaire), +3 atk/niveau — boucle de
+  progression action-RPG
+- Sauvegarde étendue (équipement + améliorations)
+
+## Phase 5 : PNJ, dialogues et quêtes
 
 Construit sur les données extraites en Phase 0 (`data/npcs.json`,
 `data/dialogues.json`, `data/quests.json`).

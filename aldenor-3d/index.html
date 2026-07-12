@@ -225,6 +225,89 @@
       padding: 9px 14px; font: 13px monospace; color: #e0d8c0; transition: all .12s;
     }
     .dlg-choix:hover { background: rgba(60,50,30,.95); border-color: #ffd24a; color: #fff; transform: translateX(3px); }
+
+    /* ---- Phase 6 : monnaie, inventaire, boutique ---- */
+    #hud-gold {
+      position: fixed; top: 10px; right: 16px; z-index: 50;
+      font: bold 15px monospace; color: #ffd24a; text-shadow: 1px 1px 2px #000;
+      background: rgba(10,10,18,.55); padding: 4px 12px; border-radius: 4px;
+    }
+    #inventory, #shop {
+      position: fixed; inset: 0; z-index: 72; display: none;
+      background: rgba(6,6,12,.86); padding: 4vh 0; overflow-y: auto;
+      color: #e8dcc0;
+    }
+    #inventory.on, #shop.on { display: block; }
+    .inv-head, .shop-head {
+      max-width: 860px; margin: 0 auto 16px; padding: 0 24px;
+      font: bold 22px Georgia, serif; color: #ffe9b0; letter-spacing: 2px;
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+    .inv-head .j-close { font: 11px monospace; color: #8a8270; letter-spacing: 0; }
+    .inv-body { max-width: 860px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
+    .inv-sub { font: bold 12px monospace; color: #b8a870; letter-spacing: 2px; text-transform: uppercase; margin: 14px 0 7px; border-bottom: 1px solid #4a4030; padding-bottom: 3px; }
+    #inv-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .eq-slot {
+      background: rgba(24,20,14,.8); border: 1px solid #5a4e38; border-radius: 6px;
+      min-height: 58px; padding: 6px 8px; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; cursor: pointer; text-align: center; position: relative;
+    }
+    .eq-slot:hover { border-color: #ffd24a; }
+    .eq-slot img { width: 34px; height: 34px; }
+    .eq-slot .s-nom { font: 10px monospace; color: #e8dcc0; }
+    .eq-slot .s-stat { font: 9px monospace; color: #8ad86a; }
+    .eq-slot .s-vide { font: 11px monospace; color: #6a6252; }
+    #inv-stats { font: 12px/1.7 monospace; color: #c8c0a8; }
+    #inv-stats b { color: #ffe9b0; }
+    #inv-upgrade { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font: 11px monospace; }
+    #inv-upgrade button {
+      background: #3a2e14; border: 1px solid #b8862a; color: #ffd24a; border-radius: 5px;
+      padding: 6px 10px; font: 11px monospace; cursor: pointer;
+    }
+    #inv-upgrade button:disabled { opacity: .4; cursor: not-allowed; }
+    #inv-upgrade .cost.manque { color: #d87a5a; }
+    #inv-upgrade .dim { color: #6a6252; }
+    #inv-gold { margin-top: 10px; font: bold 15px monospace; color: #ffd24a; }
+    #inv-grid { display: grid; grid-template-columns: repeat(auto-fill, 92px); gap: 8px; align-content: start; }
+    .inv-cell {
+      width: 92px; height: 92px; background: rgba(24,20,14,.8); border: 1px solid #4a4030;
+      border-radius: 6px; padding: 5px; display: flex; flex-direction: column; align-items: center;
+      position: relative; cursor: default;
+    }
+    .inv-cell.act { cursor: pointer; }
+    .inv-cell.act:hover { border-color: #ffd24a; background: rgba(50,42,26,.9); }
+    .inv-cell img { width: 40px; height: 40px; }
+    .inv-cell .qty { position: absolute; top: 3px; right: 5px; font: bold 12px monospace; color: #fff; text-shadow: 1px 1px 2px #000; }
+    .inv-cell .cell-nom { font: 9px/1.1 monospace; color: #d8ccb0; text-align: center; margin-top: 2px; }
+    .inv-cell .cell-stat { font: 9px monospace; color: #8ad86a; }
+    #inv-grid .vide, #shop-list .vide { color: #6a6252; font: 13px monospace; grid-column: 1/-1; }
+
+    .shop-head { max-width: 720px; }
+    #shop-title { color: #ffe9b0; }
+    #shop-gold { font: bold 15px monospace; color: #ffd24a; }
+    #shop-close { cursor: pointer; color: #a89e88; font-size: 20px; }
+    #shop-close:hover { color: #fff; }
+    #shop-tabs { max-width: 720px; margin: 0 auto 10px; padding: 0 24px; display: flex; gap: 8px; }
+    #shop-tabs button {
+      background: rgba(24,20,14,.8); border: 1px solid #5a4e38; color: #b8a870; border-radius: 5px;
+      padding: 6px 18px; font: 12px monospace; cursor: pointer;
+    }
+    #shop-tabs button.on { border-color: #ffd24a; color: #ffe9b0; background: rgba(50,42,26,.9); }
+    #shop-list { max-width: 720px; margin: 0 auto; padding: 0 24px; display: flex; flex-direction: column; gap: 6px; }
+    .shop-row {
+      display: grid; grid-template-columns: 40px 150px 1fr 80px 90px; align-items: center; gap: 10px;
+      background: rgba(24,20,14,.75); border: 1px solid #4a4030; border-radius: 6px; padding: 6px 12px;
+    }
+    .shop-row.cant { opacity: .5; }
+    .shop-row img { width: 34px; height: 34px; }
+    .shop-row .sr-nom { font: bold 12px monospace; color: #e8dcc0; }
+    .shop-row .sr-desc { font: 10px monospace; color: #8a8270; }
+    .shop-row .sr-prix { font: bold 12px monospace; color: #ffd24a; text-align: right; }
+    .shop-row button {
+      background: #2a3a5a; border: 1px solid #4a6a9a; color: #cfe0ea; border-radius: 5px;
+      padding: 5px 8px; font: 11px monospace; cursor: pointer;
+    }
+    .shop-row button:disabled { opacity: .4; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -259,7 +342,35 @@
       <div id="dlg-choix"></div>
     </div>
 
-    <div id="hint">ZQSD · Maj sprint · Espace saut · Clic G/D attaques · Ctrl esquive · E compétence · R ultime · Tab lock-on · <b>F parler · J journal</b></div>
+    <div id="hud-gold"></div>
+
+    <!-- Phase 6 : inventaire & boutique -->
+    <div id="inventory">
+      <div class="inv-head">Inventaire <span class="j-close">I pour fermer</span></div>
+      <div class="inv-body">
+        <div class="inv-left">
+          <div class="inv-sub">Équipement</div>
+          <div id="inv-slots"></div>
+          <div class="inv-sub">Personnage</div>
+          <div id="inv-stats"></div>
+          <div class="inv-sub">Forge</div>
+          <div id="inv-upgrade"></div>
+          <div id="inv-gold"></div>
+        </div>
+        <div class="inv-right">
+          <div class="inv-sub">Sac</div>
+          <div id="inv-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="shop">
+      <div class="shop-head"><span id="shop-title">Marchand</span><span id="shop-gold"></span><span id="shop-close">✕</span></div>
+      <div id="shop-tabs"><button data-mode="acheter" class="on">Acheter</button><button data-mode="vendre">Vendre</button></div>
+      <div id="shop-list"></div>
+    </div>
+
+    <div id="hint">ZQSD · Maj sprint · Espace saut · Clic G/D attaques · Ctrl esquive · E compétence · R ultime · Tab lock-on · <b>F parler · I sac · J journal</b></div>
   </div>
 
   <div id="loading">

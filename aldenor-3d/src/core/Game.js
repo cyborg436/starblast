@@ -81,13 +81,27 @@ export class Game {
     const { Interaction } = await import('../systems/Interaction.js');
     const { SaveSystem } = await import('../systems/SaveSystem.js');
     const { QuestJournal } = await import('../ui/QuestJournal.js');
+    // ---- Phase 6 : inventaire, équipement, loot, boutiques ----
+    const { Equipment } = await import('../systems/Equipment.js');
+    const { LootSystem } = await import('../systems/LootSystem.js');
+    const { InventoryUI } = await import('../ui/InventoryUI.js');
+    const { ShopSystem } = await import('../systems/ShopSystem.js');
 
     this.flags = {};
     this.inventory = new Inventory();
     this.npcs = new NpcManager(this.scenes.scene, this.world);
     this.quests = new QuestSystem({ player: this.player, world: this.world, inventory: this.inventory, npcs: this.npcs });
     this.npcs.quests = this.quests;
+    // progression des quêtes de collecte quand le sac change
     this.inventory.onChange = (id) => { if (id !== 'or') this.quests.notifyCollect(id); };
+
+    // équipement (stats réelles) + loot au sol + UI sac/boutique
+    this.equipment = new Equipment({ player: this.player, combat: this.combat, inventory: this.inventory });
+    this.combat.equipment = this.equipment;
+    this.loot = new LootSystem(this.scenes.scene, this.world, this.player, this.inventory);
+    this.inventoryUI = new InventoryUI({ inventory: this.inventory, equipment: this.equipment, player: this.player, combat: this.combat });
+    this.shop = new ShopSystem({ inventory: this.inventory, input: this.input });
+
     this.dialogue = new DialogueSystem({ quests: this.quests, inventory: this.inventory, flags: this.flags, player: this.player });
     this.interaction = new Interaction({
       input: this.input, camera: this.scenes.camera, player: this.player,
@@ -96,39 +110,52 @@ export class Game {
     this.journal = new QuestJournal(this.quests, this.scenes.camera);
     this.dialogue.onToast = (t) => this.journal.toast(t);
     this.dialogue.onRest = () => { this.player.pv = this.player.pvmax; this.combat.stamina.val = this.combat.stamina.max; this.journal.toast('Vous vous reposez : PV et endurance restaurés.', 'quete'); };
+    // ouverture de boutique depuis un dialogue de PNJ marchand
+    this.dialogue.onShop = (key, nom) => this.shop.openShop(key, nom);
+    this.inventoryUI.onToast = (t, k) => this.journal.toast(t, k);
+    this.shop.onToast = (t) => this.journal.toast(t);
+    this.loot.onPickup = (id, n, or) => this.journal.toast(or ? `+${or} or` : `Ramassé : ${this.inventory.nom(id)}${n > 1 ? ' ×' + n : ''}`);
 
-    // butin à la mort d'un ennemi + progression des quêtes de chasse
-    this.combat.onKill = (e) => { this.inventory.rollLoot(e.id); this.quests.notifyKill(e.id); };
+    // butin AU SOL à la mort d'un ennemi + progression des quêtes de chasse
+    this.combat.onKill = (e) => { this.loot.dropFor(e.id, e.position); this.quests.notifyKill(e.id); };
 
-    // sauvegarde
-    this.save = new SaveSystem({ quests: this.quests, inventory: this.inventory, flags: this.flags, player: this.player });
+    // équipement de départ : épée rouillée + quelques provisions
+    this.inventory.add('epee1', 1); this.equipment.equip('epee1');
+    this.inventory.add('ppv1', 3); this.inventory.add('arm1', 1);
+
+    // sauvegarde (inclut l'équipement)
+    this.save = new SaveSystem({ quests: this.quests, inventory: this.inventory, equipment: this.equipment, flags: this.flags, player: this.player });
     if (this.save.hasSave()) { this.save.load(); this.journal.toast('Partie chargée.', 'quete'); }
 
     // routage clavier UI (journal J, fermeture/choix de dialogue) +
     // synchro du gel gameplay. Placé EN TÊTE de frame.
     const uiInput = {
       update: () => {
-        // ouverture/fermeture du journal (bloquée si un dialogue est ouvert)
-        if (this.input.wasPressed('KeyJ') && !this.dialogue.active) this.journal.toggle();
+        const modaleAutre = this.dialogue.active || this.shop.open;
+        // bascule inventaire (I) / journal (J) — pas pendant dialogue/boutique
+        if (this.input.wasPressed('KeyI') && !modaleAutre) this.inventoryUI.toggle();
+        if (this.input.wasPressed('KeyJ') && !modaleAutre && !this.inventoryUI.open) this.journal.toggle();
         // routage des touches vers le dialogue actif
         if (this.dialogue.active) {
           for (const code of this.input.pressed) this.dialogue.key(code);
-        } else if (this.input.wasPressed('Escape') && this.journal.open) {
-          this.journal.toggle();
+        } else if (this.input.wasPressed('Escape')) {
+          if (this.shop.open) this.shop.close();
+          else if (this.inventoryUI.open) this.inventoryUI.toggle();
+          else if (this.journal.open) this.journal.toggle();
         }
         // gèle le gameplay tant qu'une UI modale est ouverte
-        this.input.uiActive = this.dialogue.active || this.journal.open;
+        this.input.uiActive = this.dialogue.active || this.journal.open || this.inventoryUI.open || this.shop.open;
       },
     };
 
     // ordre d'une frame : uiInput → physique → joueur → combat → PNJ →
-    // interaction → quêtes → caméra → monde → journal → sauvegarde → HUD
+    // interaction → quêtes → loot → caméra → monde → journal → sauvegarde → HUD
     this.updatables.push(
       uiInput,
       { update: (dt) => this.physics.step(dt) },
       this.player, this.combat,
       { update: (dt, el) => this.npcs.update(dt, el, this.player) },
-      this.interaction, this.quests, this.cameraCtrl, this.world,
+      this.interaction, this.quests, this.loot, this.cameraCtrl, this.world,
       this.journal, this.save, this.hud,
     );
 

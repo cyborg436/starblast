@@ -110,7 +110,8 @@ export class CombatSystem {
     if (e.staggerT > 0) mult *= MULT_DEGATS_STAGGER;
     const stagger = damagePoise(e, poise + (lourd ? 10 : 0));
 
-    // 3. dégâts
+    // 3. dégâts — multipliés par le bonus d'arme équipée (Equipment)
+    if (this.equipment) mult *= this.equipment.damageMult();
     const total = Math.max(1, Math.round(degats * mult));
     e.pv -= total;
     e.hitFlash = 1;
@@ -165,15 +166,17 @@ export class CombatSystem {
   }
 
   /* ---------- dégâts subis par le joueur ---------- */
-  playerTakeDamage(montant, fromPos) {
+  playerTakeDamage(montant, fromPos, element = null) {
     const p = this.player;
     if (p.dead || this.invincible || p.hurtT > 0) return;
-    p.pv = Math.max(0, p.pv - montant);
+    // mitigation par l'équipement : défense (plat) + résistance élémentaire
+    const recu = this.equipment ? this.equipment.mitigate(montant, element) : Math.round(montant);
+    p.pv = Math.max(0, p.pv - recu);
     p.hurtT = 0.55; // invulnérabilité post-coup
     this._combatT = 5;
     this.skills.gainEnergie(4); // "un peu" d'énergie en subissant
     this.juice.shake(0.35);
-    this.juice.dmgNumber(p.position, '-' + montant, { couleur: '#ff7060' });
+    this.juice.dmgNumber(p.position, '-' + recu, { couleur: '#ff7060' });
     this.juice.burst(p.position, '#ff6050', 10, { vitesse: 4 });
     if (fromPos) {
       const d = Math.max(p.position.distanceTo(fromPos), 0.3);

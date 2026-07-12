@@ -8,9 +8,10 @@
 const KEY = 'aldenor3d_save_v1';
 
 export class SaveSystem {
-  constructor({ quests, inventory, flags, player }) {
+  constructor({ quests, inventory, equipment, flags, player }) {
     this.quests = quests;
     this.inventory = inventory;
+    this.equipment = equipment;
     this.flags = flags;
     this.player = player;
     this._acc = 0;
@@ -26,6 +27,7 @@ export class SaveSystem {
       v: 1,
       quests: this.quests.serialize(),
       inventory: this.inventory.serialize(),
+      equipment: this.equipment ? this.equipment.serialize() : null,
       flags: this.flags,
       player: { x: p.x, y: p.y, z: p.z, pv: this.player.pv, lvl: this.player.lvl, xp: this.player.xp },
     };
@@ -38,6 +40,7 @@ export class SaveSystem {
     if (!data || data.v !== 1) return false;
     this.quests.load(data.quests);
     this.inventory.load(data.inventory);
+    if (this.equipment) this.equipment.load(data.equipment);
     Object.assign(this.flags, data.flags || {});
     if (data.player) {
       this.player.pv = data.player.pv ?? this.player.pv;

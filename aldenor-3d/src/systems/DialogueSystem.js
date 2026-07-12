@@ -120,6 +120,7 @@ export class DialogueSystem {
     if (a.give) { this.inventory.add(a.give.id, a.give.n || 1); this.onToast?.(`Reçu : ${this.inventory.nom(a.give.id)} ×${a.give.n || 1}`); }
     if (a.flag) this.flags[a.flag] = true;
     if (a.rest) this.onRest?.();
+    if (a.shop) { const nom = this.trees[this.npc?.role]?.nom; this.close(); this.onShop?.(a.shop, nom); }
     if (a.toast) this.onToast?.(a.toast);
   }
 

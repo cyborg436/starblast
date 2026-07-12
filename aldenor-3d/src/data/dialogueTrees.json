@@ -78,8 +78,11 @@
         "choices": [{ "text": "Superbe travail.", "action": { "turnin": "mq3" }, "next": null }]
       },
       "defaut": {
-        "text": "Besoin d'une lame ou d'un plastron ? Repassez quand ma forge sera chaude.",
-        "choices": [{ "text": "Au revoir.", "next": null }]
+        "text": "Besoin d'une lame ou d'un plastron ? Ma forge est chaude.",
+        "choices": [
+          { "text": "Voir tes armes et armures.", "action": { "shop": "forgeron" }, "next": null },
+          { "text": "Une autre fois.", "next": null }
+        ]
       }
     }
   },
@@ -89,9 +92,10 @@
     "rules": [{ "node": "accueil" }],
     "nodes": {
       "accueil": {
-        "text": "Bienvenue dans mon échoppe ! J'ai tout ce qu'il faut pour survivre dehors. Tenez, un petit cadeau de bienvenue.",
+        "text": "Bienvenue dans mon échoppe ! J'ai tout ce qu'il faut pour survivre dehors.",
         "choices": [
-          { "text": "Merci !", "cond": { "flagNot": "cadeau_marchand" }, "action": { "give": { "id": "pain", "n": 2 }, "flag": "cadeau_marchand" }, "next": null },
+          { "text": "Voir tes marchandises.", "action": { "shop": "marchand" }, "next": null },
+          { "text": "Merci pour le cadeau !", "cond": { "flagNot": "cadeau_marchand" }, "action": { "give": { "id": "pain", "n": 2 }, "flag": "cadeau_marchand" }, "next": null },
           { "text": "Une autre fois.", "next": null }
         ]
       }
